@@ -1,0 +1,27 @@
+# supabase/config.toml
+project_id = "fzplzclxdytykxtfgzef"
+
+[api]
+port = 54321
+schemas = ["public", "storage", "graphql"]
+
+[db]
+port = 54322
+major_version = 15
+
+[studio]
+port = 54323
+
+[functions]
+  [functions.create-payment-intent]
+    entrypoint = "functions/create-payment-intent/index.ts"
+    import_map = "functions/_shared/import_map.json"
+
+  [functions.payment-webhook]
+    entrypoint = "functions/payment-webhook/index.ts"
+    import_map = "functions/_shared/import_map.json"
+
+  [functions.contact-email]
+    # Se mantienen otras funciones si existen
+  [functions.process-booking-completion]
+
