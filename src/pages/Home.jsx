@@ -47,7 +47,7 @@ const Home = ({ currentUser, navigate, setView }) => {
         const { data: walkersRes } = await supabase
           .from('walkers')
           .select(`*, user_profiles (*)`)
-          .eq('is_verified', true)
+          .eq('overall_verification_status', 'approved')
           .limit(3);
         setWalkers(walkersRes || []);
 

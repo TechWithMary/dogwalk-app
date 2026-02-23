@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient'; 
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, User, Dog, Wallet, LogOut, Loader2, Shield } from 'lucide-react';
+import { ChevronRight, User, Dog, Wallet, LogOut, Loader2, Shield, Camera } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const Profile = ({ onLogout, navigate: propNavigate }) => {
   const routerNavigate = useNavigate();
   const navigate = propNavigate || routerNavigate;
+  const fileInputRef = useRef(null);
   
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const [profile, setProfile] = useState(null);
 
   useEffect(() => {
@@ -23,7 +26,6 @@ const Profile = ({ onLogout, navigate: propNavigate }) => {
           .eq('user_id', user.id)
           .maybeSingle();
 
-        // 1. AHORA TAMBIÉN PEDIMOS EL ESTADO DE VERIFICACIÓN
         const { data: walkerData } = await supabase
           .from('walkers')
           .select('name, overall_verification_status')
@@ -66,7 +68,6 @@ const Profile = ({ onLogout, navigate: propNavigate }) => {
             email: user.email,
             role: role,
             profile_photo_url: userProfile?.profile_photo_url || null,
-            // 2. GUARDAMOS EL ESTADO EN EL PERFIL
             verification_status: walkerData?.overall_verification_status || 'pending' 
         });
 
@@ -78,6 +79,43 @@ const Profile = ({ onLogout, navigate: propNavigate }) => {
     };
     fetchProfile();
   }, []);
+
+  const handlePhotoUpload = async (event) => {
+    try {
+      setUploading(true);
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Math.random()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      const { error: updateError } = await supabase
+        .from('user_profiles')
+        .update({ profile_photo_url: publicUrl })
+        .eq('user_id', user.id);
+
+      if (updateError) throw updateError;
+
+      setProfile({ ...profile, profile_photo_url: publicUrl });
+      toast.success('¡Foto actualizada!');
+    } catch (error) {
+      toast.error('Error al subir la foto');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const isWalker = profile?.role === 'walker';
 
@@ -100,19 +138,33 @@ const Profile = ({ onLogout, navigate: propNavigate }) => {
   return (
     <div className="p-6 bg-gray-50 min-h-full">
       <div className="text-center mb-8">
-        <div className="w-24 h-24 rounded-full bg-gray-200 mx-auto mb-4 flex items-center justify-center overflow-hidden">
-          {profile?.profile_photo_url ? (
+        <div 
+          onClick={() => !uploading && fileInputRef.current.click()}
+          className="relative w-24 h-24 rounded-full bg-gray-200 mx-auto mb-4 flex items-center justify-center overflow-hidden cursor-pointer group border-4 border-white shadow-md"
+        >
+          {uploading ? (
+            <Loader2 className="animate-spin text-emerald-500" />
+          ) : profile?.profile_photo_url ? (
             <img src={profile.profile_photo_url} alt="Profile" className="w-full h-full object-cover" />
           ) : (
             <User className="w-12 h-12 text-gray-400" />
           )}
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <Camera className="text-white w-6 h-6" />
+          </div>
         </div>
+
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          onChange={handlePhotoUpload} 
+          className="hidden" 
+          accept="image/*" 
+        />
         
         <h1 className="text-2xl font-bold">{displayName}</h1>
-        
         <p className="text-gray-500 mb-2">{profile?.email}</p>
 
-        {/* 3. MOSTRAMOS LA ETIQUETA CORRECTA SEGÚN EL ESTADO */}
         {isWalker && profile?.verification_status === 'approved' && (
           <span className="inline-block bg-emerald-100 text-emerald-700 text-xs px-3 py-1 rounded-full font-bold border border-emerald-200">
             Paseador Verificado
@@ -142,21 +194,12 @@ const Profile = ({ onLogout, navigate: propNavigate }) => {
         )}
         
         <h3 className="text-xs font-bold text-gray-400 uppercase px-2 mt-6">Pagos</h3>
-        
-        <ProfileButton 
-          icon={<Wallet className="text-gray-600" />} 
-          label={isWalker ? "Mis Ganancias" : "Mi Billetera"} 
-          onClick={() => navigate(isWalker ? '/walker-balance' : '/wallet')} 
-        />
+        <ProfileButton icon={<Wallet className="text-gray-600" />} label={isWalker ? "Mis Ganancias" : "Mi Billetera"} onClick={() => navigate(isWalker ? '/walker-balance' : '/wallet')} />
 
         {profile?.role === 'admin' && (
           <>
             <h3 className="text-xs font-bold text-gray-400 uppercase px-2 mt-6">Administración</h3>
-            <ProfileButton 
-              icon={<Shield className="text-emerald-600" />} 
-              label="Verificar Paseadores" 
-              onClick={() => navigate('/admin/verifications')} 
-            />
+            <ProfileButton icon={<Shield className="text-emerald-600" />} label="Verificar Paseadores" onClick={() => navigate('/admin/verifications')} />
           </>
         )}
 
