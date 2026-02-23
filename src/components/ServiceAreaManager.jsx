@@ -4,15 +4,14 @@ import { supabase } from '../supabaseClient';
 import { Save, X, MapPin, Navigation, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// --- API KEY ---
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
 const containerStyle = { width: '100%', height: '300px', borderRadius: '16px' };
-const defaultCenter = { lat: 6.2442, lng: -75.5812 }; // Medellín por defecto
+const defaultCenter = { lat: 6.2442, lng: -75.5812 }; 
 
 const ServiceAreaManager = ({ walkerId, onClose }) => {
   const [center, setCenter] = useState(defaultCenter);
-  const [radius, setRadius] = useState(3); // km
+  const [radius, setRadius] = useState(3); 
   const [address, setAddress] = useState('');
   const [loading, setLoading] = useState(false);
   const [map, setMap] = useState(null);
@@ -22,7 +21,7 @@ const ServiceAreaManager = ({ walkerId, onClose }) => {
     googleMapsApiKey: GOOGLE_MAPS_API_KEY,
   });
 
-  // 1. Cargar datos actuales del walker
+  
   useEffect(() => {
     const fetchCurrentLocation = async () => {
       const { data, error } = await supabase
@@ -42,27 +41,27 @@ const ServiceAreaManager = ({ walkerId, onClose }) => {
     fetchCurrentLocation();
   }, [walkerId]);
 
-  // 2. Función para traducir coordenadas a dirección (Geocoding)
+ 
   const getAddressFromCoords = (lat, lng) => {
     if (!window.google || !window.google.maps) return;
 
     const geocoder = new window.google.maps.Geocoder();
     geocoder.geocode({ location: { lat, lng } }, (results, status) => {
       if (status === "OK" && results[0]) {
-        // Tomamos una dirección simplificada (Barrio, Ciudad)
+        
         const formatted = results[0].address_components
           .filter(c => c.types.includes('neighborhood') || c.types.includes('locality'))
           .map(c => c.long_name)
           .join(', ');
         
-        // Si no encuentra barrio, usa la dirección formateada completa
+        
         const finalAddr = formatted || results[0].formatted_address;
         setAddress(finalAddr);
       }
     });
   };
 
-  // 3. Manejar arrastre del pin
+  
   const onMarkerDragEnd = (e) => {
     const lat = e.latLng.lat();
     const lng = e.latLng.lng();
@@ -70,7 +69,7 @@ const ServiceAreaManager = ({ walkerId, onClose }) => {
     getAddressFromCoords(lat, lng);
   };
 
-  // 4. Usar GPS del dispositivo
+ 
   const handleCurrentLocation = () => {
     if (navigator.geolocation) {
       toast.loading("Obteniendo ubicación...", { id: 'gps' });
@@ -90,7 +89,7 @@ const ServiceAreaManager = ({ walkerId, onClose }) => {
     }
   };
 
-  // 5. Guardar cambios en Supabase
+  
   const handleSave = async () => {
     setLoading(true);
     try {
@@ -100,13 +99,13 @@ const ServiceAreaManager = ({ walkerId, onClose }) => {
           service_latitude: center.lat,
           service_longitude: center.lng,
           service_radius_km: radius,
-          location: address // Guardamos el nombre del barrio/zona
+          location: address 
         })
         .eq('id', walkerId);
 
       if (error) throw error;
       toast.success('Zona de servicio actualizada');
-      onClose(); // Cerrar modal
+      onClose(); 
     } catch (error) {
       console.error(error);
       toast.error('Error al guardar zona');
@@ -119,7 +118,7 @@ const ServiceAreaManager = ({ walkerId, onClose }) => {
     <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-4 backdrop-blur-sm">
       <div className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl animate-fade-in-up">
         
-        {/* Header */}
+        
         <div className="flex justify-between items-center mb-4">
           <div>
             <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
@@ -132,7 +131,7 @@ const ServiceAreaManager = ({ walkerId, onClose }) => {
           </button>
         </div>
 
-        {/* Mapa */}
+        
         <div className="relative mb-6 rounded-2xl overflow-hidden border border-gray-200 shadow-inner">
           {isLoaded ? (
             <GoogleMap
@@ -142,14 +141,14 @@ const ServiceAreaManager = ({ walkerId, onClose }) => {
               onLoad={setMap}
               options={{ disableDefaultUI: true, zoomControl: false }}
             >
-              {/* Pin del Walker */}
+              
               <Marker
                 position={center}
                 draggable={true}
                 onDragEnd={onMarkerDragEnd}
                 animation={window.google?.maps?.Animation.DROP}
               />
-              {/* Círculo de cobertura */}
+              
               <Circle
                 center={center}
                 radius={radius * 1000} // Metros
@@ -168,7 +167,7 @@ const ServiceAreaManager = ({ walkerId, onClose }) => {
             </div>
           )}
 
-          {/* Botón GPS Flotante */}
+          
           <button
             onClick={handleCurrentLocation}
             className="absolute bottom-4 right-4 bg-white p-3 rounded-full shadow-lg text-gray-700 hover:text-blue-600 active:scale-95 transition-all"
@@ -178,10 +177,10 @@ const ServiceAreaManager = ({ walkerId, onClose }) => {
           </button>
         </div>
 
-        {/* Controles */}
+        
         <div className="space-y-4">
           
-          {/* Input Dirección (Solo lectura visual, se llena con el mapa) */}
+          
           <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-center gap-3">
             <MapPin className="w-5 h-5 text-gray-400 shrink-0" />
             <div className="flex-1">
@@ -190,7 +189,7 @@ const ServiceAreaManager = ({ walkerId, onClose }) => {
             </div>
           </div>
 
-          {/* Slider de Radio */}
+         
           <div>
             <div className="flex justify-between mb-2">
               <span className="text-sm font-bold text-gray-700">Radio de cobertura</span>
@@ -211,7 +210,7 @@ const ServiceAreaManager = ({ walkerId, onClose }) => {
             </div>
           </div>
 
-          {/* Botón Guardar */}
+          
           <button
             onClick={handleSave}
             disabled={loading}

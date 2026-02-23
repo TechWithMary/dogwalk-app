@@ -5,34 +5,32 @@ import toast from 'react-hot-toast';
 import { GoogleMap, useJsApiLoader, Marker, Autocomplete } from '@react-google-maps/api';
 import MercadoPagoButton from '../components/MercadoPagoButton';
 
-// --- PON TU API KEY AQUÍ ---
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY; 
-// ---------------------------
 
 const containerStyle = { width: '100%', height: '100%' };
 
-// --- COORDENADAS MEDELLÍN (El Poblado / Centro) ---
 const centerMedellin = { lat: 6.2442, lng: -75.5812 };
 
-const Booking = ({ setView }) => {
-  // --- ESTRATEGIA DE PRECIOS (30k Base) ---
+const Booking = ({ setView, navigate }) => {
   const prices = { 
-    '1h': 30000,   // Tarifa Base
-    '2h': 55000,   // Ahorro de $5.000
-    '3h': 75000    // Ahorro de $15.000
+    '1h': 30000,
+    '2h': 55000,
+    '3h': 75000
   };
 
   const [duration, setDuration] = useState('1h');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [address, setAddress] = useState('');
-  const [bookingType, setBookingType] = useState('schedule'); // 'schedule' o 'now'
+  const [bookingType, setBookingType] = useState('schedule');
   const [gettingLocation, setGettingLocation] = useState(false);
   const [isReadyForPayment, setIsReadyForPayment] = useState(false);
   
   const [map, setMap] = useState(null);
-  const [markerPos, setMarkerPos] = useState(centerMedellin); // Inicia en Medellín
+  const [markerPos, setMarkerPos] = useState(centerMedellin);
   const autocompleteRef = useRef(null);
+
+  const onNavigate = navigate || setView;
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -42,17 +40,11 @@ const Booking = ({ setView }) => {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
           };
-          
-          // 1. Guardamos la posición del usuario
           setMarkerPos(userPos);
-
-          // 2. Si el mapa ya cargó, volamos hacia allá
           if (map) {
             map.panTo(userPos);
             map.setZoom(15);
           }
-          
-          // Nota: La dirección en texto se actualizará cuando el mapa termine de cargar
         },
         (error) => {
           console.log("GPS no permitido, nos quedamos en Medellín.");
@@ -61,7 +53,6 @@ const Booking = ({ setView }) => {
     }
   }, [map]);
 
-  
   useEffect(() => {
     const validateForm = () => {
       if (!address) return false;
@@ -77,7 +68,6 @@ const Booking = ({ setView }) => {
       if (!user) throw new Error('No hay usuario conectado');
 
       const isScheduled = bookingType === 'schedule';
-      
       const finalDate = isScheduled ? date : new Date().toISOString().slice(0, 10);
       const finalTime = isScheduled ? time : new Date().toTimeString().slice(0, 5);
 
@@ -97,7 +87,8 @@ const Booking = ({ setView }) => {
       if (error) throw error;
 
       toast.success('¡Reserva creada con éxito! Buscando paseador...');
-      setView('/home'); 
+      
+      if (onNavigate) onNavigate('/home');
 
     } catch (error) {
       console.error(error);
@@ -177,21 +168,19 @@ const Booking = ({ setView }) => {
   };
 
   return (
-    <div className="bg-gray-50 min-h-full flex flex-col relative pb-24 h-screen">
+    <div className="bg-gray-50 min-h-screen flex flex-col relative h-screen overflow-hidden">
       
-      {/* Botón Volver */}
       <div className="absolute top-4 left-4 z-[1000]">
-        <button onClick={() => setView('/home')} className="bg-white p-3 rounded-full shadow-lg border border-gray-100 hover:bg-gray-50 active:scale-95 transition-all">
+        <button onClick={() => onNavigate('/home')} className="bg-white p-3 rounded-full shadow-lg border border-gray-100 hover:bg-gray-50 active:scale-95 transition-all">
           <ArrowLeft className="w-6 h-6 text-gray-800" />
         </button>
       </div>
       
-      {/* MAPA */}
-      <div className="w-full h-[45%] relative z-0 bg-gray-200">
+      <div className="w-full h-[40%] relative z-0 bg-gray-200 shrink-0">
          {isLoaded ? (
              <GoogleMap
                mapContainerStyle={containerStyle}
-               center={centerMedellin} // <--- AHORA SÍ MEDELLÍN
+               center={centerMedellin}
                zoom={13}
                onLoad={onLoad}
                options={{ disableDefaultUI: true, zoomControl: false }}
@@ -200,7 +189,6 @@ const Booking = ({ setView }) => {
                     position={markerPos} 
                     draggable={true} 
                     onDragEnd={onMarkerDragEnd}
-                    animation={window.google?.maps?.Animation?.DROP}
                 />
              </GoogleMap>
          ) : (
@@ -221,10 +209,8 @@ const Booking = ({ setView }) => {
          </div>
       </div>
 
-      {/* FORMULARIO */}
-      <div className="flex-1 bg-white rounded-t-[30px] -mt-6 relative z-10 px-6 py-6 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] overflow-y-auto">
+      <div className="flex-1 bg-white rounded-t-[30px] -mt-6 relative z-10 px-6 py-6 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] overflow-y-auto pb-48">
         
-        {/* BUSCADOR */}
         <div className="mb-6">
           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 block">Dirección de recogida</label>
           {isLoaded && (
@@ -246,7 +232,6 @@ const Booking = ({ setView }) => {
           )}
         </div>
 
-        {/* TIPO DE RESERVA */}
         <div className="mb-5">
             <div className="flex p-1 bg-gray-100 rounded-xl">
                 <button onClick={() => setBookingType('schedule')} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${bookingType === 'schedule' ? 'bg-white text-emerald-800 shadow-sm' : 'text-gray-500'}`}>Programar</button>
@@ -254,7 +239,6 @@ const Booking = ({ setView }) => {
             </div>
         </div>
 
-        {/* FECHA Y HORA */}
         {bookingType === 'schedule' && (
             <div className="grid grid-cols-2 gap-4 mb-6 animate-fade-in-down">
                 <div>
@@ -274,9 +258,8 @@ const Booking = ({ setView }) => {
             </div>
         )}
 
-        {/* SELECTOR DE DURACIÓN Y PRECIO */}
         <h3 className="font-black text-gray-900 text-sm mb-3">Duración del Paseo</h3>
-        <div className="grid grid-cols-3 gap-3 mb-24">
+        <div className="grid grid-cols-3 gap-3 mb-10">
           {Object.entries(prices).map(([key, price]) => (
             <button 
                 key={key} 
@@ -290,7 +273,6 @@ const Booking = ({ setView }) => {
         </div>
       </div>
 
-      {/* FOOTER DE PAGO */}
       <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-100 p-5 pb-8 z-[2000] shadow-lg">
         <div className="flex justify-between items-center mb-4">
           <div className="flex flex-col">

@@ -39,10 +39,10 @@ const PetManager = ({ onBack }) => {
       const user = agentRegistry.get('BackendAgent').getUser();
       let error;
       if (editingPet) {
-        // Update
+        
         ({ error } = await supabase.from('pets').update(petData).eq('id', editingPet.id));
       } else {
-        // Insert
+        
         ({ error } = await supabase.from('pets').insert({ ...petData, owner_id: user.id }));
       }
       if (error) throw error;
@@ -104,7 +104,7 @@ const PetManager = ({ onBack }) => {
   );
 };
 
-// Componente del formulario para añadir/editar mascota
+
 const PetForm = ({ pet, onSave, onCancel }) => {
     const [formData, setFormData] = useState({
         name: pet?.name || '',
