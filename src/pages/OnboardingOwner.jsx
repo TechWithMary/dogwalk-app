@@ -1,11 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import toast from 'react-hot-toast';
-import { Dog, ArrowRight, Loader2, AlertTriangle } from 'lucide-react';
+import { Dog, ArrowRight, Loader2, AlertTriangle, MapPin } from 'lucide-react';
 
 const OnboardingOwner = () => {
   const [petData, setPetData] = useState({ name: '', breed: '', age_years: '' });
+  const [address, setAddress] = useState('');
+  const [coords, setCoords] = useState({ lat: null, lng: null });
   const [loading, setLoading] = useState(false);
+  const mapRef = useRef(null);
+  const autoCompleteRef = useRef(null);
+
+  useEffect(() => {
+    if (window.google) {
+      autoCompleteRef.current = new window.google.maps.places.Autocomplete(
+        document.getElementById('address-input'),
+        {
+          componentRestrictions: { country: "co" },
+          fields: ["address_components", "geometry", "formatted_address"],
+        }
+      );
+
+      autoCompleteRef.current.addListener("place_changed", () => {
+        const place = autoCompleteRef.current.getPlace();
+        if (place.geometry) {
+          setAddress(place.formatted_address);
+          setCoords({
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng(),
+          });
+        }
+      });
+    }
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -14,16 +41,12 @@ const OnboardingOwner = () => {
 
   const handleCompleteProfile = async (e) => {
     e.preventDefault();
-    if (!petData.name.trim()) {
-      toast.error('Por favor, dale un nombre a tu mascota.');
+    if (!petData.name.trim() || !petData.breed || !petData.age_years) {
+      toast.error('Completa los datos de tu mascota');
       return;
     }
-    if (!petData.breed) {
-      toast.error('Por favor, selecciona una raza.');
-      return;
-    }
-    if (!petData.age_years) {
-      toast.error('Por favor, selecciona el rango de edad.');
+    if (!coords.lat) {
+      toast.error('Por favor selecciona una dirección válida del buscador');
       return;
     }
 
@@ -33,7 +56,6 @@ const OnboardingOwner = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuario no encontrado');
 
-      // Guardar la mascota con los nuevos datos de los selectores
       const { error: petError } = await supabase.from('pets').insert([
         { 
           name: petData.name,
@@ -45,124 +67,105 @@ const OnboardingOwner = () => {
       
       if (petError) throw petError;
       
-      const { data: existingProfile } = await supabase
+      const { error: profileError } = await supabase
         .from('user_profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
+        .update({
+          address: address,
+          lat: coords.lat,
+          lat: coords.lng,
+          is_profile_complete: true
+        })
+        .eq('user_id', user.id);
+        
+      if (profileError) throw profileError;
 
-      if (existingProfile) {
-        const { error: updateError } = await supabase
-          .from('user_profiles')
-          .update({ is_profile_complete: true })
-          .eq('user_id', user.id);
-        if (updateError) throw updateError;
-      } else {
-        const { error: insertError } = await supabase
-          .from('user_profiles')
-          .insert({
-            user_id: user.id,
-            first_name: user.user_metadata?.first_name || user.user_metadata?.name?.split(' ')[0] || 'Usuario',
-            last_name: user.user_metadata?.last_name || '',
-            role: 'owner',
-            is_profile_complete: true
-          });
-        if (insertError) throw insertError;
-      }
-
-      toast.success('¡Mascota añadida con éxito!');
+      toast.success('¡Registro completado!');
       window.location.href = '/home';
 
     } catch (error) {
-      console.error(error);
-      toast.error('Error al guardar: ' + error.message);
+      toast.error('Error: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 p-6 text-center">
-      <div className="flex-1 flex flex-col justify-center">
-        <div className="mx-auto bg-emerald-100 p-4 rounded-full mb-6 w-fit">
-          <Dog className="w-10 h-10 text-emerald-600" />
+    <div className="flex flex-col h-full bg-gray-50 p-6">
+      <div className="max-w-sm mx-auto w-full">
+        <div className="text-center mb-8">
+            <div className="mx-auto bg-emerald-100 p-4 rounded-full mb-4 w-fit">
+            <Dog className="w-8 h-8 text-emerald-600" />
+            </div>
+            <h1 className="text-2xl font-black text-gray-800">¡Bienvenido!</h1>
+            <p className="text-gray-500 text-sm">Configura tu perfil para empezar.</p>
         </div>
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">¡Bienvenido a HappiWalk!</h1>
-        <p className="text-gray-600 mb-8">
-          Cuéntanos sobre tu mascota para encontrarle el mejor paseador.
-        </p>
 
-        <form onSubmit={handleCompleteProfile} className="max-w-sm mx-auto w-full space-y-5 text-left">
-          {/* NOMBRE */}
+        <form onSubmit={handleCompleteProfile} className="space-y-5 text-left">
           <div>
-            <label className="text-[10px] font-bold text-gray-400 uppercase ml-2 mb-1 block">¿Cómo se llama?</label>
+            <label className="text-[10px] font-black text-gray-400 uppercase ml-2 mb-1 block">¿Dónde vive tu mascota?</label>
+            <div className="relative">
+                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                    id="address-input"
+                    type="text"
+                    placeholder="Busca tu dirección..."
+                    className="w-full h-12 pl-12 pr-4 bg-white border-2 border-gray-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 transition outline-none font-medium"
+                    required
+                />
+            </div>
+          </div>
+
+          <div className="bg-gray-100 h-[1px] w-full my-6"></div>
+
+          <div>
+            <label className="text-[10px] font-black text-gray-400 uppercase ml-2 mb-1 block">Nombre de tu mascota</label>
             <input
               type="text"
               name="name"
               value={petData.name}
               onChange={handleInputChange}
-              className="w-full h-12 px-4 bg-white border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 transition outline-none font-medium"
-              placeholder="Nombre de tu mascota"
+              className="w-full h-12 px-4 bg-white border-2 border-gray-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
+              placeholder="Ej. Bruno"
               required
             />
           </div>
 
-          {/* RAZA */}
-          <div>
-            <label className="text-[10px] font-bold text-gray-400 uppercase ml-2 mb-1 block">¿De qué raza es?</label>
-            <select
-              name="breed"
-              value={petData.breed}
-              onChange={handleInputChange}
-              className="w-full h-12 px-4 bg-white border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 transition outline-none font-medium"
-              required
-            >
-              <option value="">Selecciona una raza</option>
-              <option value="Criollo">Criollo / Mestizo</option>
-              <option value="Labrador">Labrador Retriever</option>
-              <option value="Golden">Golden Retriever</option>
-              <option value="Poodle">French Poodle</option>
-              <option value="Pastor Alemán">Pastor Alemán</option>
-              <option value="Bulldog">Bulldog Francés/Inglés</option>
-              <option value="Schnauzer">Schnauzer</option>
-              <option value="Beagle">Beagle</option>
-              <option value="Pitbull">Pitbull</option>
-              <option value="Pinscher">Pinscher</option>
-              <option value="Otro">Otra raza...</option>
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-2 mb-1 block">Raza</label>
+                <select name="breed" value={petData.breed} onChange={handleInputChange} className="w-full h-12 px-3 bg-white border-2 border-gray-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none font-medium text-sm">
+                    <option value="">Selecciona</option>
+                    <option value="Criollo">Criollo</option>
+                    <option value="Labrador">Labrador</option>
+                    <option value="Golden">Golden</option>
+                    <option value="Poodle">Poodle</option>
+                    <option value="Bulldog">Bulldog</option>
+                    <option value="Otro">Otro</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-2 mb-1 block">Edad</label>
+                <select name="age_years" value={petData.age_years} onChange={handleInputChange} className="w-full h-12 px-3 bg-white border-2 border-gray-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none font-medium text-sm">
+                    <option value="">Selecciona</option>
+                    <option value="Cachorro">Cachorro</option>
+                    <option value="Joven">Joven</option>
+                    <option value="Adulto">Adulto</option>
+                    <option value="Senior">Senior</option>
+                </select>
+              </div>
           </div>
 
-          {/* EDAD CON ADVERTENCIA */}
-          <div>
-            <label className="text-[10px] font-bold text-gray-400 uppercase ml-2 mb-1 block">¿Qué edad tiene?</label>
-            <select
-              name="age_years"
-              value={petData.age_years}
-              onChange={handleInputChange}
-              className="w-full h-12 px-4 bg-white border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 transition outline-none font-medium"
-              required
-            >
-              <option value="">Selecciona el rango de edad</option>
-              <option value="Cachorro">Cachorro (5 - 12 meses)</option>
-              <option value="Joven">Joven (1 - 3 años)</option>
-              <option value="Adulto">Adulto (3 - 7 años)</option>
-              <option value="Senior">Senior (7+ años)</option>
-            </select>
-            
-            <div className="mt-3 flex items-start gap-2 px-3 py-2 bg-orange-50 border border-orange-100 rounded-lg text-orange-700">
-              <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-              <p className="text-[10px] font-bold leading-tight uppercase">
-                Importante: Solo aceptamos mascotas de 5 meses en adelante con vacunas completas.
-              </p>
-            </div>
+          <div className="flex items-start gap-2 p-3 bg-orange-50 border border-orange-100 rounded-2xl text-orange-700">
+            <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+            <p className="text-[10px] font-bold uppercase leading-tight">Solo aceptamos mascotas de 5 meses en adelante con vacunas completas.</p>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full h-14 flex justify-center items-center gap-2 bg-emerald-500 text-white font-bold rounded-xl shadow-lg active:scale-[0.98] transition-all mt-4"
+            className="w-full h-14 flex justify-center items-center gap-2 bg-emerald-500 text-white font-black rounded-2xl shadow-lg shadow-emerald-100 active:scale-[0.98] transition-all mt-4"
           >
-            {loading ? <Loader2 className="animate-spin" /> : 'Finalizar y Continuar'}
+            {loading ? <Loader2 className="animate-spin" /> : 'Finalizar Registro'}
             {!loading && <ArrowRight size={20} />}
           </button>
         </form>

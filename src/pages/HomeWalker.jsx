@@ -103,6 +103,38 @@ const HomeWalker = ({ currentUser }) => {
     fetchData();
   }, [fetchData]);
 
+  // --- LÓGICA DE RASTREO GPS EN TIEMPO REAL ---
+  useEffect(() => {
+    let watchId;
+    
+    // Si hay paseos activos, empezamos a rastrear
+    if (data.activeWalks.length > 0 && isOnline) {
+      const activeBooking = data.activeWalks[0]; // Rastreamos el primero activo
+      
+      if (navigator.geolocation) {
+        watchId = navigator.geolocation.watchPosition(
+          async (position) => {
+            const { latitude, longitude } = position.coords;
+            
+            await supabase.from('locations').insert([{
+              booking_id: activeBooking.id,
+              walker_id: walkerProfile.id,
+              latitude: latitude,
+              longitude: longitude,
+              timestamp: new Date().toISOString()
+            }]);
+          },
+          (err) => console.error("Error GPS:", err),
+          { enableHighAccuracy: true, distanceFilter: 15 }
+        );
+      }
+    }
+
+    return () => {
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+    };
+  }, [data.activeWalks, isOnline, walkerProfile?.id]);
+
   const acceptBooking = async (bookingId) => {
     setProcessingId(bookingId);
     try {
