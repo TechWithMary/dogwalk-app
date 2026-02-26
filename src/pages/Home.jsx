@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { MapPin, Dog, Star, ChevronRight, Bell, Loader2, CreditCard, Clock } from 'lucide-react';
 import { supabase } from '../supabaseClient'; 
 import { formatMoney } from '../utils/format';
+import RatingModal from './RatingModal';
 
 const Home = ({ currentUser, navigate, setView }) => {
   
@@ -13,6 +14,8 @@ const Home = ({ currentUser, navigate, setView }) => {
   const [upcomingWalk, setUpcomingWalk] = useState(null);
   const [petCount, setPetCount] = useState(0);
   const [displayName, setDisplayName] = useState('Amigo');
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [bookingToRate, setBookingToRate] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -58,7 +61,6 @@ const Home = ({ currentUser, navigate, setView }) => {
           .eq('user_id', user.id);
         setUnreadNotifications(notificationsCount || 0);
 
-       
         const { data: upcomingWalkRes } = await supabase
           .from('bookings')
           .select('*, walkers (*)')
@@ -75,6 +77,20 @@ const Home = ({ currentUser, navigate, setView }) => {
           .eq('owner_id', user.id);
         setPetCount(petsCount || 0);
 
+        const { data: pendingReview } = await supabase
+          .from('bookings')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('status', 'completed')
+          .is('rating', null)
+          .limit(1)
+          .maybeSingle();
+
+        if (pendingReview) {
+          setBookingToRate(pendingReview);
+          setShowRatingModal(true);
+        }
+
       } catch (error) {
         console.error('Error cargando datos:', error.message);
       } finally {
@@ -88,6 +104,16 @@ const Home = ({ currentUser, navigate, setView }) => {
   return (
     <div className="bg-gray-50 min-h-full pb-24">
       
+      {showRatingModal && bookingToRate && (
+        <RatingModal 
+          booking={bookingToRate} 
+          onClose={() => setShowRatingModal(false)} 
+          onSuccess={() => {
+            setShowRatingModal(false);
+          }}
+        />
+      )}
+
       <div className="bg-white px-6 pt-6 pb-4 rounded-b-[30px] shadow-sm mb-6">
         <div className="flex justify-between items-center mb-4">
           <div>
@@ -129,7 +155,6 @@ const Home = ({ currentUser, navigate, setView }) => {
                 </div>
               </div>
 
-              
               <button 
                 onClick={() => onNavigate('/booking-details', { state: { bookingId: upcomingWalk.id } })}
                 className={`w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 ${upcomingWalk.status === 'pending' ? 'bg-orange-500 text-white shadow-lg shadow-orange-200' : 'bg-gray-50 text-gray-600 border border-gray-100'}`}
@@ -175,7 +200,9 @@ const Home = ({ currentUser, navigate, setView }) => {
                       <img src={profile?.profile_photo_url || 'https://via.placeholder.com/150'} alt={fullName} className="w-full h-full object-cover" />
                       <div className="absolute bottom-0 bg-black/40 w-full flex items-center justify-center gap-1 py-0.5">
                           <Star className="w-2 h-2 text-yellow-400 fill-current" />
-                          <span className="text-white text-[8px] font-bold">{walker.rating || 'N/A'}</span>
+                          <span className="text-white text-[8px] font-bold">
+                            {walker.rating ? Number(walker.rating).toFixed(1) : 'Nuevo'}
+                          </span>
                       </div>
                   </div>
                   <div className="flex-1 flex flex-col justify-center">
