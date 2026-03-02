@@ -1,9 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import toast from 'react-hot-toast';
 import { Dog, ArrowRight, Loader2, AlertTriangle, MapPin } from 'lucide-react';
+import { useJsApiLoader, Autocomplete } from '@react-google-maps/api';
+
+const libraries = ['places'];
 
 const OnboardingOwner = () => {
+  const { isLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: libraries
+  });
+
   const [petData, setPetData] = useState({ name: '', breed: '', age_years: '' });
   const [address, setAddress] = useState('');
   const [coords, setCoords] = useState({ lat: null, lng: null });
@@ -16,37 +25,22 @@ const OnboardingOwner = () => {
     "Boxer", "Dachshund", "Siberian Husky", "Chihuahua", "Border Collie", "Pug", "Otro"
   ];
 
-  useEffect(() => {
-    const initAutocomplete = () => {
-      if (window.google && window.google.maps && window.google.maps.places) {
-        autoCompleteRef.current = new window.google.maps.places.Autocomplete(
-          document.getElementById('address-input'),
-          {
-            componentRestrictions: { country: "co" },
-            fields: ["address_components", "geometry", "formatted_address"],
-          }
-        );
+  const onLoad = (autocomplete) => {
+    autoCompleteRef.current = autocomplete;
+  };
 
-        autoCompleteRef.current.addListener("place_changed", () => {
-          const place = autoCompleteRef.current.getPlace();
-          if (place.geometry) {
-            setAddress(place.formatted_address);
-            setCoords({
-              lat: place.geometry.location.lat(),
-              lng: place.geometry.location.lng(),
-            });
-          }
+  const onPlaceChanged = () => {
+    if (autoCompleteRef.current !== null) {
+      const place = autoCompleteRef.current.getPlace();
+      if (place.geometry) {
+        setAddress(place.formatted_address);
+        setCoords({
+          lat: place.geometry.location.lat(),
+          lng: place.geometry.location.lng(),
         });
       }
-    };
-
-    if (window.google) {
-      initAutocomplete();
-    } else {
-      const timer = setTimeout(initAutocomplete, 1000);
-      return () => clearTimeout(timer);
     }
-  }, []);
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -105,6 +99,12 @@ const OnboardingOwner = () => {
     }
   };
 
+  if (!isLoaded) return (
+    <div className="flex items-center justify-center h-screen bg-gray-50">
+      <Loader2 className="animate-spin text-emerald-500" />
+    </div>
+  );
+
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 p-6">
       <div className="max-w-sm mx-auto w-full">
@@ -120,14 +120,19 @@ const OnboardingOwner = () => {
           <div>
             <label className="text-[10px] font-black text-gray-400 uppercase ml-2 mb-1 block">¿Dónde vive tu mascota?</label>
             <div className="relative">
-                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                    id="address-input"
+                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
+                <Autocomplete
+                  onLoad={onLoad}
+                  onPlaceChanged={onPlaceChanged}
+                  options={{ componentRestrictions: { country: "co" } }}
+                >
+                  <input
                     type="text"
                     placeholder="Busca tu dirección..."
                     className="w-full h-12 pl-12 pr-4 bg-white border-2 border-gray-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 transition outline-none font-medium"
                     required
-                />
+                  />
+                </Autocomplete>
             </div>
           </div>
 
