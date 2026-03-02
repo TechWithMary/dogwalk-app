@@ -3,6 +3,7 @@ import { MapPin, Dog, Star, ChevronRight, Bell, Loader2, CreditCard, Clock } fro
 import { supabase } from '../supabaseClient'; 
 import { formatMoney } from '../utils/format';
 import RatingModal from './RatingModal';
+import WalkerProfileView from './WalkerProfileView'; 
 
 const Home = ({ currentUser, navigate, setView }) => {
   
@@ -16,6 +17,9 @@ const Home = ({ currentUser, navigate, setView }) => {
   const [displayName, setDisplayName] = useState('Amigo');
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [bookingToRate, setBookingToRate] = useState(null);
+
+  
+  const [selectedWalker, setSelectedWalker] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -100,6 +104,17 @@ const Home = ({ currentUser, navigate, setView }) => {
 
     fetchData();
   }, [currentUser]);
+
+  
+  if (selectedWalker) {
+    return (
+      <WalkerProfileView 
+        walker={selectedWalker} 
+        onBack={() => setSelectedWalker(null)} 
+        onNavigate={onNavigate} 
+      />
+    );
+  }
 
   return (
     <div className="bg-gray-50 min-h-full pb-24">
@@ -195,7 +210,11 @@ const Home = ({ currentUser, navigate, setView }) => {
               const fullName = profile ? [profile.first_name, profile.last_name].filter(Boolean).join(' ') : (walker.name || 'Paseador');
               
               return (
-                <div key={walker.id} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex gap-4">
+                <div 
+                  key={walker.id} 
+                  onClick={() => setSelectedWalker(walker)} 
+                  className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex gap-4 cursor-pointer active:scale-[0.98] transition-all"
+                >
                   <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-200 shrink-0 relative">
                       <img src={profile?.profile_photo_url || 'https://via.placeholder.com/150'} alt={fullName} className="w-full h-full object-cover" />
                       <div className="absolute bottom-0 bg-black/40 w-full flex items-center justify-center gap-1 py-0.5">
