@@ -8,29 +8,43 @@ const OnboardingOwner = () => {
   const [address, setAddress] = useState('');
   const [coords, setCoords] = useState({ lat: null, lng: null });
   const [loading, setLoading] = useState(false);
-  const mapRef = useRef(null);
   const autoCompleteRef = useRef(null);
 
-  useEffect(() => {
-    if (window.google) {
-      autoCompleteRef.current = new window.google.maps.places.Autocomplete(
-        document.getElementById('address-input'),
-        {
-          componentRestrictions: { country: "co" },
-          fields: ["address_components", "geometry", "formatted_address"],
-        }
-      );
+  const breeds = [
+    "Criollo / Mezcla", "Labrador Retriever", "Golden Retriever", "Pastor Alemán", 
+    "Bulldog Francés", "Beagle", "Poodle", "Rottweiler", "Yorkshire Terrier", 
+    "Boxer", "Dachshund", "Siberian Husky", "Chihuahua", "Border Collie", "Pug", "Otro"
+  ];
 
-      autoCompleteRef.current.addListener("place_changed", () => {
-        const place = autoCompleteRef.current.getPlace();
-        if (place.geometry) {
-          setAddress(place.formatted_address);
-          setCoords({
-            lat: place.geometry.location.lat(),
-            lng: place.geometry.location.lng(),
-          });
-        }
-      });
+  useEffect(() => {
+    const initAutocomplete = () => {
+      if (window.google && window.google.maps && window.google.maps.places) {
+        autoCompleteRef.current = new window.google.maps.places.Autocomplete(
+          document.getElementById('address-input'),
+          {
+            componentRestrictions: { country: "co" },
+            fields: ["address_components", "geometry", "formatted_address"],
+          }
+        );
+
+        autoCompleteRef.current.addListener("place_changed", () => {
+          const place = autoCompleteRef.current.getPlace();
+          if (place.geometry) {
+            setAddress(place.formatted_address);
+            setCoords({
+              lat: place.geometry.location.lat(),
+              lng: place.geometry.location.lng(),
+            });
+          }
+        });
+      }
+    };
+
+    if (window.google) {
+      initAutocomplete();
+    } else {
+      const timer = setTimeout(initAutocomplete, 1000);
+      return () => clearTimeout(timer);
     }
   }, []);
 
@@ -45,8 +59,9 @@ const OnboardingOwner = () => {
       toast.error('Completa los datos de tu mascota');
       return;
     }
-    if (!coords.lat) {
-      toast.error('Por favor selecciona una dirección válida del buscador');
+    
+    if (!coords.lat || !coords.lng) {
+      toast.error('Selecciona una dirección de la lista sugerida');
       return;
     }
 
@@ -60,7 +75,8 @@ const OnboardingOwner = () => {
         { 
           name: petData.name,
           breed: petData.breed,
-          age_years: petData.age_years, 
+          age_years: 0, 
+          energy_level: petData.age_years,
           owner_id: user.id 
         }
       ]);
@@ -72,7 +88,7 @@ const OnboardingOwner = () => {
         .update({
           address: address,
           lat: coords.lat,
-          lat: coords.lng,
+          lng: coords.lng,
           is_profile_complete: true
         })
         .eq('user_id', user.id);
@@ -90,11 +106,11 @@ const OnboardingOwner = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 p-6">
+    <div className="flex flex-col min-h-screen bg-gray-50 p-6">
       <div className="max-w-sm mx-auto w-full">
         <div className="text-center mb-8">
             <div className="mx-auto bg-emerald-100 p-4 rounded-full mb-4 w-fit">
-            <Dog className="w-8 h-8 text-emerald-600" />
+              <Dog className="w-8 h-8 text-emerald-600" />
             </div>
             <h1 className="text-2xl font-black text-gray-800">¡Bienvenido!</h1>
             <p className="text-gray-500 text-sm">Configura tu perfil para empezar.</p>
@@ -135,12 +151,7 @@ const OnboardingOwner = () => {
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-2 mb-1 block">Raza</label>
                 <select name="breed" value={petData.breed} onChange={handleInputChange} className="w-full h-12 px-3 bg-white border-2 border-gray-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none font-medium text-sm">
                     <option value="">Selecciona</option>
-                    <option value="Criollo">Criollo</option>
-                    <option value="Labrador">Labrador</option>
-                    <option value="Golden">Golden</option>
-                    <option value="Poodle">Poodle</option>
-                    <option value="Bulldog">Bulldog</option>
-                    <option value="Otro">Otro</option>
+                    {breeds.map(b => <option key={b} value={b}>{b}</option>)}
                 </select>
               </div>
               <div>
@@ -157,7 +168,7 @@ const OnboardingOwner = () => {
 
           <div className="flex items-start gap-2 p-3 bg-orange-50 border border-orange-100 rounded-2xl text-orange-700">
             <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-            <p className="text-[10px] font-bold uppercase leading-tight">Solo aceptamos mascotas de 5 meses en adelante con vacunas completas.</p>
+            <p className="text-[10px] font-bold uppercase leading-tight">Solo aceptamos mascotas con vacunas completas.</p>
           </div>
 
           <button
