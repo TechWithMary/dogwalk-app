@@ -4,10 +4,17 @@ import { supabase } from '../supabaseClient';
 import { formatMoney } from '../utils/format';
 import RatingModal from './RatingModal';
 import WalkerProfileView from './WalkerProfileView'; 
+import { useJsApiLoader } from '@react-google-maps/api';
 
 const Home = ({ currentUser, navigate, setView }) => {
   
   const onNavigate = navigate || setView;
+
+  const { isLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: ['places']
+  });
 
   const [walkers, setWalkers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,8 +24,6 @@ const Home = ({ currentUser, navigate, setView }) => {
   const [displayName, setDisplayName] = useState('Amigo');
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [bookingToRate, setBookingToRate] = useState(null);
-
-  
   const [selectedWalker, setSelectedWalker] = useState(null);
 
   useEffect(() => {
@@ -105,7 +110,6 @@ const Home = ({ currentUser, navigate, setView }) => {
     fetchData();
   }, [currentUser]);
 
-  
   if (selectedWalker) {
     return (
       <WalkerProfileView 
@@ -113,6 +117,14 @@ const Home = ({ currentUser, navigate, setView }) => {
         onBack={() => setSelectedWalker(null)} 
         onNavigate={onNavigate} 
       />
+    );
+  }
+
+  if (!isLoaded) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-gray-50">
+        <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
+      </div>
     );
   }
 
