@@ -13,7 +13,7 @@ const OnboardingOwner = () => {
     libraries: libraries
   });
 
-  const [petData, setPetData] = useState({ name: '', breed: '', age_years: '' });
+  const [petData, setPetData] = useState({ name: '', breed: '', energy_level: 'medium' });
   const [address, setAddress] = useState('');
   const [coords, setCoords] = useState({ lat: null, lng: null });
   const [loading, setLoading] = useState(false);
@@ -49,7 +49,7 @@ const OnboardingOwner = () => {
 
   const handleCompleteProfile = async (e) => {
     e.preventDefault();
-    if (!petData.name.trim() || !petData.breed || !petData.age_years) {
+    if (!petData.name.trim() || !petData.breed) {
       toast.error('Completa los datos de tu mascota');
       return;
     }
@@ -69,8 +69,7 @@ const OnboardingOwner = () => {
         { 
           name: petData.name,
           breed: petData.breed,
-          age_years: 0, 
-          energy_level: petData.age_years,
+          energy_level: petData.energy_level,
           owner_id: user.id 
         }
       ]);
@@ -101,7 +100,7 @@ const OnboardingOwner = () => {
 
   if (!isLoaded) return (
     <div className="flex items-center justify-center h-screen bg-gray-50">
-      <Loader2 className="animate-spin text-emerald-500" />
+      <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
     </div>
   );
 
@@ -160,13 +159,11 @@ const OnboardingOwner = () => {
                 </select>
               </div>
               <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase ml-2 mb-1 block">Edad</label>
-                <select name="age_years" value={petData.age_years} onChange={handleInputChange} className="w-full h-12 px-3 bg-white border-2 border-gray-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none font-medium text-sm">
-                    <option value="">Selecciona</option>
-                    <option value="Cachorro">Cachorro</option>
-                    <option value="Joven">Joven</option>
-                    <option value="Adulto">Adulto</option>
-                    <option value="Senior">Senior</option>
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-2 mb-1 block">Nivel de Energía</label>
+                <select name="energy_level" value={petData.energy_level} onChange={handleInputChange} className="w-full h-12 px-3 bg-white border-2 border-gray-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none font-medium text-sm">
+                    <option value="low">Baja</option>
+                    <option value="medium">Media</option>
+                    <option value="high">Alta</option>
                 </select>
               </div>
           </div>
