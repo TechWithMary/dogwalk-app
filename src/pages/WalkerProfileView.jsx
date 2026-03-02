@@ -49,14 +49,16 @@ const WalkerProfileView = ({ walker, onNavigate, onBack }) => {
           </div>
           <div className="bg-gray-50 p-3 rounded-2xl text-center border border-gray-100">
             <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Edad</p>
-            <p className="font-black text-gray-800">{profile?.age || '22'} años</p>
+            <p className="font-black text-gray-800">
+                {profile?.age ? `${profile.age} años` : '---'}
+            </p>
           </div>
         </div>
 
         <div className="mb-8">
           <h3 className="font-black text-gray-900 mb-2">Sobre mí</h3>
           <p className="text-gray-500 text-sm leading-relaxed">
-            {walker.bio || `¡Hola! Soy ${profile?.first_name || 'un paseador apasionado'}. Me encantan los animales y me comprometo a darle a tu mascota el mejor paseo, lleno de ejercicio y cuidado.`}
+            {walker.bio || "Este paseador aún no ha redactado su biografía."}
           </p>
         </div>
 
@@ -73,10 +75,10 @@ const WalkerProfileView = ({ walker, onNavigate, onBack }) => {
           <MessageCircle size={24} />
         </button>
         <button 
-          onClick={() => onNavigate('/booking', { state: { preferredWalker: walker } })} // <--- ESTE ES EL CAMBIO CLAVE
+          onClick={() => onNavigate('/booking', { state: { preferredWalker: walker } })}
           className="flex-1 bg-gray-900 text-white font-black py-4 rounded-2xl shadow-xl shadow-gray-200 active:scale-95 transition-transform flex items-center justify-center gap-2"
         >
-          <Calendar size={18} /> Reservar con {profile?.first_name || 'Andrés'}
+          <Calendar size={18} /> Reservar con {profile?.first_name || 'este paseador'}
         </button>
       </div>
     </div>
