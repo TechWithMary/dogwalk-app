@@ -68,6 +68,11 @@ const App = () => {
     setUserRole(role);
     setUserName(name || 'Usuario');
     
+    if (role === 'admin') {
+      navigate('/admin/verifications');
+      return;
+    }
+
     if (!isProfileComplete) {
       if (role === 'walker') {
         navigate('/onboarding-walker');
@@ -89,16 +94,15 @@ const App = () => {
     } catch (err) {
       console.error(err);
     }
-    
     localStorage.clear();
     sessionStorage.clear();
-    
     setUserRole('owner');
     setUserName('Usuario');
     navigate('/login');
   };
 
   const isWalker = userRole === 'walker';
+  const isAdmin = userRole === 'admin';
 
   const getLayoutProps = () => {
     const path = location.pathname;
@@ -115,7 +119,7 @@ const App = () => {
     if (path === '/booking') return { showNav: false, title: 'Reservar Paseo', onBack: () => navigate('/home') };
     if (path === '/wallet') return { showNav: true, title: 'Billetera', onBack: () => navigate('/profile') };
     if (path === '/profile') return { showNav: true, title: 'Mi Perfil', activeTab: 'profile' };
-    if (path === '/admin/verifications') return { showNav: false, title: 'Verificar Paseadores', onBack: () => navigate('/profile') };
+    if (path.startsWith('/admin')) return { showNav: true, title: 'Administración', activeTab: 'profile', onBack: () => navigate('/profile') };
 
      return { showNav: true, title: APP_NAME, activeTab: 'home' };
   };
@@ -146,7 +150,8 @@ const App = () => {
       title={layoutProps.title}
       activeTab={layoutProps.activeTab}
       onViewChange={(view) => {
-         if (isWalker && view === 'home') navigate('/walker-home');
+         if (isAdmin) navigate('/admin/verifications');
+         else if (isWalker && view === 'home') navigate('/walker-home');
          else navigate(`/${view}`);
       }} 
       showNav={layoutProps.showNav}
@@ -158,22 +163,31 @@ const App = () => {
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login onLogin={handleLogin} />} />
-        <Route path="/home" element={<Home setView={navigate} currentUser={{ name: userName }} navigate={navigate} />} />
-        <Route path="/walker-home" element={<HomeWalker currentUser={{ name: userName }} />} />
-        <Route path="/messages" element={<Messages isWalker={isWalker} />} />
+        
+        {/* Rutas de Dueño */}
+        <Route path="/home" element={isAdmin ? <Navigate to="/admin/verifications" /> : <Home setView={navigate} currentUser={{ name: userName }} navigate={navigate} />} />
         <Route path="/booking" element={<Booking setView={navigate} />} />
+        <Route path="/manage-pets" element={<PetManager onBack={() => navigate(-1)} />} />
+        
+        {/* Rutas de Paseador */}
+        <Route path="/walker-home" element={<HomeWalker currentUser={{ name: userName }} />} />
+        <Route path="/walker-balance" element={<WalkerBalance onBack={() => navigate('/walker-home')} />} />
+        
+        {/* Rutas Comunes */}
+        <Route path="/messages" element={<Messages isWalker={isWalker} />} />
         <Route path="/wallet" element={<Wallet setView={navigate} currentUser={{ name: userName }} onLogout={handleLogout} />} />
         <Route path="/live-walk" element={<LiveWalk setView={(v) => navigate(v === 'home' ? '/home' : `/${v}`)} />} />
         <Route path="/onboarding-owner" element={<OnboardingOwner />} />
         <Route path="/onboarding-walker" element={<OnboardingWalker />} />
         <Route path="/profile" element={<Profile onLogout={handleLogout} navigate={navigate} />} />
         <Route path="/edit-profile" element={<EditProfile navigate={navigate} />} />
-        <Route path="/manage-pets" element={<PetManager onBack={() => navigate(-1)} />} />
         <Route path="/manage-cards" element={<ManageCards />} />
         <Route path="/notifications" element={<Notifications onBack={() => navigate(-1)} />} />
-        <Route path="/walker-balance" element={<WalkerBalance onBack={() => navigate('/walker-home')} />} />
+        
+        {/* Rutas de Admin */}
         <Route path="/admin/verifications" element={<AdminVerifications />} />
-        <Route path="*" element={<Navigate to="/home" replace />} />
+        
+        <Route path="*" element={<Navigate to={isAdmin ? "/admin/verifications" : "/home"} replace />} />
       </Routes>
     </MobileLayout>
   );
