@@ -28,7 +28,6 @@ const Login = ({ onLogin }) => {
         handleSuccessfulLogin(session.user);
       }
     };
-
     checkSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -36,21 +35,20 @@ const Login = ({ onLogin }) => {
         handleSuccessfulLogin(session.user);
       }
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
   const handleSuccessfulLogin = async (user) => {
     setLoading(true);
     try {
-      const { data: profile } = await supabase
+      let { data: profile, error: profileError } = await supabase
         .from('user_profiles')
         .select('role, first_name, is_profile_complete')
         .eq('user_id', user.id)
         .maybeSingle();
 
       if (!profile) {
-        const pendingRole = localStorage.getItem('oauth_role') || 'owner';
+        const pendingRole = localStorage.getItem('oauth_role') || user.user_metadata?.role || 'owner';
         localStorage.removeItem('oauth_role'); 
 
         const metaName = user.user_metadata?.full_name || user.user_metadata?.name || 'Usuario';
@@ -69,66 +67,46 @@ const Login = ({ onLogin }) => {
             is_profile_complete: false,
             profile_photo_url: photoUrl
           })
-          .select('role, first_name, is_profile_complete')
-          .maybeSingle();
+          .select()
+          .single();
 
-        if (error || !newProfile) {
-            console.warn("No se pudo guardar el perfil, usando datos temporales:", error);
-            onLogin(pendingRole, fName, false);
-            return;
+        if (newProfile) {
+          onLogin(newProfile.role, newProfile.first_name, newProfile.is_profile_complete);
+        } else {
+          onLogin(pendingRole, fName, false);
         }
-
-        onLogin(newProfile.role, newProfile.first_name, newProfile.is_profile_complete);
       } else {
         onLogin(profile.role, profile.first_name, profile.is_profile_complete);
       }
       
     } catch (error) {
-      console.error("Fallo general entrando:", error);
-      const pendingRole = localStorage.getItem('oauth_role') || 'owner';
-      const fallbackName = user.user_metadata?.first_name || user.user_metadata?.full_name?.split(' ')[0] || 'Usuario';
-      onLogin(pendingRole, fallbackName, false);
+      console.error(error);
+      onLogin('owner', 'Usuario', false);
     } finally {
       setLoading(false);
     }
   };
 
   const handleOAuthLogin = async (provider) => {
-    setLoading(true);
-    try {
-      if (authMode === 'register') {
-        localStorage.setItem('oauth_role', roleMode);
-      } else {
-        localStorage.removeItem('oauth_role'); 
-      }
-
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: provider,
-        options: {
-          redirectTo: window.location.origin
-        }
-      });
-      if (error) throw error;
-    } catch (error) {
-      console.error(error);
-      toast.error(`Error conectando con ${provider}`);
-      setLoading(false);
-    }
+    localStorage.setItem('oauth_role', roleMode);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: provider,
+      options: { redirectTo: window.location.origin }
+    });
+    if (error) toast.error("Error con Google");
   };
 
   const handleAuth = async (e) => {
-    if (e) e.preventDefault();
+    e.preventDefault();
     setLoading(true);
 
     try {
       if (authMode === 'register') {
-        if (password.length < 6) throw new Error("La contraseña debe tener al menos 6 caracteres");
-        
         const nameParts = name.trim().split(' ');
         const firstName = nameParts[0] || 'Usuario';
         const lastName = nameParts.slice(1).join(' ') || '';
 
-        const { data: authData, error } = await supabase.auth.signUp({
+        const { data: authData, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -141,107 +119,84 @@ const Login = ({ onLogin }) => {
           }
         });
 
-        if (error) throw error;
+        if (signUpError) throw signUpError;
 
         if (authData?.user) {
-          await supabase.from('user_profiles').upsert({
+          const { error: profileError } = await supabase.from('user_profiles').insert({
             user_id: authData.user.id,
             first_name: firstName,
             last_name: lastName,
             role: roleMode,
             is_profile_complete: false
           });
+          if (profileError) console.error("Error creando perfil:", profileError);
         }
 
-        toast.success(`¡Registro exitoso! Por favor revisa tu correo para verificar tu cuenta.`);
+        toast.success(`¡Registro exitoso! Revisa tu correo.`);
         setAuthMode('login');
-        setPassword('');
-        setLoading(false);
-
       } else {
-        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (authError) {
-          if (authError.message.includes('Email not confirmed')) {
-            throw new Error("Por favor verifica tu correo antes de iniciar sesión.");
-          }
-          throw authError;
-        }
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (signInError) throw signInError;
       }
     } catch (error) {
-      console.error(error);
-      toast.error(error.message || "Error de autenticación");
+      toast.error(error.message);
+    } finally {
       setLoading(false);
     }
   };
 
   return (
     <div className="flex flex-col h-screen w-full bg-gray-50 font-sans overflow-hidden">
-      <div className={`relative w-full bg-gray-900 shrink-0 transition-all duration-500 ${authMode === 'register' ? 'h-[25%]' : 'h-[30%]'}`}>
-        <img src={loginBg} alt="Background" className="w-full h-full object-cover opacity-80" style={{ objectPosition: 'center' }} />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/50"></div>
+      <div className={`relative w-full bg-gray-900 shrink-0 transition-all duration-500 ${authMode === 'register' ? 'h-[20%]' : 'h-[30%]'}`}>
+        <img src={loginBg} alt="Background" className="w-full h-full object-cover opacity-80" />
       </div>
 
       <div className="flex-1 bg-white rounded-t-[30px] -mt-6 relative z-10 px-6 py-5 shadow-2xl flex flex-col">
-          <div className="flex flex-col items-center mb-4 shrink-0">
+          <div className="flex flex-col items-center mb-4">
             <div className="bg-[#13ec13] p-2 rounded-xl shadow-sm rotate-3 mb-2">
                 <Dog className="w-6 h-6 text-black" />
             </div>
             <h1 className="text-2xl font-black text-gray-900 tracking-tight">DogWalk</h1>
-            <p className="text-gray-400 font-medium text-[10px] mt-1">
-                {authMode === 'login' ? 'Tu perro, nuestra pasión.' : 'Crea tu cuenta en segundos.'}
-            </p>
           </div>
 
           {authMode === 'register' && (
-              <div className="flex p-1 bg-gray-100 rounded-xl mb-4 mx-auto max-w-xs w-full shrink-0">
-                <button type="button" onClick={() => setRoleMode('owner')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${roleMode === 'owner' ? 'bg-white text-emerald-800 shadow-sm' : 'text-gray-500'}`}>
-                  <User className="w-3 h-3" /> Soy Dueño
+              <div className="flex p-1 bg-gray-100 rounded-xl mb-4 mx-auto max-w-xs w-full">
+                <button type="button" onClick={() => setRoleMode('owner')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${roleMode === 'owner' ? 'bg-white text-emerald-800 shadow-sm' : 'text-gray-500'}`}>
+                  Soy Dueño
                 </button>
-                <button type="button" onClick={() => setRoleMode('walker')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${roleMode === 'walker' ? 'bg-white text-emerald-800 shadow-sm' : 'text-gray-500'}`}>
-                  <Dog className="w-3 h-3" /> Soy Paseador
+                <button type="button" onClick={() => setRoleMode('walker')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${roleMode === 'walker' ? 'bg-white text-emerald-800 shadow-sm' : 'text-gray-500'}`}>
+                  Soy Paseador
                 </button>
               </div>
           )}
 
-          <form onSubmit={handleAuth} className="space-y-3 shrink-0 overflow-y-auto max-h-[280px] px-1 pb-1">
+          <form onSubmit={handleAuth} className="space-y-3">
             {authMode === 'register' && (
-                <div className="relative animate-fade-in-down"><User className="absolute left-3 top-3 text-gray-400 w-4 h-4" /><input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full pl-10 pr-4 h-10 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-[#13ec13] border border-gray-100 font-medium text-sm" placeholder="Tu Nombre Completo" required /></div>
+                <div className="relative"><User className="absolute left-3 top-3 text-gray-400 w-4 h-4" /><input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full pl-10 pr-4 h-10 bg-gray-50 rounded-xl border border-gray-100 text-sm" placeholder="Nombre Completo" required /></div>
              )}
-            <div className="relative"><Mail className="absolute left-3 top-3 text-gray-400 w-4 h-4" /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 h-10 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-[#13ec13] border border-gray-100 font-medium text-sm" placeholder="correo@ejemplo.com" required /></div>
-            <div className="relative"><Key className="absolute left-3 top-3 text-gray-400 w-4 h-4" /><input type={showPass ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-10 pr-10 h-10 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-[#13ec13] border border-gray-100 font-medium text-sm" placeholder="••••••••" required /><button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-3 text-gray-400">{showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div>
+            <div className="relative"><Mail className="absolute left-3 top-3 text-gray-400 w-4 h-4" /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 h-10 bg-gray-50 rounded-xl border border-gray-100 text-sm" placeholder="correo@ejemplo.com" required /></div>
+            <div className="relative"><Key className="absolute left-3 top-3 text-gray-400 w-4 h-4" /><input type={showPass ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-10 pr-10 h-10 bg-gray-50 rounded-xl border border-gray-100 text-sm" placeholder="Contraseña" required /><button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-3 text-gray-400">{showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div>
             
-            <button disabled={loading} className="w-full h-11 mt-2 bg-[#13ec13] hover:bg-[#0fbd0f] text-[#052e05] font-extrabold text-sm rounded-xl shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+            <button disabled={loading} className="w-full h-11 bg-[#13ec13] text-black font-extrabold text-sm rounded-xl shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2">
               {loading ? <Loader2 className="animate-spin w-4 h-4" /> : (authMode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta')} 
-              {!loading && <ChevronRight className="w-4 h-4" />}
             </button>
           </form>
 
           <div className="mt-6">
-             {authMode === 'register' && (
-               <div className="flex items-start gap-2 bg-emerald-50/50 p-3 rounded-xl mb-4 border border-emerald-100 animate-fade-in-down">
-                 <Info className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                 <p className="text-[10px] text-emerald-800 leading-tight font-medium">
-                   Asegúrate de seleccionar <b>Soy Dueño</b> o <b>Soy Paseador</b> arriba si vas a registrarte usando Google.
-                 </p>
-               </div>
-             )}
-
-             <div className="mb-4">
-               <div className="flex items-center gap-4 mb-4">
-                 <div className="h-px bg-gray-200 flex-1"></div>
-                 <span className="text-[10px] font-bold text-gray-400 uppercase">o continuar con</span>
-                 <div className="h-px bg-gray-200 flex-1"></div>
-               </div>
-               <div className="flex justify-center gap-3">
-                 <SocialButton icon={<GoogleIcon />} onClick={() => handleOAuthLogin('google')} />
-               </div>
+             <div className="flex items-center gap-4 mb-4">
+               <div className="h-px bg-gray-200 flex-1"></div>
+               <span className="text-[10px] font-bold text-gray-400">O CONTINUAR CON</span>
+               <div className="h-px bg-gray-200 flex-1"></div>
+             </div>
+             <div className="flex justify-center">
+               <SocialButton icon={<GoogleIcon />} onClick={() => handleOAuthLogin('google')} />
              </div>
              
-             <div className="text-center pb-4"><p className="text-xs font-medium text-gray-400">{authMode === 'login' ? '¿Eres nuevo?' : '¿Ya tienes cuenta?'}<button onClick={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setName(''); }} className="ml-1 text-emerald-600 font-bold hover:text-emerald-700 transition-colors">{authMode === 'login' ? 'Regístrate aquí' : 'Inicia Sesión'}</button></p></div>
+             <div className="text-center mt-6">
+                <button onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')} className="text-xs font-bold text-emerald-600">
+                  {authMode === 'login' ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Entra'}
+                </button>
+             </div>
           </div>
       </div>
     </div>
