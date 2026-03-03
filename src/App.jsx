@@ -184,7 +184,7 @@ const App = () => {
         <Route path="/manage-cards" element={<ManageCards />} />
         <Route path="/notifications" element={<Notifications onBack={() => navigate(-1)} />} />
         
-        {/* Rutas de Admin */}
+       
         <Route path="/admin/verifications" element={<AdminVerifications />} />
         
         <Route path="*" element={<Navigate to={isAdmin ? "/admin/verifications" : "/home"} replace />} />

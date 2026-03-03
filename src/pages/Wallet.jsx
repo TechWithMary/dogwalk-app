@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 const formatMoney = (val) => '$' + (val || 0).toLocaleString('es-CO');
 
 const SkeletonLoader = () => (
-    <div className="animate-pulse">
+    <div className="animate-pulse p-6">
         <div className="h-48 bg-gray-200 rounded-3xl mb-8"></div>
         <div className="h-16 bg-gray-200 rounded-2xl mb-4"></div>
         <div className="h-16 bg-gray-200 rounded-2xl"></div>
@@ -23,49 +23,44 @@ const Wallet = () => {
   const [isToppingUp, setIsToppingUp] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState('');
 
-  useEffect(() => {
-    const fetchWalletData = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          setLoading(false);
-          return;
-        }
-
-        const { data: userProfile, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle();
-          
-        if (profileError) throw profileError;
-        setProfile(userProfile);
-
-        let txs = [];
-        try {
-           const { data: history } = await supabase
-             .from('transactions')
-             .select('*')
-             .order('created_at', { ascending: false })
-             .limit(10);
-           if (history) txs = history;
-        } catch (e) {
-           console.log(e);
-        }
-
-        setWalletData({
-          balance: userProfile?.balance || 0,
-          transactions: txs
-        });
-
-      } catch (error) {
-        console.error(error);
-        toast.error("Error al cargar la billetera");
-      } finally {
+  const fetchWalletData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
         setLoading(false);
+        return;
       }
-    };
 
+      const { data: userProfile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+        
+      if (profileError) throw profileError;
+      setProfile(userProfile);
+
+      const { data: history } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id) // Seguridad: solo tus transacciones
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      setWalletData({
+        balance: userProfile?.balance || 0,
+        transactions: history || []
+      });
+
+    } catch (error) {
+      console.error(error);
+      toast.error("Error al cargar la billetera");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchWalletData();
   }, []);
 
@@ -75,6 +70,7 @@ const Wallet = () => {
     toast.success("¡Recarga exitosa! Tu saldo se actualizará pronto.");
     setIsToppingUp(false);
     setTopUpAmount('');
+    fetchWalletData(); // Actualiza el saldo en pantalla inmediatamente
   };
 
   if (loading) return <SkeletonLoader />;
@@ -132,7 +128,7 @@ const ActionButtons = ({ onTopUpClick, onManageCardsClick }) => (
 
 const TopUpSection = ({ amount, onAmountChange, profileEmail, onSuccess, onCancel }) => (
   <div className="bg-white p-6 rounded-2xl shadow-lg border mb-8">
-    <h3 className="font-bold text-lg mb-4">Recargar Saldo</h3>
+    <h3 className="font-bold text-lg mb-4 text-gray-800">Recargar Saldo</h3>
     <div className="mb-4">
       <label htmlFor="topUpAmount" className="text-xs font-bold text-gray-500">Monto en COP</label>
       <input
@@ -141,21 +137,21 @@ const TopUpSection = ({ amount, onAmountChange, profileEmail, onSuccess, onCance
         value={amount}
         onChange={(e) => /^\d*$/.test(e.target.value) && onAmountChange(e.target.value)}
         placeholder="Ej: 50000"
-        className="w-full mt-1 p-3 border-2 border-gray-200 rounded-lg text-lg font-bold focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition"
+        className="w-full mt-1 p-3 border-2 border-gray-100 rounded-xl text-lg font-bold focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition outline-none text-gray-800"
       />
     </div>
-    {amount && parseInt(amount) > 0 ? (
+    {amount && parseInt(amount) >= 5000 ? (
       <MercadoPagoButton
         amount={parseInt(amount)}
-        title={`Recarga de Saldo - ${profileEmail}`}
+        title={`Recarga DogWalk - ${profileEmail || 'Usuario'}`}
         onSuccess={onSuccess}
       />
     ) : (
-      <button disabled className="w-full h-14 bg-gray-200 text-gray-500 font-bold rounded-lg">
-        Introduce un monto
+      <button disabled className="w-full h-14 bg-gray-100 text-gray-400 font-bold rounded-xl text-sm">
+        {amount ? 'Mínimo $5.000 COP' : 'Introduce un monto'}
       </button>
     )}
-    <button onClick={onCancel} className="w-full text-center mt-3 text-sm text-gray-500 hover:text-gray-800">
+    <button onClick={onCancel} className="w-full text-center mt-4 text-sm font-bold text-gray-400 hover:text-gray-600">
       Cancelar
     </button>
   </div>
@@ -163,24 +159,26 @@ const TopUpSection = ({ amount, onAmountChange, profileEmail, onSuccess, onCance
 
 const TransactionHistory = ({ transactions, isWalker }) => (
   <>
-    <h3 className="font-black text-lg mb-4">Historial de Movimientos</h3>
+    <h3 className={`font-black text-lg mb-4 ${isWalker ? 'text-white' : 'text-gray-800'}`}>Historial de Movimientos</h3>
     <div className="space-y-3">
       {transactions.length > 0 ? transactions.map((t, i) => (
-        <div key={i} className={`p-4 rounded-2xl flex items-center justify-between shadow-sm ${isWalker ? 'bg-gray-800' : 'bg-white border'}`}>
+        <div key={i} className={`p-4 rounded-2xl flex items-center justify-between shadow-sm ${isWalker ? 'bg-gray-800' : 'bg-white border border-gray-100'}`}>
           <div className="flex items-center gap-4">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isWalker ? 'bg-emerald-500/20 text-emerald-400' : 'bg-orange-50 text-orange-500'}`}>
-              {isWalker ? <ArrowDownLeft className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />}
+              {t.transaction_type === 'payment' ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownLeft className="w-5 h-5" />}
             </div>
             <div>
-              <p className="font-bold text-sm">{isWalker ? "Ganancia por paseo" : "Pago de paseo"}</p>
-              <p className="text-gray-400 text-xs font-medium">{new Date(t.created_at).toLocaleDateString('es-CO')}</p>
+              <p className={`font-bold text-sm ${isWalker ? 'text-white' : 'text-gray-700'}`}>
+                {t.transaction_type === 'payment' ? (isWalker ? "Ganancia por paseo" : "Pago de paseo") : "Recarga de saldo"}
+              </p>
+              <p className="text-gray-400 text-[10px] font-bold uppercase">{new Date(t.created_at).toLocaleDateString('es-CO')}</p>
             </div>
           </div>
-          <span className={`font-black text-sm ${isWalker ? 'text-emerald-400' : ''}`}>
-            {isWalker ? '+' : '-'}{formatMoney(Math.abs(isWalker ? t.net_earning : t.amount))}
+          <span className={`font-black text-sm ${isWalker || t.transaction_type === 'deposit' ? 'text-emerald-500' : 'text-gray-900'}`}>
+            {t.transaction_type === 'payment' ? (isWalker ? '+' : '-') : '+'}{formatMoney(Math.abs(isWalker ? t.net_earning : t.amount))}
           </span>
         </div>
-      )) : <p className="text-center text-gray-400 text-sm p-4">No hay movimientos todavía.</p>}
+      )) : <p className="text-center text-gray-400 text-sm p-8 font-bold uppercase tracking-widest">No hay movimientos</p>}
     </div>
   </>
 );
