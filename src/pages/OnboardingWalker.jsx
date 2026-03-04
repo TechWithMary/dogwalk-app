@@ -131,11 +131,15 @@ const OnboardingWalker = () => {
         
       const invalidTerms = ['usuario', 'nuevo', 'paseador', 'walker'];
       
+      const rawFirstName = profile?.first_name || user.user_metadata?.first_name || user.user_metadata?.full_name?.split(' ')[0] || '';
+      const rawLastName = profile?.last_name || user.user_metadata?.last_name || user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '';
       
-      const cleanFirstName = profile?.first_name && !invalidTerms.includes(profile.first_name.toLowerCase()) ? profile.first_name : (user.user_metadata?.first_name || '');
-      const cleanLastName = profile?.last_name && !invalidTerms.includes(profile.last_name.toLowerCase()) ? profile.last_name : (user.user_metadata?.last_name || '');
+      const cleanFirstName = rawFirstName && !invalidTerms.includes(rawFirstName.toLowerCase()) ? rawFirstName : '';
+      const cleanLastName = rawLastName && !invalidTerms.includes(rawLastName.toLowerCase()) ? rawLastName : '';
       
-      const realName = `${cleanFirstName} ${cleanLastName}`.trim() || user.user_metadata?.full_name || 'Paseador';
+      const realName = cleanFirstName && cleanLastName 
+        ? `${cleanFirstName} ${cleanLastName}`.trim() 
+        : cleanFirstName || 'Paseador';
 
       const profileData = {
         user_id: user.id, 
