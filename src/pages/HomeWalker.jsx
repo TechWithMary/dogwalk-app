@@ -26,30 +26,76 @@ const HomeWalker = ({ currentUser }) => {
     newRequests: [], 
     activeWalks: [] 
   });
+  const [acceptingId, setAcceptingId] = useState(null);
+
+  const acceptBooking = async (bookingId) => {
+    try {
+      setAcceptingId(bookingId);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: walkerData } = await supabase
+        .from('walkers')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!walkerData) {
+        toast.error('Perfil de paseador no encontrado');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('bookings')
+        .update({ status: 'accepted', walker_id: walkerData.id })
+        .eq('id', bookingId)
+        .eq('status', 'pending');
+
+      if (error) throw error;
+      
+      toast.success('¡Paseo aceptado!');
+      fetchWalkerData();
+    } catch (error) {
+      console.error(error);
+      toast.error('Error al aceptar paseo');
+    } finally {
+      setAcceptingId(null);
+    }
+  };
 
   const fetchWalkerData = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('balance, overall_verification_status')
+      const { data: walkerData } = await supabase
+        .from('walkers')
+        .select('id, balance, overall_verification_status')
         .eq('user_id', user.id)
         .single();
-      
-      setBalance(profile?.balance || 0);
+
+      const walkerId = walkerData?.id;
+      const walkerBalance = walkerData?.balance || 0;
+
+      setBalance(walkerBalance);
+
+      if (!walkerId) {
+        setData({ stats: { monthlyEarnings: 0, completedWalks: 0, rating: 5.0 }, newRequests: [], activeWalks: [] });
+        setLoading(false);
+        return;
+      }
 
       const { data: bookings } = await supabase
         .from('bookings')
         .select('*')
-        .or(`walker_id.eq.${user.id},status.eq.pending`)
+        .eq('walker_id', walkerId)
+        .in('status', ['pending', 'accepted', 'in_progress'])
         .order('created_at', { ascending: false });
 
       const { data: statsData } = await supabase
         .from('bookings')
         .select('total_price')
-        .eq('walker_id', user.id)
+        .eq('walker_id', walkerId)
         .eq('status', 'completed');
 
       const totalEarned = statsData?.reduce((acc, curr) => acc + curr.total_price, 0) || 0;
@@ -58,7 +104,7 @@ const HomeWalker = ({ currentUser }) => {
         stats: {
           monthlyEarnings: totalEarned,
           completedWalks: statsData?.length || 0,
-          rating: 5.0 
+          rating: 5.0
         },
         newRequests: bookings?.filter(b => b.status === 'pending') || [],
         activeWalks: bookings?.filter(b => b.status === 'accepted' || b.status === 'in_progress') || []
@@ -156,7 +202,13 @@ const HomeWalker = ({ currentUser }) => {
                   </div>
                   <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black">{formatMoney(req.total_price)}</span>
                 </div>
-                <button className="w-full bg-gray-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all">Aceptar Solicitud</button>
+                <button 
+                    onClick={() => acceptBooking(req.id)}
+                    disabled={acceptingId === req.id}
+                    className="w-full bg-gray-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    {acceptingId === req.id ? 'Aceptando...' : 'Aceptar Solicitud'}
+                  </button>
               </div>
             )) : (
               <div className="text-center py-16 bg-white rounded-[40px] border-2 border-dashed border-gray-100">
