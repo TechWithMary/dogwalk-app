@@ -18,7 +18,8 @@ const LiveWalk = ({ setView }) => {
 
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
-        googleMapsApiKey: GOOGLE_MAPS_API_KEY
+        googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+        libraries: ['places']
     });
 
     useEffect(() => {

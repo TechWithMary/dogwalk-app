@@ -1,11 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Camera, Upload, X, Loader2, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const DocumentUploader = ({ type, label, description, value, onChange, cameraMode = 'environment' }) => {
   const [uploading, setUploading] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState(value); 
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+
+  useEffect(() => {
+    const getPreviewUrl = async () => {
+      if (!value) return;
+      
+      if (value.startsWith('http')) {
+        setPreviewUrl(value);
+        return;
+      }
+
+      setLoadingPreview(true);
+      try {
+        const { data } = await supabase.storage
+          .from('walker_documents')
+          .createSignedUrl(value, 3600);
+        if (data?.signedUrl) {
+          setPreviewUrl(data.signedUrl);
+        }
+      } catch (error) {
+        console.error('Error getting preview:', error);
+      } finally {
+        setLoadingPreview(false);
+      }
+    };
+
+    getPreviewUrl();
+  }, [value]); 
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
@@ -65,10 +93,13 @@ const DocumentUploader = ({ type, label, description, value, onChange, cameraMod
         {value && <CheckCircle className="text-emerald-500 w-5 h-5" />}
       </div>
 
-      {previewUrl || value ? (
+      {loadingPreview ? (
+        <div className="w-full h-40 bg-gray-900 rounded-lg flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        </div>
+      ) : previewUrl || value ? (
         <div className="relative w-full h-40 bg-gray-900 rounded-lg overflow-hidden group">
-          
-          <img src={previewUrl || (typeof value === 'string' && value.startsWith('http') ? value : '')} alt={label} className="w-full h-full object-cover" />
+          <img src={previewUrl} alt={label} className="w-full h-full object-cover" />
           <button 
             onClick={handleRemove}
             className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"

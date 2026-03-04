@@ -47,7 +47,7 @@ const OnboardingWalker = () => {
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-    libraries
+    libraries: ['places']
   });
 
   useEffect(() => {
@@ -318,7 +318,7 @@ const OnboardingWalker = () => {
             <div><label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Sobre ti / Biografía *</label><textarea name="bio" value={formData.bio} onChange={handleChange} rows="4" className="w-full px-4 py-4 bg-gray-800 border-2 border-transparent focus:border-[#13ec13] rounded-2xl outline-none font-bold transition-all text-sm" placeholder="Cuéntanos por qué eres el mejor paseador..." required></textarea></div>
             <div className="grid grid-cols-2 gap-4">
                <div><label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Años Exp.</label><input type="number" name="experience_years" value={formData.experience_years} onChange={handleChange} className="w-full px-4 py-4 bg-gray-800 border-2 border-transparent focus:border-[#13ec13] rounded-2xl outline-none font-bold transition-all" placeholder="0" /></div>
-               <div><label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Precio x Hora</label><input type="number" name="price" value={formData.price} onChange={handleChange} className="w-full px-4 py-4 bg-gray-800 border-2 border-transparent focus:border-[#13ec13] rounded-2xl outline-none font-bold transition-all" placeholder="30000" /></div>
+               <div><label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Precio x Hora</label><input type="number" name="price" value={String(formData.price)} onChange={handleChange} className="w-full px-4 py-4 bg-gray-800 border-2 border-transparent focus:border-[#13ec13] rounded-2xl outline-none font-bold transition-all" placeholder="30000" /></div>
             </div>
             <div className="bg-gray-800 p-5 rounded-2xl border-2 border-transparent hover:border-gray-700 transition-all"><label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" name="has_own_dogs" checked={formData.has_own_dogs} onChange={handleChange} className="w-5 h-5 accent-[#13ec13]" /><span className="font-bold text-sm">Tengo mascotas propias</span></label></div>
             <div className="flex gap-3 mt-6"><button onClick={() => setStep(2)} className="flex-1 bg-gray-800 py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest">Atrás</button><button onClick={handleNext} disabled={loading} className="flex-1 bg-[#13ec13] text-black py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest">{loading ? <Loader2 className="animate-spin" /> : 'Continuar'}</button></div>
