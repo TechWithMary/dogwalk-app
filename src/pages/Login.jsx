@@ -182,21 +182,20 @@ const Login = ({ onLogin }) => {
             </button>
           </form>
 
-          <div className="mt-6">
-             <div className="flex items-center gap-4 mb-4">
-               <div className="h-px bg-gray-200 flex-1"></div>
-               <span className="text-[10px] font-bold text-gray-400">O CONTINUAR CON</span>
-               <div className="h-px bg-gray-200 flex-1"></div>
-             </div>
-             <div className="flex justify-center">
-               <SocialButton icon={<GoogleIcon />} onClick={() => handleOAuthLogin('google')} />
-             </div>
-             
-             <div className="text-center mt-6">
-                <button onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')} className="text-xs font-bold text-emerald-600">
-                  {authMode === 'login' ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Entra'}
+          <div className="text-center mt-8 pb-4">
+             <p className="text-xs font-medium text-gray-400">
+                {authMode === 'login' ? '¿Eres nuevo en DogWalk?' : '¿Ya eres parte de la manada?'}
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setAuthMode(authMode === 'login' ? 'register' : 'login');
+                    setName('');
+                  }} 
+                  className="ml-2 text-blue-600 font-black hover:text-blue-700 transition-colors underline underline-offset-4"
+                >
+                  {authMode === 'login' ? 'Regístrate aquí' : 'Inicia Sesión'}
                 </button>
-             </div>
+             </p>
           </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import toast from 'react-hot-toast';
-import { Dog, ArrowRight, Loader2, AlertTriangle, MapPin } from 'lucide-react';
+import { Dog, ArrowRight, Loader2, AlertTriangle, MapPin, Crosshair } from 'lucide-react';
 import { useJsApiLoader, Autocomplete } from '@react-google-maps/api';
 
 const libraries = ['places'];
@@ -13,10 +13,11 @@ const OnboardingOwner = () => {
     libraries: libraries
   });
 
-  const [petData, setPetData] = useState({ name: '', breed: '', energy_level: 'medium' });
+  const [petData, setPetData] = useState({ name: '', breed: '', energy_level: 'medium', age_years: '' });
   const [address, setAddress] = useState('');
   const [coords, setCoords] = useState({ lat: null, lng: null });
   const [loading, setLoading] = useState(false);
+  const [gettingLocation, setGettingLocation] = useState(false);
   const autoCompleteRef = useRef(null);
 
   const breeds = [
@@ -42,6 +43,28 @@ const OnboardingOwner = () => {
     }
   };
 
+  const handleCurrentLocation = () => {
+    if (!navigator.geolocation) return toast.error("GPS no soportado");
+    setGettingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        const geocoder = new window.google.maps.Geocoder();
+        geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results, status) => {
+          if (status === "OK" && results[0]) {
+            setAddress(results[0].formatted_address);
+            setCoords({ lat: latitude, lng: longitude });
+          }
+          setGettingLocation(false);
+        });
+      },
+      () => {
+        toast.error("Activa el GPS");
+        setGettingLocation(false);
+      }
+    );
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setPetData(prev => ({ ...prev, [name]: value }));
@@ -55,7 +78,7 @@ const OnboardingOwner = () => {
     }
     
     if (!coords.lat || !coords.lng) {
-      toast.error('Selecciona una dirección de la lista sugerida');
+      toast.error('Selecciona una dirección usando el buscador o GPS');
       return;
     }
 
@@ -65,12 +88,30 @@ const OnboardingOwner = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuario no encontrado');
 
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('first_name, last_name')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      const invalidTerms = ['usuario', 'nuevo', 'paseador', 'walker'];
+      
+      const cleanFirstName = profile?.first_name && !invalidTerms.includes(profile.first_name.toLowerCase()) 
+        ? profile.first_name 
+        : (user.user_metadata?.first_name || user.user_metadata?.name?.split(' ')[0] || '');
+        
+      const cleanLastName = profile?.last_name && !invalidTerms.includes(profile.last_name.toLowerCase()) 
+        ? profile.last_name 
+        : (user.user_metadata?.last_name || '');
+
       const { error: petError } = await supabase.from('pets').insert([
         { 
           name: petData.name,
           breed: petData.breed,
           energy_level: petData.energy_level,
-          owner_id: user.id 
+          age_years: petData.age_years ? parseInt(petData.age_years) : null,
+          owner_id: user.id,
+          is_active: true
         }
       ]);
       
@@ -79,6 +120,8 @@ const OnboardingOwner = () => {
       const { error: profileError } = await supabase
         .from('user_profiles')
         .update({
+          first_name: cleanFirstName || 'Dueño',
+          last_name: cleanLastName || '',
           address: address,
           lat: coords.lat,
           lng: coords.lng,
@@ -100,24 +143,24 @@ const OnboardingOwner = () => {
 
   if (!isLoaded) return (
     <div className="flex items-center justify-center h-screen bg-gray-50">
-      <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+      <Loader2 className="w-10 h-10 text-emerald-500 animate-spin" />
     </div>
   );
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 p-6">
+    <div className="flex flex-col min-h-screen bg-gray-50 p-6 font-sans">
       <div className="max-w-sm mx-auto w-full">
         <div className="text-center mb-8">
-            <div className="mx-auto bg-emerald-100 p-4 rounded-full mb-4 w-fit">
+            <div className="mx-auto bg-emerald-100 p-4 rounded-full mb-4 w-fit animate-in zoom-in duration-500">
               <Dog className="w-8 h-8 text-emerald-600" />
             </div>
-            <h1 className="text-2xl font-black text-gray-800">¡Bienvenido!</h1>
-            <p className="text-gray-500 text-sm">Configura tu perfil para empezar.</p>
+            <h1 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">¡Bienvenido!</h1>
+            <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mt-1">Configura el perfil de tu manada</p>
         </div>
 
-        <form onSubmit={handleCompleteProfile} className="space-y-5 text-left">
+        <form onSubmit={handleCompleteProfile} className="space-y-5">
           <div>
-            <label className="text-[10px] font-black text-gray-400 uppercase ml-2 mb-1 block">¿Dónde vive tu mascota?</label>
+            <label className="text-[10px] font-black text-gray-400 uppercase ml-2 mb-2 block tracking-widest">¿Dónde vive tu mascota? *</label>
             <div className="relative">
                 <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
                 <Autocomplete
@@ -127,59 +170,76 @@ const OnboardingOwner = () => {
                 >
                   <input
                     type="text"
-                    placeholder="Busca tu dirección..."
-                    className="w-full h-12 pl-12 pr-4 bg-white border-2 border-gray-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 transition outline-none font-medium"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="Escribe tu dirección..."
+                    className="w-full h-14 pl-12 pr-12 bg-white border-2 border-gray-100 rounded-2xl focus:border-emerald-500 transition-all outline-none font-bold text-sm shadow-sm text-gray-800"
                     required
                   />
                 </Autocomplete>
+                <button type="button" onClick={handleCurrentLocation} className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500 z-10 active:scale-90 transition-all">
+                   {gettingLocation ? <Loader2 className="animate-spin w-5 h-5" /> : <Crosshair size={20} />}
+                </button>
             </div>
           </div>
 
-          <div className="bg-gray-100 h-[1px] w-full my-6"></div>
+          <div className="bg-gray-200 h-[1px] w-full my-6 opacity-50"></div>
 
           <div>
-            <label className="text-[10px] font-black text-gray-400 uppercase ml-2 mb-1 block">Nombre de tu mascota</label>
+            <label className="text-[10px] font-black text-gray-400 uppercase ml-2 mb-2 block tracking-widest">Nombre de tu mascota *</label>
             <input
               type="text"
               name="name"
               value={petData.name}
               onChange={handleInputChange}
-              className="w-full h-12 px-4 bg-white border-2 border-gray-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
+              className="w-full h-14 px-5 bg-white border-2 border-gray-100 rounded-2xl focus:border-emerald-500 outline-none font-bold shadow-sm text-gray-800"
               placeholder="Ej. Bruno"
               required
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase ml-2 mb-1 block">Raza</label>
-                <select name="breed" value={petData.breed} onChange={handleInputChange} className="w-full h-12 px-3 bg-white border-2 border-gray-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none font-medium text-sm">
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-2 mb-2 block tracking-widest">Raza *</label>
+                <select name="breed" value={petData.breed} onChange={handleInputChange} className="w-full h-14 px-3 bg-white border-2 border-gray-100 rounded-2xl focus:border-emerald-500 outline-none font-bold text-xs shadow-sm appearance-none text-gray-800" required>
                     <option value="">Selecciona</option>
                     {breeds.map(b => <option key={b} value={b}>{b}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase ml-2 mb-1 block">Nivel de Energía</label>
-                <select name="energy_level" value={petData.energy_level} onChange={handleInputChange} className="w-full h-12 px-3 bg-white border-2 border-gray-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none font-medium text-sm">
-                    <option value="low">Baja</option>
-                    <option value="medium">Media</option>
-                    <option value="high">Alta</option>
-                </select>
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-2 mb-2 block tracking-widest">Edad (Años)</label>
+                <input
+                  type="number"
+                  name="age_years"
+                  value={petData.age_years}
+                  onChange={handleInputChange}
+                  className="w-full h-14 px-5 bg-white border-2 border-gray-100 rounded-2xl focus:border-emerald-500 outline-none font-bold shadow-sm text-gray-800"
+                  placeholder="0"
+                />
               </div>
           </div>
 
-          <div className="flex items-start gap-2 p-3 bg-orange-50 border border-orange-100 rounded-2xl text-orange-700">
-            <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-            <p className="text-[10px] font-bold uppercase leading-tight">Solo aceptamos mascotas con vacunas completas.</p>
+          <div>
+            <label className="text-[10px] font-black text-gray-400 uppercase ml-2 mb-2 block tracking-widest">Nivel de Energía</label>
+            <select name="energy_level" value={petData.energy_level} onChange={handleInputChange} className="w-full h-14 px-3 bg-white border-2 border-gray-100 rounded-2xl focus:border-emerald-500 outline-none font-bold text-xs shadow-sm text-gray-800">
+                <option value="low">Baja - Tranquilo</option>
+                <option value="medium">Media - Activo</option>
+                <option value="high">Alta - Muy energético</option>
+            </select>
+          </div>
+
+          <div className="flex items-start gap-3 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl text-emerald-800">
+            <AlertTriangle size={18} className="shrink-0 text-emerald-600" />
+            <p className="text-[10px] font-black uppercase leading-tight tracking-tight">Es obligatorio que tu mascota tenga sus vacunas al día para usar el servicio.</p>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full h-14 flex justify-center items-center gap-2 bg-emerald-500 text-white font-black rounded-2xl shadow-lg shadow-emerald-100 active:scale-[0.98] transition-all mt-4"
+            className="w-full h-16 flex justify-center items-center gap-2 bg-[#13ec13] text-black font-black rounded-[24px] shadow-xl shadow-emerald-200 active:scale-[0.97] transition-all mt-4 uppercase text-xs tracking-[0.2em]"
           >
             {loading ? <Loader2 className="animate-spin" /> : 'Finalizar Registro'}
-            {!loading && <ArrowRight size={20} />}
+            {!loading && <ArrowRight size={18} />}
           </button>
         </form>
       </div>
