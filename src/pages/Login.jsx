@@ -146,8 +146,8 @@ const Login = ({ onLogin }) => {
   };
 
   return (
-    <div className="flex flex-col h-screen w-full bg-gray-50 font-sans overflow-hidden">
-      <div className={`relative w-full bg-gray-900 shrink-0 transition-all duration-500 ${authMode === 'register' ? 'h-[20%]' : 'h-[30%]'}`}>
+    <div className="flex flex-col h-screen w-full bg-gray-50 font-sans overflow-hidden text-gray-900">
+      <div className={`relative w-full bg-gray-900 shrink-0 transition-all duration-500 ${authMode === 'register' ? 'h-[18%]' : 'h-[25%]'}`}>
         <img src={loginBg} alt="Background" className="w-full h-full object-cover opacity-80" />
       </div>
 
@@ -156,46 +156,60 @@ const Login = ({ onLogin }) => {
             <div className="bg-[#13ec13] p-2 rounded-xl shadow-sm rotate-3 mb-2">
                 <Dog className="w-6 h-6 text-black" />
             </div>
-            <h1 className="text-2xl font-black text-gray-900 tracking-tight">DogWalk</h1>
+            <h1 className="text-2xl font-black text-gray-900 tracking-tight uppercase">DogWalk</h1>
           </div>
 
           {authMode === 'register' && (
               <div className="flex p-1 bg-gray-100 rounded-xl mb-4 mx-auto max-w-xs w-full">
-                <button type="button" onClick={() => setRoleMode('owner')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${roleMode === 'owner' ? 'bg-white text-emerald-800 shadow-sm' : 'text-gray-500'}`}>
-                  Soy Dueño
+                <button type="button" onClick={() => setRoleMode('owner')} className={`flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${roleMode === 'owner' ? 'bg-white text-emerald-800 shadow-sm' : 'text-gray-500 uppercase'}`}>
+                  SOY DUEÑO
                 </button>
-                <button type="button" onClick={() => setRoleMode('walker')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${roleMode === 'walker' ? 'bg-white text-emerald-800 shadow-sm' : 'text-gray-500'}`}>
-                  Soy Paseador
+                <button type="button" onClick={() => setRoleMode('walker')} className={`flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${roleMode === 'walker' ? 'bg-white text-emerald-800 shadow-sm' : 'text-gray-500 uppercase'}`}>
+                  SOY PASEADOR
                 </button>
               </div>
           )}
 
           <form onSubmit={handleAuth} className="space-y-3">
             {authMode === 'register' && (
-                <div className="relative"><User className="absolute left-3 top-3 text-gray-400 w-4 h-4" /><input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full pl-10 pr-4 h-10 bg-gray-50 rounded-xl border border-gray-100 text-sm" placeholder="Nombre Completo" required /></div>
+                <div className="relative"><User className="absolute left-3 top-3 text-gray-400 w-4 h-4" /><input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full h-10 pl-10 pr-4 bg-gray-50 rounded-xl border border-gray-100 text-sm font-bold outline-none focus:border-emerald-500 transition-all" placeholder="Nombre Completo" required /></div>
              )}
-            <div className="relative"><Mail className="absolute left-3 top-3 text-gray-400 w-4 h-4" /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 h-10 bg-gray-50 rounded-xl border border-gray-100 text-sm" placeholder="correo@ejemplo.com" required /></div>
-            <div className="relative"><Key className="absolute left-3 top-3 text-gray-400 w-4 h-4" /><input type={showPass ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-10 pr-10 h-10 bg-gray-50 rounded-xl border border-gray-100 text-sm" placeholder="Contraseña" required /><button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-3 text-gray-400">{showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div>
+            <div className="relative"><Mail className="absolute left-3 top-3 text-gray-400 w-4 h-4" /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full h-10 pl-10 pr-4 bg-gray-50 rounded-xl border border-gray-100 text-sm font-bold outline-none focus:border-emerald-500 transition-all" placeholder="correo@ejemplo.com" required /></div>
+            <div className="relative"><Key className="absolute left-3 top-3 text-gray-400 w-4 h-4" /><input type={showPass ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full h-10 pl-10 pr-10 bg-gray-50 rounded-xl border border-gray-100 text-sm font-bold outline-none focus:border-emerald-500 transition-all" placeholder="Contraseña" required /><button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-3 text-gray-400">{showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div>
             
-            <button disabled={loading} className="w-full h-11 bg-[#13ec13] text-black font-extrabold text-sm rounded-xl shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+            <button disabled={loading} className="w-full h-11 bg-[#13ec13] text-black font-black text-xs uppercase tracking-widest rounded-xl shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2">
               {loading ? <Loader2 className="animate-spin w-4 h-4" /> : (authMode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta')} 
             </button>
           </form>
 
-          <div className="text-center mt-8 pb-4">
-             <p className="text-xs font-medium text-gray-400">
-                {authMode === 'login' ? '¿Eres nuevo en DogWalk?' : '¿Ya eres parte de la manada?'}
-                <button 
-                  type="button"
-                  onClick={() => {
-                    setAuthMode(authMode === 'login' ? 'register' : 'login');
-                    setName('');
-                  }} 
-                  className="ml-2 text-blue-600 font-black hover:text-blue-700 transition-colors underline underline-offset-4"
-                >
-                  {authMode === 'login' ? 'Regístrate aquí' : 'Inicia Sesión'}
-                </button>
-             </p>
+          
+          <div className="mt-6">
+             <div className="flex items-center gap-4 mb-4">
+               <div className="h-px bg-gray-100 flex-1"></div>
+               <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">O continuar con</span>
+               <div className="h-px bg-gray-100 flex-1"></div>
+             </div>
+             
+             <div className="flex justify-center mb-6">
+               <SocialButton icon={<GoogleIcon />} onClick={() => handleOAuthLogin('google')} />
+             </div>
+             
+             
+             <div className="text-center pb-4">
+                <p className="text-xs font-medium text-gray-400">
+                  {authMode === 'login' ? '¿Eres nuevo en DogWalk?' : '¿Ya eres parte de la manada?'}
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setAuthMode(authMode === 'login' ? 'register' : 'login');
+                      setName('');
+                    }} 
+                    className="ml-2 text-blue-600 font-black hover:text-blue-700 transition-colors underline underline-offset-4"
+                  >
+                    {authMode === 'login' ? 'Regístrate aquí' : 'Inicia Sesión'}
+                  </button>
+                </p>
+             </div>
           </div>
       </div>
     </div>
