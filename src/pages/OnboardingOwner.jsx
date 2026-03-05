@@ -10,7 +10,9 @@ const OnboardingOwner = () => {
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-    libraries: libraries
+    libraries: ['places'],
+    language: 'es',
+    region: 'CO'
   });
 
   const [petData, setPetData] = useState({ name: '', breed: '', energy_level: 'medium', age_years: '' });

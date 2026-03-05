@@ -99,7 +99,7 @@ const DocumentUploader = ({ type, label, description, value, onChange, cameraMod
         </div>
       ) : previewUrl || value ? (
         <div className="relative w-full h-40 bg-gray-900 rounded-lg overflow-hidden group">
-          <img src={previewUrl} alt={label} className="w-full h-full object-cover" />
+          <img src={previewUrl} alt={label} className="w-full h-full object-contain" />
           <button 
             onClick={handleRemove}
             className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"

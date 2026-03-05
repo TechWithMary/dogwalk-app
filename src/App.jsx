@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
+import { useJsApiLoader } from '@react-google-maps/api';
 
 import MobileLayout from './layouts/MobileLayout';
 import Login from './pages/Login';
@@ -31,6 +32,14 @@ const APP_NAME = "DogWalk";
 const App = () => {
   const navigate = useNavigate();
   const location = useLocation();
+
+  useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: ['places'],
+    language: 'es',
+    region: 'CO'
+  });
 
   const [userRole, setUserRole] = useState('owner');
   const [userName, setUserName] = useState('Usuario');
