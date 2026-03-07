@@ -50,7 +50,7 @@ const WalkerProfileView = ({ walker, onNavigate, onBack }) => {
           <div className="bg-gray-50 p-3 rounded-2xl text-center border border-gray-100">
             <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Edad</p>
             <p className="font-black text-gray-800">
-                {profile?.age ? `${profile.age} años` : '---'}
+                {profile?.age ? (profile.age === 1 ? '1 año' : `${profile.age} años`) : '---'}
             </p>
           </div>
         </div>
@@ -58,7 +58,7 @@ const WalkerProfileView = ({ walker, onNavigate, onBack }) => {
         <div className="mb-8">
           <h3 className="font-black text-gray-900 mb-2">Sobre mí</h3>
           <p className="text-gray-500 text-sm leading-relaxed">
-            {walker.bio || "Este paseador aún no ha redactado su biografía."}
+            {profile?.bio || walker.bio || "Este paseador aún no ha redactado su biografía."}
           </p>
         </div>
 

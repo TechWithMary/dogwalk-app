@@ -230,7 +230,15 @@ const Home = ({ currentUser, navigate, setView }) => {
                   className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex gap-4 cursor-pointer active:scale-[0.98] transition-all"
                 >
                   <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-200 shrink-0 relative">
-                      <img src={profile?.profile_photo_url || 'https://via.placeholder.com/150'} alt={fullName} className="w-full h-full object-cover" />
+                      {profile?.profile_photo_url ? (
+                        <img src={profile.profile_photo_url} alt={fullName} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-emerald-100 flex items-center justify-center">
+                          <span className="text-emerald-600 font-black text-lg">
+                            {fullName?.charAt(0)?.toUpperCase() || '?'}
+                          </span>
+                        </div>
+                      )}
                       <div className="absolute bottom-0 bg-black/40 w-full flex items-center justify-center gap-1 py-0.5">
                           <Star className="w-2 h-2 text-yellow-400 fill-current" />
                           <span className="text-white text-[8px] font-bold">

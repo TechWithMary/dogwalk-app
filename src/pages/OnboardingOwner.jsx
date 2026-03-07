@@ -16,6 +16,7 @@ const OnboardingOwner = () => {
   });
 
   const [petData, setPetData] = useState({ name: '', breed: '', energy_level: 'medium', age_years: '' });
+  const [otherBreed, setOtherBreed] = useState('');
   const [address, setAddress] = useState('');
   const [coords, setCoords] = useState({ lat: null, lng: null });
   const [loading, setLoading] = useState(false);
@@ -24,8 +25,11 @@ const OnboardingOwner = () => {
 
   const breeds = [
     "Criollo / Mezcla", "Labrador Retriever", "Golden Retriever", "Pastor Alemán", 
-    "Bulldog Francés", "Beagle", "Poodle", "Rottweiler", "Yorkshire Terrier", 
-    "Boxer", "Dachshund", "Siberian Husky", "Chihuahua", "Border Collie", "Pug", "Otro"
+    "Bulldog Francés", "Bulldog Inglés", "Beagle", "Poodle", "Rottweiler", 
+    "Yorkshire Terrier", "Boxer", "Dachshund", "Siberian Husky", "Chihuahua", 
+    "Border Collie", "Pug", "Shih Tzu", "Cocker Spaniel", "Pitbull", "Doberman",
+    "Gran Danés", "Maltés", "Pomerania", "Basset Hound", "Pastor Belga", 
+    "Dogo Argentino", "Mastín", "San Bernardo", "Otro"
   ];
 
   const onLoad = (autocomplete) => {
@@ -106,10 +110,17 @@ const OnboardingOwner = () => {
         ? profile.last_name 
         : (user.user_metadata?.last_name || '');
 
+      const finalBreed = petData.breed === 'Otro' ? otherBreed : petData.breed;
+      
+      if (petData.breed === 'Otro' && !otherBreed.trim()) {
+        toast.error('Especifica la raza de tu mascota');
+        return;
+      }
+
       const { error: petError } = await supabase.from('pets').insert([
         { 
           name: petData.name,
-          breed: petData.breed,
+          breed: finalBreed,
           energy_level: petData.energy_level,
           age_years: petData.age_years ? parseInt(petData.age_years) : null,
           owner_id: user.id,
@@ -220,6 +231,20 @@ const OnboardingOwner = () => {
                 />
               </div>
           </div>
+
+          {petData.breed === 'Otro' && (
+            <div>
+              <label className="text-[10px] font-black text-gray-400 uppercase ml-2 mb-2 block tracking-widest">Especifica la raza *</label>
+              <input
+                type="text"
+                value={otherBreed}
+                onChange={(e) => setOtherBreed(e.target.value)}
+                className="w-full h-14 px-5 bg-white border-2 border-gray-100 rounded-2xl focus:border-emerald-500 outline-none font-bold shadow-sm text-gray-800"
+                placeholder="Escribe la raza"
+                required
+              />
+            </div>
+          )}
 
           <div>
             <label className="text-[10px] font-black text-gray-400 uppercase ml-2 mb-2 block tracking-widest">Nivel de Energía</label>

@@ -131,7 +131,7 @@ const PetManager = ({ onBack }) => {
                   </div>
                   <div>
                     <p className="font-black text-gray-900 text-lg">{pet.name}</p>
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-tight">{pet.breed || 'Criollo'} • {pet.age_years} años</p>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-tight">{pet.breed || 'Criollo'} • {pet.age_years === 1 ? '1 año' : `${pet.age_years} años`}</p>
                   </div>
                 </div>
                 <div className="flex gap-3">
