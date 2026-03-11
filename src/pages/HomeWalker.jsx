@@ -27,6 +27,7 @@ const HomeWalker = ({ currentUser }) => {
     activeWalks: [] 
   });
   const [acceptingId, setAcceptingId] = useState(null);
+  const [processingWalkId, setProcessingWalkId] = useState(null);
 
   const acceptBooking = async (bookingId) => {
     try {
@@ -60,6 +61,50 @@ const HomeWalker = ({ currentUser }) => {
       toast.error('Error al aceptar paseo');
     } finally {
       setAcceptingId(null);
+    }
+  };
+
+  const startWalk = async (walkId) => {
+    setProcessingWalkId(walkId);
+    try {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ status: 'in_progress' })
+        .eq('id', walkId)
+        .eq('status', 'accepted');
+
+      if (error) throw error;
+      
+      toast.success('¡Paseo iniciado! Dirígete al punto de encuentro.');
+      fetchWalkerData();
+    } catch (error) {
+      console.error(error);
+      toast.error('Error al iniciar paseo');
+    } finally {
+      setProcessingWalkId(null);
+    }
+  };
+
+  const finishWalk = async (walkId) => {
+    if (!confirm('¿Confirmas que has terminado el paseo?')) return;
+    
+    setProcessingWalkId(walkId);
+    try {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ status: 'completed' })
+        .eq('id', walkId)
+        .eq('status', 'in_progress');
+
+      if (error) throw error;
+      
+      toast.success('¡Paseo completado! Gracias por tu trabajo.');
+      fetchWalkerData();
+    } catch (error) {
+      console.error(error);
+      toast.error('Error al finalizar paseo');
+    } finally {
+      setProcessingWalkId(null);
     }
   };
 
@@ -218,8 +263,42 @@ const HomeWalker = ({ currentUser }) => {
             )
           ) : (
             data.activeWalks.length > 0 ? data.activeWalks.map(walk => (
-              <div key={walk.id} className="bg-white p-5 rounded-[30px] mb-4 shadow-sm border-l-4 border-emerald-500">
-                 
+              <div key={walk.id} className="bg-white p-5 rounded-[30px] mb-4 shadow-sm border border-gray-100">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex gap-3">
+                    <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400"><Dog /></div>
+                    <div>
+                      <h4 className="font-black text-gray-900">Paseo {walk.duration}</h4>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1"><MapPin size={10}/> {walk.address?.split(',')[0] || 'Dirección no disponible'}</p>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase mt-1 inline-block ${
+                        walk.status === 'accepted' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'
+                      }`}>
+                        {walk.status === 'accepted' ? 'Por iniciar' : 'En curso'}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black">{formatMoney(walk.total_price)}</span>
+                </div>
+
+                {walk.status === 'accepted' && (
+                  <button 
+                    onClick={() => startWalk(walk.id)}
+                    disabled={processingWalkId === walk.id}
+                    className="w-full bg-blue-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {processingWalkId === walk.id ? <Loader2 className="animate-spin w-4 h-4" /> : <><MapPin size={16} /> Iniciar Paseo</>}
+                  </button>
+                )}
+
+                {walk.status === 'in_progress' && (
+                  <button 
+                    onClick={() => finishWalk(walk.id)}
+                    disabled={processingWalkId === walk.id}
+                    className="w-full bg-emerald-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {processingWalkId === walk.id ? <Loader2 className="animate-spin w-4 h-4" /> : <><CheckCircle size={16} /> Finalizar Paseo</>}
+                  </button>
+                )}
               </div>
             )) : (
               <div className="text-center py-16">

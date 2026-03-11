@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
-import { Check, X, Loader2, Shield, User, FileText, Smartphone } from 'lucide-react';
+import { Check, X, Loader2, Shield, User, FileText, Smartphone, DollarSign } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const AdminVerifications = () => {
+  const navigate = useNavigate();
   const [walkers, setWalkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);
@@ -68,14 +70,23 @@ const AdminVerifications = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 p-6">
-      <div className="flex items-center gap-3 mb-8">
-        <div className="bg-emerald-100 p-3 rounded-xl">
-            <Shield className="w-6 h-6 text-emerald-600" />
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-3">
+          <div className="bg-emerald-100 p-3 rounded-xl">
+              <Shield className="w-6 h-6 text-emerald-600" />
+          </div>
+          <div>
+              <h1 className="text-2xl font-black text-gray-900">Verificaciones</h1>
+              <p className="text-gray-400 text-sm">Validar documentos pendientes</p>
+          </div>
         </div>
-        <div>
-            <h1 className="text-2xl font-black text-gray-900">Verificaciones</h1>
-            <p className="text-gray-400 text-sm">Validar documentos pendientes</p>
-        </div>
+        <button 
+          onClick={() => navigate('/admin/payouts')}
+          className="flex items-center gap-2 px-4 py-2 bg-emerald-100 rounded-xl hover:bg-emerald-200 transition-colors"
+        >
+          <DollarSign className="w-5 h-5 text-emerald-600" />
+          <span className="font-bold text-emerald-700 text-sm">Retiros</span>
+        </button>
       </div>
 
       {walkers.length === 0 ? (

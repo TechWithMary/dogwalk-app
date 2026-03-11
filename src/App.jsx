@@ -26,6 +26,9 @@ import ManageCards from './pages/ManageCards.jsx';
 import Notifications from './pages/Notifications.jsx';
 import WalkerBalance from './pages/WalkerBalance.jsx';
 import AdminVerifications from './pages/AdminVerifications.jsx';
+import AdminPayouts from './pages/AdminPayouts.jsx';
+import Terms from './pages/Terms.jsx';
+import Privacy from './pages/Privacy.jsx';
 
 const APP_NAME = "DogWalk";
 
@@ -195,6 +198,10 @@ const App = () => {
         
        
         <Route path="/admin/verifications" element={<AdminVerifications />} />
+        <Route path="/admin/payouts" element={<AdminPayouts />} />
+        
+        <Route path="/terminos" element={<Terms />} />
+        <Route path="/privacidad" element={<Privacy />} />
         
         <Route path="*" element={<Navigate to={isAdmin ? "/admin/verifications" : "/home"} replace />} />
       </Routes>

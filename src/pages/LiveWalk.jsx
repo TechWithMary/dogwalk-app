@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Phone, MessageSquare, Shield, Star, Loader2, CheckCircle, Navigation, ArrowLeft } from 'lucide-react';
+import { Phone, MessageSquare, Shield, Star, Loader2, CheckCircle, Navigation, ArrowLeft, MapPin } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
+import toast from 'react-hot-toast';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 const containerStyle = { width: '100%', height: '100%' };
@@ -11,6 +12,8 @@ const LiveWalk = ({ setView }) => {
     const [walker, setWalker] = useState(null);
     const [status, setStatus] = useState('loading');
     const [walkerCoords, setWalkerCoords] = useState(null);
+    const [arrivedConfirmed, setArrivedConfirmed] = useState(false);
+    const [confirmingArrival, setConfirmingArrival] = useState(false);
 
     const [rating, setRating] = useState(0);
     const [review, setReview] = useState('');
@@ -116,6 +119,18 @@ const LiveWalk = ({ setView }) => {
         }
     };
 
+    const confirmArrival = async () => {
+        setConfirmingArrival(true);
+        try {
+            setArrivedConfirmed(true);
+            toast.success("¡Perfecto! El paseo puede comenzar");
+        } catch (error) {
+            toast.error("Error al confirmar");
+        } finally {
+            setConfirmingArrival(false);
+        }
+    };
+
     if (status === 'no_walk') {
         return (
             <div className="h-screen flex flex-col items-center justify-center p-6 bg-white text-center">
@@ -184,6 +199,34 @@ const LiveWalk = ({ setView }) => {
                                 <button className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center"><MessageSquare size={18} /></button>
                             </div>
                         </div>
+
+                        {status === 'in_progress' && !arrivedConfirmed && (
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-4">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center">
+                                        <MapPin className="w-5 h-5 text-white" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="font-bold text-emerald-800 text-sm">¿El paseador llegó?</p>
+                                        <p className="text-xs text-emerald-600">Confirma que tu mascota está con el paseador</p>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={confirmArrival}
+                                    disabled={confirmingArrival}
+                                    className="w-full bg-emerald-500 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2"
+                                >
+                                    {confirmingArrival ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle size={16} /> Confirmar Llegada</>}
+                                </button>
+                            </div>
+                        )}
+
+                        {arrivedConfirmed && (
+                            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-4 flex items-center gap-3">
+                                <CheckCircle className="w-6 h-6 text-blue-500" />
+                                <p className="font-bold text-blue-800 text-sm">Llegada confirmada. ¡Disfruten el paseo! 🐕</p>
+                            </div>
+                        )}
                     </div>
                 )}
 

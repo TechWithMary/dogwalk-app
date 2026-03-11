@@ -58,18 +58,53 @@ const WalkerBalance = ({ onBack }) => {
     setRequesting(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
-      const { error } = await supabase.from('notifications').insert({
+      if (!user) throw new Error('No hay usuario');
+
+      const { data: walkerData } = await supabase
+        .from('walkers')
+        .select('id, user_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!walkerData) {
+        toast.error('Perfil de paseador no encontrado');
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('bank_account_type, bank_account_number, bank_name')
+        .eq('user_id', user.id)
+        .single();
+
+      const payoutData = {
+        walker_id: walkerData.id,
+        amount: balance,
+        status: 'pending',
+        payout_date: new Date().toISOString().split('T')[0],
+        notes: `Tipo: ${profile?.bank_account_type || 'Nequi'}, Cuenta: ${profile?.bank_account_number || 'No registrada'}`
+      };
+
+      const { error: payoutError } = await supabase
+        .from('payouts')
+        .insert(payoutData);
+
+      if (payoutError) {
+        console.error('Error creando payout:', payoutError);
+        throw payoutError;
+      }
+
+      const { error: notifError } = await supabase.from('notifications').insert({
         user_id: user.id,
-        title: '💰 Solicitud de Retiro',
-        body: `Solicitud de retiro por $${balance.toLocaleString()}`,
-        link_to: '/admin/payouts'
+        title: '💰 Solicitud de Retiro Enviada',
+        body: `Tu solicitud de retiro por $${balance.toLocaleString()} ha sido recibida.`,
+        link_to: '/walker-balance'
       });
 
-      if (error) throw error;
-      toast.success("Solicitud enviada. Procesaremos tu pago el lunes.");
+      toast.success("Solicitud enviada. Te notificaremos cuando procesemos el pago.");
     } catch (error) {
-      toast.error("Error enviando solicitud");
+      console.error(error);
+      toast.error("Error al solicitar retiro");
     } finally {
       setRequesting(false);
     }
