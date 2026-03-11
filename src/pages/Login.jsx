@@ -192,28 +192,27 @@ const Login = ({ onLogin }) => {
                <div className="h-px bg-gray-100 flex-1"></div>
              </div>
              
-             <div className="flex justify-center mb-6">
-               <SocialButton icon={<GoogleIcon />} onClick={() => handleOAuthLogin('google')} />
-             </div>
-             
-             
-              <div className="text-center pb-4">
-                 <p className="text-xs font-medium text-gray-400">
-                   {authMode === 'login' ? '¿Eres nuevo en DogWalk?' : '¿Ya eres parte de la manada?'}
-                   <button 
-                     type="button"
-                     onClick={() => {
-                       setAuthMode(authMode === 'login' ? 'register' : 'login');
-                       setName('');
-                     }} 
-                     className="ml-2 text-blue-600 font-black hover:text-blue-700 transition-colors underline underline-offset-4"
-                   >
-                     {authMode === 'login' ? 'Regístrate aquí' : 'Inicia Sesión'}
-                   </button>
-                 </p>
+              <div className="flex justify-center mb-6">
+                <SocialButton icon={<GoogleIcon />} onClick={() => handleOAuthLogin('google')} />
+              </div>
+              
+              <div className="text-center pb-3">
+                <p className="text-xs font-medium text-gray-400">
+                  {authMode === 'login' ? '¿Eres nuevo en DogWalk?' : '¿Ya eres parte de la manada?'}
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setAuthMode(authMode === 'login' ? 'register' : 'login');
+                      setName('');
+                    }} 
+                    className="ml-2 text-emerald-600 font-black hover:text-emerald-700 transition-colors underline underline-offset-4"
+                  >
+                    {authMode === 'login' ? 'Regístrate aquí' : 'Inicia Sesión'}
+                  </button>
+                </p>
               </div>
 
-              <div className="text-center pt-2 border-t border-gray-100">
+              <div className="text-center pt-3 border-t border-gray-100 mt-2">
                 <p className="text-[10px] text-gray-400">
                   Al registrarte aceptas nuestros{' '}
                   <button type="button" onClick={() => navigate('/terminos')} className="text-emerald-600 font-bold underline">

@@ -1,36 +1,44 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import { useJsApiLoader } from '@react-google-maps/api';
 
 import MobileLayout from './layouts/MobileLayout';
-import Login from './pages/Login';
-import Home from './pages/Home';
-import HomeWalker from './pages/HomeWalker';
-import Booking from './pages/Booking';
-import Wallet from './pages/Wallet';
-import Messages from './pages/Messages';
-import LiveWalk from './pages/LiveWalk';
-import OnboardingOwner from './pages/OnboardingOwner';
-import OnboardingWalker from './pages/OnboardingWalker';
 import { Toaster } from 'react-hot-toast';
 
 import { agentRegistry } from './agents/AgentRegistry.js';
 import FrontendAgent from './agents/frontend/FrontendAgent.js';
 import BackendAgent from './agents/backend/BackendAgent.js';
 import PaymentsAgent from './agents/payments/PaymentsAgent.js';
-import EditProfile from './pages/EditProfile.jsx';
-import Profile from './pages/Profile.jsx';
-import PetManager from './pages/PetManager.jsx';
-import ManageCards from './pages/ManageCards.jsx';
-import Notifications from './pages/Notifications.jsx';
-import WalkerBalance from './pages/WalkerBalance.jsx';
-import AdminVerifications from './pages/AdminVerifications.jsx';
-import AdminPayouts from './pages/AdminPayouts.jsx';
-import Terms from './pages/Terms.jsx';
-import Privacy from './pages/Privacy.jsx';
+
+// Code-splitting para mejor rendimiento
+const Login = lazy(() => import('./pages/Login'));
+const Home = lazy(() => import('./pages/Home'));
+const HomeWalker = lazy(() => import('./pages/HomeWalker'));
+const Booking = lazy(() => import('./pages/Booking'));
+const Wallet = lazy(() => import('./pages/Wallet'));
+const Messages = lazy(() => import('./pages/Messages'));
+const LiveWalk = lazy(() => import('./pages/LiveWalk'));
+const OnboardingOwner = lazy(() => import('./pages/OnboardingOwner'));
+const OnboardingWalker = lazy(() => import('./pages/OnboardingWalker'));
+const EditProfile = lazy(() => import('./pages/EditProfile.jsx'));
+const Profile = lazy(() => import('./pages/Profile.jsx'));
+const PetManager = lazy(() => import('./pages/PetManager.jsx'));
+const ManageCards = lazy(() => import('./pages/ManageCards.jsx'));
+const Notifications = lazy(() => import('./pages/Notifications.jsx'));
+const WalkerBalance = lazy(() => import('./pages/WalkerBalance.jsx'));
+const AdminVerifications = lazy(() => import('./pages/AdminVerifications.jsx'));
+const AdminPayouts = lazy(() => import('./pages/AdminPayouts.jsx'));
+const Terms = lazy(() => import('./pages/Terms.jsx'));
+const Privacy = lazy(() => import('./pages/Privacy.jsx'));
 
 const APP_NAME = "DogWalk";
+
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center h-screen bg-white">
+    <div className="w-12 h-12 border-4 border-gray-100 border-t-emerald-500 rounded-full animate-spin"></div>
+  </div>
+);
 
 const App = () => {
   const navigate = useNavigate();
@@ -119,7 +127,7 @@ const App = () => {
   const getLayoutProps = () => {
     const path = location.pathname;
 
-    if (path === '/login' || path === '/') {
+    if (path === '/login' || path === '/' || path === '/terminos' || path === '/privacidad') {
       return { showNav: false, hideHeader: true, title: '' };
     }
     if (path === '/onboarding-owner' || path === '/onboarding-walker') {
@@ -172,39 +180,43 @@ const App = () => {
       isWalker={isWalker}
     >
       <Toaster position="top-center" />
-      <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={<Login onLogin={handleLogin} />} />
-        
-        {/* Rutas de Dueño */}
-        <Route path="/home" element={isAdmin ? <Navigate to="/admin/verifications" /> : <Home setView={navigate} currentUser={{ name: userName }} navigate={navigate} />} />
-        <Route path="/booking" element={<Booking setView={navigate} />} />
-        <Route path="/manage-pets" element={<PetManager onBack={() => navigate(-1)} />} />
-        
-        {/* Rutas de Paseador */}
-        <Route path="/walker-home" element={<HomeWalker currentUser={{ name: userName }} />} />
-        <Route path="/walker-balance" element={<WalkerBalance onBack={() => navigate('/walker-home')} />} />
-        
-        {/* Rutas Comunes */}
-        <Route path="/messages" element={<Messages isWalker={isWalker} />} />
-        <Route path="/wallet" element={<Wallet setView={navigate} currentUser={{ name: userName }} onLogout={handleLogout} />} />
-        <Route path="/live-walk" element={<LiveWalk setView={(v) => navigate(v === 'home' ? '/home' : `/${v}`)} />} />
-        <Route path="/onboarding-owner" element={<OnboardingOwner />} />
-        <Route path="/onboarding-walker" element={<OnboardingWalker />} />
-        <Route path="/profile" element={<Profile onLogout={handleLogout} navigate={navigate} />} />
-        <Route path="/edit-profile" element={<EditProfile navigate={navigate} />} />
-        <Route path="/manage-cards" element={<ManageCards />} />
-        <Route path="/notifications" element={<Notifications onBack={() => navigate(-1)} />} />
-        
-       
-        <Route path="/admin/verifications" element={<AdminVerifications />} />
-        <Route path="/admin/payouts" element={<AdminPayouts />} />
-        
-        <Route path="/terminos" element={<Terms />} />
-        <Route path="/privacidad" element={<Privacy />} />
-        
-        <Route path="*" element={<Navigate to={isAdmin ? "/admin/verifications" : "/home"} replace />} />
-      </Routes>
+      <Suspense fallback={<LoadingFallback />}>
+        <Routes>
+          {/* Rutas públicas - sin layout */}
+          <Route path="/login" element={<Login onLogin={handleLogin} />} />
+          <Route path="/terminos" element={<Terms />} />
+          <Route path="/privacidad" element={<Privacy />} />
+          
+          {/* Rutas con layout */}
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          
+          {/* Rutas de Dueño */}
+          <Route path="/home" element={isAdmin ? <Navigate to="/admin/verifications" /> : <Home setView={navigate} currentUser={{ name: userName }} navigate={navigate} />} />
+          <Route path="/booking" element={<Booking setView={navigate} />} />
+          <Route path="/manage-pets" element={<PetManager onBack={() => navigate(-1)} />} />
+          
+          {/* Rutas de Paseador */}
+          <Route path="/walker-home" element={<HomeWalker currentUser={{ name: userName }} />} />
+          <Route path="/walker-balance" element={<WalkerBalance onBack={() => navigate('/walker-home')} />} />
+          
+          {/* Rutas Comunes */}
+          <Route path="/messages" element={<Messages isWalker={isWalker} />} />
+          <Route path="/wallet" element={<Wallet setView={navigate} currentUser={{ name: userName }} onLogout={handleLogout} />} />
+          <Route path="/live-walk" element={<LiveWalk setView={(v) => navigate(v === 'home' ? '/home' : `/${v}`)} />} />
+          <Route path="/onboarding-owner" element={<OnboardingOwner />} />
+          <Route path="/onboarding-walker" element={<OnboardingWalker />} />
+          <Route path="/profile" element={<Profile onLogout={handleLogout} navigate={navigate} />} />
+          <Route path="/edit-profile" element={<EditProfile navigate={navigate} />} />
+          <Route path="/manage-cards" element={<ManageCards />} />
+          <Route path="/notifications" element={<Notifications onBack={() => navigate(-1)} />} />
+          
+          {/* Rutas Admin */}
+          <Route path="/admin/verifications" element={<AdminVerifications />} />
+          <Route path="/admin/payouts" element={<AdminPayouts />} />
+          
+          <Route path="*" element={<Navigate to={isAdmin ? "/admin/verifications" : "/home"} replace />} />
+        </Routes>
+      </Suspense>
     </MobileLayout>
   );
 };
