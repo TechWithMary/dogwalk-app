@@ -143,7 +143,7 @@ const TopUpSection = ({ amount, onAmountChange, profileEmail, onSuccess, onCance
     {amount && parseInt(amount) >= 5000 ? (
       <MercadoPagoButton
         amount={parseInt(amount)}
-        title={`Recarga DogWalk - ${profileEmail || 'Usuario'}`}
+        title={`Recarga HappiWalk - ${profileEmail || 'Usuario'}`}
         onSuccess={onSuccess}
       />
     ) : (

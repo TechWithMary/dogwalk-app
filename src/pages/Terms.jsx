@@ -19,7 +19,7 @@ const Terms = () => {
 
         <section>
           <h2 className="font-bold text-gray-900 mb-2">1. Aceptación de Términos</h2>
-          <p>Al acceder y utilizar DogWalk (PaseoMundo), aceptas estar bound by estos Términos y Condiciones. Si no estás de acuerdo, por favor no utilices la aplicación.</p>
+          <p>Al acceder y utilizar HappiWalk (PaseoMundo), aceptas estar bound by estos Términos y Condiciones. Si no estás de acuerdo, por favor no utilices la aplicación.</p>
         </section>
 
         <section>
@@ -69,7 +69,7 @@ const Terms = () => {
 
         <section>
           <h2 className="font-bold text-gray-900 mb-2">7. Limitación de Responsabilidad</h2>
-          <p>DogWalk actúa como intermediario. No somos responsables de daños, pérdidas o lesiones que puedan ocurrir durante los paseos. Recomendamos a los usuarios verificar la información y tomar precauciones razonables.</p>
+          <p>HappiWalk actúa como intermediario. No somos responsables de daños, pérdidas o lesiones que puedan ocurrir durante los paseos. Recomendamos a los usuarios verificar la información y tomar precauciones razonables.</p>
         </section>
 
         <section>

@@ -158,7 +158,7 @@ const Login = ({ onLogin }) => {
             <div className="bg-[#13ec13] p-2 rounded-xl shadow-sm rotate-3 mb-2">
                 <Dog className="w-6 h-6 text-black" />
             </div>
-            <h1 className="text-2xl font-black text-gray-900 tracking-tight uppercase">DogWalk</h1>
+            <h1 className="text-2xl font-black text-gray-900 tracking-tight uppercase">HappiWalk</h1>
           </div>
 
           {authMode === 'register' && (
@@ -198,7 +198,7 @@ const Login = ({ onLogin }) => {
               
               <div className="text-center pb-3">
                 <p className="text-xs font-medium text-gray-400">
-                  {authMode === 'login' ? '¿Eres nuevo en DogWalk?' : '¿Ya eres parte de la manada?'}
+                  {authMode === 'login' ? '¿Eres nuevo en HappiWalk?' : '¿Ya eres parte de la familia?'}
                   <button 
                     type="button"
                     onClick={() => {

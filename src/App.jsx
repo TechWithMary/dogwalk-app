@@ -32,7 +32,7 @@ const AdminPayouts = lazy(() => import('./pages/AdminPayouts.jsx'));
 const Terms = lazy(() => import('./pages/Terms.jsx'));
 const Privacy = lazy(() => import('./pages/Privacy.jsx'));
 
-const APP_NAME = "DogWalk";
+const APP_NAME = "HappiWalk";
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center h-screen bg-white">
@@ -160,7 +160,7 @@ const App = () => {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-white">
         <div className="w-12 h-12 border-4 border-gray-100 border-t-emerald-500 rounded-full animate-spin"></div>
-        <p className="mt-5 text-gray-500">Iniciando DogWalk...</p>
+        <p className="mt-5 text-gray-500">Iniciando HappiWalk...</p>
       </div>
     );
   }

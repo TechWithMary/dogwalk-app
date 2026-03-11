@@ -235,7 +235,7 @@ const Booking = ({ setView, navigate }) => {
         {isReadyForPayment ? (
           <MercadoPagoButton
             amount={prices[duration]}
-            title={`Paseo DogWalk - ${selectedPets.length} Mascota(s)`}
+            title={`Paseo HappiWalk - ${selectedPets.length} Mascota(s)`}
             onSuccess={handlePaymentSuccess}
           />
         ) : (
