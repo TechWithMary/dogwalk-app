@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { MapPin, Clock, ArrowLeft, Loader2, Crosshair, Star, Check, Dog, ChevronRight } from 'lucide-react';
+import { MapPin, Clock, ArrowLeft, Loader2, Crosshair, Star, Check, Dog, ChevronRight, Wallet, CreditCard } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import toast from 'react-hot-toast';
 import { GoogleMap, useJsApiLoader, Marker, Autocomplete } from '@react-google-maps/api';
@@ -29,6 +29,10 @@ const Booking = ({ setView, navigate }) => {
   const [gettingLocation, setGettingLocation] = useState(false);
   const [isReadyForPayment, setIsReadyForPayment] = useState(false);
   
+  // Wallet balance
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [paymentMethod, setPaymentMethod] = useState('wallet'); // 'wallet' or 'mercadopago'
+  
   const [map, setMap] = useState(null);
   const [markerPos, setMarkerPos] = useState(centerMedellin);
   const autocompleteRef = useRef(null);
@@ -42,25 +46,176 @@ const Booking = ({ setView, navigate }) => {
   });
 
   useEffect(() => {
-    const fetchPets = async () => {
+    const fetchPetsAndWallet = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        // Fetch pets
         const { data } = await supabase.from('pets').select('*').eq('owner_id', user.id).eq('is_active', true);
         setMyPets(data || []);
         if (data?.length > 0) setSelectedPets([data[0].id]);
+        
+        // Fetch wallet balance
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('balance')
+          .eq('user_id', user.id)
+          .single();
+        setWalletBalance(parseFloat(profile?.balance || 0));
       }
     };
-    fetchPets();
+    fetchPetsAndWallet();
   }, []);
+
+  // Validar disponibilidad de paseadores
+  const [availableWalkers, setAvailableWalkers] = useState(0);
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
+
+  const checkWalkerAvailability = async (selectedDate, selectedTime) => {
+    if (!selectedDate || !selectedTime) {
+      setAvailableWalkers(0);
+      return;
+    }
+
+    setCheckingAvailability(true);
+    try {
+      const dateObj = new Date(selectedDate + 'T00:00:00');
+      const dayOfWeek = dateObj.getDay();
+      
+      const { data: availability, error } = await supabase
+        .from('walker_availability')
+        .select('walker_id')
+        .eq('day_of_week', dayOfWeek)
+        .lte('start_time', selectedTime)
+        .gte('end_time', selectedTime);
+
+      if (error) throw error;
+      
+      // Filtrar solo paseadores verificados
+      const walkerIds = availability?.map(a => a.walker_id) || [];
+      
+      if (walkerIds.length > 0) {
+        const { data: verifiedWalkers } = await supabase
+          .from('walkers')
+          .select('id')
+          .eq('overall_verification_status', 'approved')
+          .in('id', walkerIds);
+        
+        setAvailableWalkers(verifiedWalkers?.length || 0);
+      } else {
+        setAvailableWalkers(0);
+      }
+    } catch (err) {
+      console.error('Error verificando disponibilidad:', err);
+      setAvailableWalkers(0);
+    } finally {
+      setCheckingAvailability(false);
+    }
+  };
+
+  useEffect(() => {
+    if (bookingType === 'schedule' && date && time) {
+      checkWalkerAvailability(date, time);
+    } else if (bookingType === 'now') {
+      const now = new Date();
+      const currentTime = now.toTimeString().slice(0, 5);
+      const currentDate = now.toISOString().slice(0, 10);
+      checkWalkerAvailability(currentDate, currentTime);
+    }
+  }, [date, time, bookingType]);
 
   useEffect(() => {
     const validate = () => {
       if (!address || selectedPets.length === 0) return false;
       if (bookingType === 'schedule' && (!date || !time)) return false;
+      if (availableWalkers === 0 && !preferredWalker) return false;
       return true;
     };
     setIsReadyForPayment(validate());
-  }, [address, bookingType, date, time, selectedPets]);
+  }, [address, bookingType, date, time, selectedPets, availableWalkers, preferredWalker]);
+
+  const createBooking = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No hay usuario conectado');
+
+    const isScheduled = bookingType === 'schedule';
+    const finalDate = isScheduled ? date : new Date().toISOString().slice(0, 10);
+    const finalTime = isScheduled ? time : new Date().toTimeString().slice(0, 5);
+
+    const bookingData = {
+        user_id: user.id,
+        address: address,
+        duration: duration,
+        total_price: prices[duration],
+        status: preferredWalker ? 'accepted' : 'pending',
+        walker_id: preferredWalker ? preferredWalker.id : null,
+        scheduled_date: finalDate,
+        scheduled_time: finalTime,
+        lat: markerPos.lat,
+        lng: markerPos.lng,
+        metadata: { pet_ids: selectedPets }
+    };
+
+    return bookingData;
+  };
+
+  const handlePaymentWithWallet = async () => {
+    setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No hay usuario conectado');
+
+      const price = prices[duration];
+      
+      // Verificar saldo suficiente
+      if (walletBalance < price) {
+        throw new Error('Saldo insuficiente. Usa otro método de pago.');
+      }
+
+      // Crear la reserva
+      const bookingData = await createBooking();
+      const { error: bookingError } = await supabase.from('bookings').insert([bookingData]);
+      if (bookingError) throw bookingError;
+
+      // Obtener la reserva creada
+      const { data: newBooking } = await supabase
+        .from('bookings')
+        .select('id')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      // Descontar del balance
+      const newBalance = walletBalance - price;
+      const { error: updateError } = await supabase
+        .from('user_profiles')
+        .update({ balance: newBalance })
+        .eq('user_id', user.id);
+      
+      if (updateError) throw updateError;
+
+      // Registrar transacción
+      await supabase.from('transactions').insert({
+        user_id: user.id,
+        booking_id: newBooking.id,
+        transaction_type: 'payment',
+        amount: price,
+        net_amount: price,
+        payment_method: 'wallet',
+        status: 'completed',
+        description: `Paseo ${duration} - Pago con saldo de billetera`
+      });
+
+      toast.success('¡Reserva confirmada! Saldo descontado: $' + price.toLocaleString());
+      if (onNavigate) onNavigate('/home');
+
+    } catch (error) {
+      console.error(error);
+      toast.error(error.message || 'Error al procesar el pago');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePaymentSuccess = async () => {
     setLoading(true);
@@ -68,23 +223,7 @@ const Booking = ({ setView, navigate }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No hay usuario conectado');
 
-      const isScheduled = bookingType === 'schedule';
-      const finalDate = isScheduled ? date : new Date().toISOString().slice(0, 10);
-      const finalTime = isScheduled ? time : new Date().toTimeString().slice(0, 5);
-
-      const bookingData = {
-          user_id: user.id,
-          address: address,
-          duration: duration,
-          total_price: prices[duration],
-          status: preferredWalker ? 'accepted' : 'pending',
-          walker_id: preferredWalker ? preferredWalker.id : null,
-          scheduled_date: finalDate,
-          scheduled_time: finalTime,
-          lat: markerPos.lat,
-          lng: markerPos.lng,
-          metadata: { pet_ids: selectedPets }
-      };
+      const bookingData = await createBooking();
 
       const { error } = await supabase.from('bookings').insert([bookingData]);
       if (error) throw error;
@@ -201,7 +340,8 @@ const Booking = ({ setView, navigate }) => {
         </div>
 
         {bookingType === 'schedule' && (
-            <div className="grid grid-cols-2 gap-4 mb-8">
+            <>
+              <div className="grid grid-cols-2 gap-4 mb-4">
                 <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
                     <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Fecha</label>
                     <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bg-transparent font-bold text-gray-800 outline-none w-full text-sm" />
@@ -210,10 +350,32 @@ const Booking = ({ setView, navigate }) => {
                     <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Hora</label>
                     <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="bg-transparent font-bold text-gray-800 outline-none w-full text-sm" />
                 </div>
-            </div>
-        )}
+              </div>
+              
+              {checkingAvailability ? (
+                <div className="bg-gray-50 p-3 rounded-xl mb-6 flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-gray-300 border-t-emerald-500 rounded-full animate-spin"></div>
+                  <span className="text-xs text-gray-500 font-bold">Verificando disponibilidad...</span>
+                </div>
+              ) : date && time && (
+                <div className={`p-3 rounded-xl mb-6 flex items-center gap-2 ${availableWalkers > 0 ? 'bg-emerald-50 border border-emerald-200' : 'bg-red-50 border border-red-200'}`}>
+                  {availableWalkers > 0 ? (
+                    <>
+                      <span className="text-emerald-600 text-lg">✓</span>
+                      <span className="text-xs text-emerald-700 font-bold">{availableWalkers} paseador(es) disponible(s) en este horario</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-red-600 text-lg">✕</span>
+                      <span className="text-xs text-red-700 font-bold">No hay paseadores disponibles en este horario. Intenta otra hora.</span>
+                    </>
+                  )}
+                </div>
+              )}
+            </>
+          )}
 
-        <h3 className="font-black text-gray-900 text-sm mb-4 ml-1">Duración del Paseo</h3>
+          <h3 className="font-black text-gray-900 text-sm mb-4 ml-1">Duración del Paseo</h3>
         <div className="grid grid-cols-3 gap-3">
           {Object.entries(prices).map(([key, price]) => (
             <button key={key} onClick={() => setDuration(key)} className={`flex flex-col items-center p-4 rounded-2xl border-2 transition-all ${duration === key ? 'bg-emerald-50 border-emerald-500 text-emerald-800' : 'bg-white border-gray-100 text-gray-400'}`}>
@@ -225,19 +387,61 @@ const Booking = ({ setView, navigate }) => {
       </div>
 
       <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-100 p-6 pb-10 z-[2000] shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center mb-4">
           <div>
             <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Total Servicio</span>
             <p className="text-3xl font-black text-gray-900">${prices[duration].toLocaleString('es-CO')}</p>
           </div>
         </div>
         
+        {walletBalance > 0 && (
+          <div className="flex p-1 bg-gray-100 rounded-xl mb-4">
+            <button 
+              onClick={() => setPaymentMethod('wallet')} 
+              className={`flex-1 py-2 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-2 ${paymentMethod === 'wallet' ? 'bg-emerald-500 text-white shadow-sm' : 'text-gray-500'}`}
+            >
+              <Wallet size={14} />
+              Billetera (${walletBalance.toLocaleString()})
+            </button>
+            <button 
+              onClick={() => setPaymentMethod('mercadopago')} 
+              className={`flex-1 py-2 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-2 ${paymentMethod === 'mercadopago' ? 'bg-blue-500 text-white shadow-sm' : 'text-gray-500'}`}
+            >
+              <CreditCard size={14} />
+              Tarjeta
+            </button>
+          </div>
+        )}
+        
+        {paymentMethod === 'wallet' && walletBalance < prices[duration] && (
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 mb-4 text-center">
+            <p className="text-xs text-orange-600 font-bold">
+              Saldo insuficiente (${walletBalance.toLocaleString()}). 
+              <button onClick={() => setPaymentMethod('mercadopago')} className="underline ml-1">Paga con tarjeta</button>
+            </p>
+          </div>
+        )}
+        
         {isReadyForPayment ? (
-          <MercadoPagoButton
-            amount={prices[duration]}
-            title={`Paseo HappiWalk - ${selectedPets.length} Mascota(s)`}
-            onSuccess={handlePaymentSuccess}
-          />
+          paymentMethod === 'wallet' && walletBalance >= prices[duration] ? (
+            <button 
+              onClick={handlePaymentWithWallet}
+              disabled={loading}
+              className="w-full h-16 bg-emerald-500 text-black rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="animate-spin" /> : <>Pagar con Billetera</>}
+            </button>
+          ) : paymentMethod === 'wallet' ? (
+            <button disabled className="w-full h-16 bg-gray-100 text-gray-400 rounded-2xl font-black text-sm uppercase tracking-widest cursor-not-allowed">
+              Saldo insuficiente
+            </button>
+          ) : (
+            <MercadoPagoButton
+              amount={prices[duration]}
+              title={`Paseo HappiWalk - ${selectedPets.length} Mascota(s)`}
+              onSuccess={handlePaymentSuccess}
+            />
+          )
         ) : (
           <button disabled className="w-full h-16 bg-gray-100 text-gray-400 rounded-2xl font-black text-sm uppercase tracking-widest cursor-not-allowed">
             {selectedPets.length === 0 ? 'Selecciona mascota' : 'Completa datos'}

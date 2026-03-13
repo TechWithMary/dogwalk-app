@@ -1,12 +1,10 @@
-// supabase/functions/create-payment-intent/index.ts
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 
 const MERCADOPAGO_API_URL = 'https://api.mercadopago.com/checkout/preferences';
 
 serve(async (req) => {
-  // Manejo robusto de CORS para la petición de pre-vuelo
+ 
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }

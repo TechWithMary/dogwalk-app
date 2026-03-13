@@ -58,7 +58,7 @@ serve(async (req) => {
         const isWalletRecharge = externalReference === 'wallet_recharge' || 
                                   (description && description.includes('Recarga HappiWalk'));
 
-        if (isWalletRecarga) {
+        if (isWalletRecharge) {
           // === PROCESAR RECARGA DE BILLETERA ===
           console.log(`Procesando recarga de billetera para usuario ${userId}`);
 
