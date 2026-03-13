@@ -61,6 +61,24 @@ const Wallet = () => {
   };
 
   useEffect(() => {
+    // Manejar parámetros de URL después del pago
+    const params = new URLSearchParams(window.location.search);
+    const success = params.get('success');
+    const failed = params.get('failed');
+    const pending = params.get('pending');
+
+    if (success === 'true') {
+      toast.success("¡Recarga exitosa! Tu saldo se ha actualizado.");
+      // Limpiar URL
+      window.history.replaceState({}, document.title, '/wallet');
+    } else if (failed === 'true') {
+      toast.error("El pago no se completó. Intenta de nuevo.");
+      window.history.replaceState({}, document.title, '/wallet');
+    } else if (pending === 'true') {
+      toast("Tu pago está siendo procesado. Te notificaremos cuando esté listo.");
+      window.history.replaceState({}, document.title, '/wallet');
+    }
+
     fetchWalletData();
   }, []);
 

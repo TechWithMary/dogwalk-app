@@ -23,10 +23,12 @@ serve(async (req) => {
       throw new Error("Se requiere monto, título y email.");
     }
 
+    const isWalletRecharge = title && title.includes('Recarga HappiWalk');
+    
     const preferencePayload = {
       items: [{
         title: title,
-        description: 'Servicio de paseo de mascotas',
+        description: isWalletRecharge ? 'Recarga de billetera HappiWalk' : 'Servicio de paseo de mascotas',
         quantity: 1,
         currency_id: 'COP',
         unit_price: amount,
@@ -34,6 +36,13 @@ serve(async (req) => {
       payer: {
         email: email,
       },
+      back_urls: {
+        success: "https://www.happiwalk.com/wallet?success=true",
+        failure: "https://www.happiwalk.com/wallet?failed=true",
+        pending: "https://www.happiwalk.com/wallet?pending=true"
+      },
+      auto_return: "approved",
+      external_reference: isWalletRecharge ? 'wallet_recharge' : 'booking_payment',
     };
 
     const response = await fetch(MERCADOPAGO_API_URL, {

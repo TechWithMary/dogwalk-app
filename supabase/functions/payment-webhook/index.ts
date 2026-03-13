@@ -31,35 +31,128 @@ serve(async (req) => {
       const userEmail = paymentDetails.payer.email;
       const amountPaid = paymentDetails.transaction_amount;
       const status = paymentDetails.status;
+      const externalReference = paymentDetails.external_reference;
+      const description = paymentDetails.description;
 
-      // 2. Si el pago está aprobado, actualizar el saldo del usuario
+      console.log(`Pago recibido - Email: ${userEmail}, Monto: ${amountPaid}, Status: ${status}, Ref: ${externalReference}`);
+
+      // 2. Si el pago está aprobado, procesar
       if (status === 'approved') {
-        // a. Encontrar al usuario por su email
-        const { data: userProfile, error: profileError } = await supabaseAdmin
-          .from('user_profiles')
-          .select('user_id, balance')
+        
+        // Primero, buscar al usuario en auth.users por email
+        const { data: authUser, error: authError } = await supabaseAdmin
+          .from('users')
+          .select('id, email')
           .eq('email', userEmail)
           .single();
 
-        if (profileError || !userProfile) {
-          throw new Error(`No se encontró el perfil para el email: ${userEmail}`);
+        if (authError || !authUser) {
+          console.error(`No se encontró usuario en auth.users para el email: ${userEmail}`);
+          throw new Error(`No se encontró el usuario para el email: ${userEmail}`);
         }
 
-        // b. Actualizar el saldo
-        const newBalance = (userProfile.balance || 0) + amountPaid;
-        const { error: updateError } = await supabaseAdmin
-          .from('user_profiles')
-          .update({ balance: newBalance })
-          .eq('user_id', userProfile.user_id);
+        const userId = authUser.id;
+        console.log(`Usuario encontrado: ${userId}`);
 
-        if (updateError) {
-          throw new Error(`Error al actualizar el saldo: ${updateError.message}`);
+        // Determinar tipo de transacción
+        const isWalletRecharge = externalReference === 'wallet_recharge' || 
+                                  (description && description.includes('Recarga HappiWalk'));
+
+        if (isWalletRecarga) {
+          // === PROCESAR RECARGA DE BILLETERA ===
+          console.log(`Procesando recarga de billetera para usuario ${userId}`);
+
+          // Obtener perfil actual
+          const { data: profile, error: profileError } = await supabaseAdmin
+            .from('user_profiles')
+            .select('balance')
+            .eq('user_id', userId)
+            .single();
+
+          if (profileError) {
+            console.error(`Error obteniendo perfil: ${profileError.message}`);
+            throw new Error(`Error obteniendo perfil: ${profileError.message}`);
+          }
+
+          // Actualizar balance
+          const currentBalance = parseFloat(profile?.balance || 0);
+          const newBalance = currentBalance + amountPaid;
+
+          const { error: updateError } = await supabaseAdmin
+            .from('user_profiles')
+            .update({ balance: newBalance })
+            .eq('user_id', userId);
+
+          if (updateError) {
+            console.error(`Error actualizando balance: ${updateError.message}`);
+            throw new Error(`Error actualizando balance: ${updateError.message}`);
+          }
+
+          console.log(`Balance actualizado: ${currentBalance} → ${newBalance}`);
+
+          // Registrar transacción
+          const { error: txError } = await supabaseAdmin
+            .from('transactions')
+            .insert({
+              user_id: userId,
+              transaction_type: 'deposit',
+              amount: amountPaid,
+              net_amount: amountPaid,
+              payment_method: paymentDetails.payment_method_id ? 'credit_card' : 'mercadopago',
+              payment_gateway: 'mercadopago',
+              gateway_transaction_id: paymentId.toString(),
+              status: 'completed',
+              description: 'Recarga de billetera via MercadoPago',
+              metadata: {
+                mp_payment_id: paymentId,
+                mp_external_reference: externalReference,
+                previous_balance: currentBalance,
+                new_balance: newBalance
+              }
+            });
+
+          if (txError) {
+            console.error(`Error registrando transacción: ${txError.message}`);
+            // No lanzamos error porque el balance ya se actualizó
+          } else {
+            console.log(`Transacción registrada exitosamente`);
+          }
+
+          // Notificar al usuario
+          await supabaseAdmin.from('notifications').insert({
+            user_id: userId,
+            title: '💰 Recarga Exitosa',
+            body: `Tu recarga de $${amountPaid.toLocaleString()} ha sido procesada. Nuevo saldo: $${newBalance.toLocaleString()}`,
+            link_to: '/wallet'
+          });
+
+        } else {
+          // === PROCESAR PAGO DE RESERVA (Reservas de paseo) ===
+          console.log(`Procesando pago de reserva para usuario ${userId}`);
+          
+          // Registrar transacción
+          const { error: txError } = await supabaseAdmin
+            .from('transactions')
+            .insert({
+              user_id: userId,
+              transaction_type: 'payment',
+              amount: amountPaid,
+              net_amount: amountPaid,
+              payment_method: paymentDetails.payment_method_id ? 'credit_card' : 'mercadopago',
+              payment_gateway: 'mercadopago',
+              gateway_transaction_id: paymentId.toString(),
+              status: 'completed',
+              description: description || 'Pago de paseo',
+              metadata: {
+                mp_payment_id: paymentId,
+                mp_external_reference: externalReference
+              }
+            });
+
+          if (txError) {
+            console.error(`Error registrando transacción de pago: ${txError.message}`);
+          }
         }
-
-        console.log(`Saldo actualizado para ${userEmail}. Nuevo saldo: ${newBalance}`);
-        
-        // c. Opcional: Registrar la transacción en la tabla 'transactions'
-        // ...
       }
     }
 
