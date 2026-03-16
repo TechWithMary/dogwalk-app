@@ -163,7 +163,7 @@ const Booking = ({ setView, navigate }) => {
         scheduled_time: finalTime,
         lat: markerPos.lat,
         lng: markerPos.lng,
-        metadata: { pet_ids: selectedPets }
+        metadata: JSON.stringify({ pet_ids: selectedPets })
     };
 
     return bookingData;
