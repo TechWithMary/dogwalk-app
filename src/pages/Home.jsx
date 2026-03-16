@@ -217,7 +217,7 @@ const Home = ({ currentUser, navigate, setView }) => {
               </div>
 
               <button 
-                onClick={() => onNavigate('/booking-details', { state: { bookingId: upcomingWalk.id } })}
+                onClick={() => onNavigate('/booking')}
                 className={`w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 ${upcomingWalk.status === 'pending' ? 'bg-orange-500 text-white shadow-lg shadow-orange-200' : 'bg-gray-50 text-gray-600 border border-gray-100'}`}
               >
                 {upcomingWalk.status === 'pending' ? <><CreditCard size={14}/> Completar Pago Ahora</> : 'Ver detalles de la reserva'} 

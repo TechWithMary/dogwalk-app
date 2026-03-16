@@ -176,17 +176,30 @@ const Booking = ({ setView, navigate }) => {
 
       const price = prices[duration];
       
-      
       if (walletBalance < price) {
         throw new Error('Saldo insuficiente. Usa otro método de pago.');
       }
 
-      
-      const bookingData = await createBooking();
+      const isScheduled = bookingType === 'schedule';
+      const finalDate = isScheduled ? date : new Date().toISOString().slice(0, 10);
+      const finalTime = isScheduled ? time : new Date().toTimeString().slice(0, 5);
+
+      const bookingData = {
+        user_id: user.id,
+        address: address,
+        duration: duration,
+        total_price: price,
+        status: preferredWalker ? 'accepted' : 'confirmed',
+        walker_id: preferredWalker ? preferredWalker.id : null,
+        scheduled_date: finalDate,
+        scheduled_time: finalTime,
+        lat: markerPos.lat,
+        lng: markerPos.lng
+      };
+
       const { error: bookingError } = await supabase.from('bookings').insert([bookingData]);
       if (bookingError) throw bookingError;
 
-      
       const { data: newBooking } = await supabase
         .from('bookings')
         .select('id')
@@ -195,7 +208,6 @@ const Booking = ({ setView, navigate }) => {
         .limit(1)
         .single();
 
-      
       const newBalance = walletBalance - price;
       const { error: updateError } = await supabase
         .from('user_profiles')
@@ -204,7 +216,6 @@ const Booking = ({ setView, navigate }) => {
       
       if (updateError) throw updateError;
 
-      
       await supabase.from('transactions').insert({
         user_id: user.id,
         booking_id: newBooking.id,
