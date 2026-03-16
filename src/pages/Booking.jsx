@@ -33,6 +33,8 @@ const Booking = ({ setView, navigate }) => {
   
   const [walletBalance, setWalletBalance] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('wallet'); 
+  const [selectedWalker, setSelectedWalker] = useState(null);
+  const [nearbyWalkers, setNearbyWalkers] = useState([]);
   
   const [map, setMap] = useState(null);
   const [markerPos, setMarkerPos] = useState(centerMedellin);
@@ -73,6 +75,7 @@ const Booking = ({ setView, navigate }) => {
   const checkWalkerAvailability = async (selectedDate, selectedTime) => {
     if (!selectedDate || !selectedTime) {
       setAvailableWalkers(0);
+      setNearbyWalkers([]);
       return;
     }
 
@@ -95,7 +98,7 @@ const Booking = ({ setView, navigate }) => {
       if (walkerIds.length > 0) {
         const { data: verifiedWalkers } = await supabase
           .from('walkers')
-          .select('id, service_latitude, service_longitude, service_radius_km')
+          .select('id, name, img, rating, service_latitude, service_longitude, service_radius_km, user_profiles(first_name, last_name)')
           .eq('overall_verification_status', 'approved')
           .in('id', walkerIds);
         
@@ -108,15 +111,19 @@ const Booking = ({ setView, navigate }) => {
               walker.service_radius_km
             );
           });
+          setNearbyWalkers(nearbyWalkers);
           setAvailableWalkers(nearbyWalkers.length);
         } else {
+          setNearbyWalkers(verifiedWalkers || []);
           setAvailableWalkers(verifiedWalkers?.length || 0);
         }
       } else {
+        setNearbyWalkers([]);
         setAvailableWalkers(0);
       }
     } catch (err) {
       console.error('Error verificando disponibilidad:', err);
+      setNearbyWalkers([]);
       setAvailableWalkers(0);
     } finally {
       setCheckingAvailability(false);
@@ -189,8 +196,8 @@ const Booking = ({ setView, navigate }) => {
         address: address,
         duration: duration,
         total_price: price,
-        status: preferredWalker ? 'accepted' : 'confirmed',
-        walker_id: preferredWalker ? preferredWalker.id : null,
+        status: selectedWalker ? 'accepted' : 'confirmed',
+        walker_id: selectedWalker ? selectedWalker.id : null,
         scheduled_date: finalDate,
         scheduled_time: finalTime,
         lat: markerPos.lat,
@@ -207,6 +214,15 @@ const Booking = ({ setView, navigate }) => {
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
+
+      if (selectedWalker && selectedWalker.user_id) {
+        await supabase.from('notifications').insert({
+          user_id: selectedWalker.user_id,
+          title: '🐕 Nueva Reserva',
+          body: `Tienes una nueva reserva programada para ${finalDate} a las ${finalTime}`,
+          link_to: '/walker-home'
+        });
+      }
 
       const newBalance = walletBalance - price;
       const { error: updateError } = await supabase
@@ -386,7 +402,7 @@ const Booking = ({ setView, navigate }) => {
                   <span className="text-xs text-gray-500 font-bold">Verificando disponibilidad...</span>
                 </div>
               ) : date && time && (
-                <div className={`p-3 rounded-xl mb-6 flex items-center gap-2 ${availableWalkers > 0 ? 'bg-emerald-50 border border-emerald-200' : 'bg-red-50 border border-red-200'}`}>
+                <div className={`p-3 rounded-xl mb-4 flex items-center gap-2 ${availableWalkers > 0 ? 'bg-emerald-50 border border-emerald-200' : 'bg-red-50 border border-red-200'}`}>
                   {availableWalkers > 0 ? (
                     <>
                       <span className="text-emerald-600 text-lg">✓</span>
@@ -400,19 +416,54 @@ const Booking = ({ setView, navigate }) => {
                   )}
                 </div>
               )}
+
+              {nearbyWalkers.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="text-xs font-black text-gray-400 uppercase mb-3">Elige un paseador (opcional)</h4>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => setSelectedWalker(null)}
+                      className={`w-full p-3 rounded-xl border flex items-center gap-3 transition-all ${!selectedWalker ? 'border-emerald-500 bg-emerald-50' : 'border-gray-100 bg-white'}`}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                        <span className="text-gray-500 font-bold">?</span>
+                      </div>
+                      <div className="flex-1 text-left">
+                        <p className="font-bold text-sm text-gray-800">Cualquier paseador</p>
+                        <p className="text-xs text-gray-500">El primero disponible</p>
+                      </div>
+                      {!selectedWalker && <span className="text-emerald-500">✓</span>}
+                    </button>
+                    {nearbyWalkers.map(walker => (
+                      <button
+                        key={walker.id}
+                        onClick={() => setSelectedWalker(walker)}
+                        className={`w-full p-3 rounded-xl border flex items-center gap-3 transition-all ${selectedWalker?.id === walker.id ? 'border-emerald-500 bg-emerald-50' : 'border-gray-100 bg-white'}`}
+                      >
+                        <img src={walker.img || 'https://via.placeholder.com/40'} className="w-10 h-10 rounded-full object-cover" />
+                        <div className="flex-1 text-left">
+                          <p className="font-bold text-sm text-gray-800">{walker.name || walker.user_profiles?.first_name || 'Paseador'}</p>
+                          <p className="text-xs text-gray-500">⭐ {walker.rating || 'Nuevo'}</p>
+                        </div>
+                        {selectedWalker?.id === walker.id && <span className="text-emerald-500">✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
 
           <h3 className="font-black text-gray-900 text-sm mb-4 ml-1">Duración del Paseo</h3>
-        <div className="grid grid-cols-3 gap-3">
-          {Object.entries(prices).map(([key, price]) => (
-            <button key={key} onClick={() => setDuration(key)} className={`flex flex-col items-center p-4 rounded-2xl border-2 transition-all ${duration === key ? 'bg-emerald-50 border-emerald-500 text-emerald-800' : 'bg-white border-gray-100 text-gray-400'}`}>
-              <span className="font-black text-base">{key}</span>
-              <span className="text-[10px] font-bold opacity-80">${(price/1000)}k</span>
-            </button>
-          ))}
+          <div className="grid grid-cols-3 gap-3">
+            {Object.entries(prices).map(([key, price]) => (
+              <button key={key} onClick={() => setDuration(key)} className={`flex flex-col items-center p-4 rounded-2xl border-2 transition-all ${duration === key ? 'bg-emerald-50 border-emerald-500 text-emerald-800' : 'bg-white border-gray-100 text-gray-400'}`}>
+                <span className="font-black text-base">{key}</span>
+                <span className="text-[10px] font-bold opacity-80">${(price/1000)}k</span>
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
 
       <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-100 p-6 pb-10 z-[2000] shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
         <div className="flex justify-between items-center mb-4">

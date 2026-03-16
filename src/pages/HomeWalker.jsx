@@ -37,7 +37,7 @@ const HomeWalker = ({ currentUser }) => {
 
       const { data: walkerData } = await supabase
         .from('walkers')
-        .select('id')
+        .select('id, name')
         .eq('user_id', user.id)
         .single();
 
@@ -50,9 +50,24 @@ const HomeWalker = ({ currentUser }) => {
         .from('bookings')
         .update({ status: 'accepted', walker_id: walkerData.id })
         .eq('id', bookingId)
-        .eq('status', 'pending');
+        .eq('status', 'confirmed');
 
       if (error) throw error;
+
+      const { data: booking } = await supabase
+        .from('bookings')
+        .select('user_id')
+        .eq('id', bookingId)
+        .single();
+
+      if (booking?.user_id) {
+        await supabase.from('notifications').insert({
+          user_id: booking.user_id,
+          title: '🐕 Paseador Acceptado',
+          body: `${walkerData.name || 'El paseador'} ha aceptado tu reserva. Pronto irá a buscar tu mascota.`,
+          link_to: '/home'
+        });
+      }
       
       toast.success('¡Paseo aceptado!');
       fetchWalkerData();
@@ -69,11 +84,26 @@ const HomeWalker = ({ currentUser }) => {
     try {
       const { error } = await supabase
         .from('bookings')
-        .update({ status: 'in_progress' })
+        .update({ status: 'in_progress', walk_start_time: new Date().toISOString() })
         .eq('id', walkId)
         .eq('status', 'accepted');
 
       if (error) throw error;
+
+      const { data: booking } = await supabase
+        .from('bookings')
+        .select('user_id, walkers(name)')
+        .eq('id', walkId)
+        .single();
+
+      if (booking?.user_id) {
+        await supabase.from('notifications').insert({
+          user_id: booking.user_id,
+          title: '🐕 Paseo en Curso',
+          body: `${booking.walkers?.name || 'El paseador'} ha iniciado el paseo con tu mascota. ¡Puedes seguir su ubicación en tiempo real!`,
+          link_to: '/home'
+        });
+      }
       
       toast.success('¡Paseo iniciado! Dirígete al punto de encuentro.');
       fetchWalkerData();
@@ -90,13 +120,58 @@ const HomeWalker = ({ currentUser }) => {
     
     setProcessingWalkId(walkId);
     try {
+      const { data: booking } = await supabase
+        .from('bookings')
+        .select('user_id, total_price, walkers(id, user_id)')
+        .eq('id', walkId)
+        .single();
+
       const { error } = await supabase
         .from('bookings')
-        .update({ status: 'completed' })
+        .update({ status: 'completed', walk_end_time: new Date().toISOString() })
         .eq('id', walkId)
         .eq('status', 'in_progress');
 
       if (error) throw error;
+
+      if (booking?.walkers?.user_id) {
+        const price = parseFloat(booking.total_price || 0);
+        const commission = price * 0.20;
+        const netEarning = price - commission;
+
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('balance')
+          .eq('user_id', booking.walkers.user_id)
+          .single();
+
+        const newBalance = (profile?.balance || 0) + netEarning;
+        await supabase
+          .from('user_profiles')
+          .update({ balance: newBalance })
+          .eq('user_id', booking.walkers.user_id);
+
+        await supabase.from('transactions').insert({
+          user_id: booking.walkers.user_id,
+          booking_id: walkId,
+          transaction_type: 'payment',
+          amount: price,
+          net_earning: netEarning,
+          platform_fee: commission,
+          payment_method: 'wallet',
+          status: 'completed',
+          description: `Paseo completado - ${booking.duration}`
+        });
+      }
+
+      if (booking?.user_id) {
+        await supabase.from('notifications').insert({
+          user_id: booking.user_id,
+          title: '✅ Paseo Completado',
+          body: 'El paseo ha terminado. Tu mascota está de vuelta contigo.',
+          link_to: '/home'
+        });
+      }
       
       toast.success('¡Paseo completado! Gracias por tu trabajo.');
       fetchWalkerData();
@@ -151,7 +226,7 @@ const HomeWalker = ({ currentUser }) => {
           completedWalks: statsData?.length || 0,
           rating: 5.0
         },
-        newRequests: bookings?.filter(b => b.status === 'pending') || [],
+        newRequests: bookings?.filter(b => b.status === 'pending' || b.status === 'confirmed') || [],
         activeWalks: bookings?.filter(b => b.status === 'accepted' || b.status === 'in_progress') || []
       });
     } catch (error) {
