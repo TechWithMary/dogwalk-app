@@ -145,11 +145,10 @@ const Booking = ({ setView, navigate }) => {
     const validate = () => {
       if (!address || selectedPets.length === 0) return false;
       if (bookingType === 'schedule' && (!date || !time)) return false;
-      if (availableWalkers === 0 && !preferredWalker) return false;
       return true;
     };
     setIsReadyForPayment(validate());
-  }, [address, bookingType, date, time, selectedPets, availableWalkers, preferredWalker]);
+  }, [address, bookingType, date, time, selectedPets]);
 
   const createBooking = async () => {
     const { data: { user } } = await supabase.auth.getUser();
