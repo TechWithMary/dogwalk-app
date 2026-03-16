@@ -98,7 +98,7 @@ const Booking = ({ setView, navigate }) => {
       if (walkerIds.length > 0) {
         const { data: verifiedWalkers } = await supabase
           .from('walkers')
-          .select('id, name, img, rating, service_latitude, service_longitude, service_radius_km, user_profiles(first_name, last_name)')
+          .select('id, user_id, name, img, rating, service_latitude, service_longitude, service_radius_km, user_profiles(first_name, last_name)')
           .eq('overall_verification_status', 'approved')
           .in('id', walkerIds);
         
@@ -222,6 +222,19 @@ const Booking = ({ setView, navigate }) => {
           body: `Tienes una nueva reserva programada para ${finalDate} a las ${finalTime}`,
           link_to: '/walker-home'
         });
+      } else if (nearbyWalkers.length > 0) {
+        const walkerUserIds = nearbyWalkers
+          .map(w => w.user_id)
+          .filter(Boolean);
+        
+        for (const walkerUserId of walkerUserIds) {
+          await supabase.from('notifications').insert({
+            user_id: walkerUserId,
+            title: '🐕 Nueva Reserva Disponible',
+            body: `Nueva reserva en tu zona para ${finalDate} a las ${finalTime}. ¡Accepta antes de que otro lo haga!`,
+            link_to: '/walker-home'
+          });
+        }
       }
 
       const newBalance = walletBalance - price;
