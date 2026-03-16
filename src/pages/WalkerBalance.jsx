@@ -19,20 +19,17 @@ const WalkerBalance = ({ onBack }) => {
   const fetchWalletData = async () => {
     setLoading(true);
     try {
-      // 1. Obtener usuario actual
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return; // Si no hay usuario, no hacemos nada (el layout maneja la redirección)
+      if (!user) return;
 
-      // 2. Obtener Balance
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('balance')
         .eq('user_id', user.id)
-        .maybeSingle(); // 'maybeSingle' evita errores si no existe
+        .maybeSingle();
 
       setBalance(profile?.balance || 0);
 
-      // 3. Obtener Historial de Transacciones (Solo pagos recibidos)
       const { data: history } = await supabase
         .from('transactions')
         .select('*')

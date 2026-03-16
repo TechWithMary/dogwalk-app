@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { MapPin, Dog, Star, ChevronRight, Bell, Loader2, CreditCard, Clock } from 'lucide-react';
 import { supabase } from '../supabaseClient'; 
 import { formatMoney } from '../utils/format';
+import { isWithinRadius } from '../utils/distance';
 import RatingModal from './RatingModal';
 import WalkerProfileView from './WalkerProfileView'; 
 import { useJsApiLoader } from '@react-google-maps/api';
@@ -58,12 +59,43 @@ const Home = ({ currentUser, navigate, setView }) => {
         
         setDisplayName(finalName);
 
-        const { data: walkersRes } = await supabase
-          .from('walkers')
-          .select(`*, user_profiles (*)`)
-          .eq('overall_verification_status', 'approved')
-          .limit(3);
-        setWalkers(walkersRes || []);
+        const { data: locationProfile } = await supabase
+          .from('user_profiles')
+          .select('lat, lng')
+          .eq('user_id', user.id)
+          .single();
+
+        const userLat = locationProfile?.lat;
+        const userLng = locationProfile?.lng;
+
+        let walkersRes = [];
+        
+        if (userLat && userLng) {
+          const { data: allWalkers } = await supabase
+            .from('walkers')
+            .select(`*, user_profiles (*)`)
+            .eq('overall_verification_status', 'approved');
+
+          if (allWalkers) {
+            walkersRes = allWalkers.filter(walker => {
+              if (!walker.service_latitude || !walker.service_longitude || !walker.service_radius_km) return false;
+              return isWithinRadius(
+                userLat, userLng,
+                walker.service_latitude, walker.service_longitude,
+                walker.service_radius_km
+              );
+            }).slice(0, 3);
+          }
+        } else {
+          const { data: defaultWalkers } = await supabase
+            .from('walkers')
+            .select(`*, user_profiles (*)`)
+            .eq('overall_verification_status', 'approved')
+            .limit(3);
+          walkersRes = defaultWalkers || [];
+        }
+        
+        setWalkers(walkersRes);
 
         const { count: notificationsCount } = await supabase
           .from('notifications')

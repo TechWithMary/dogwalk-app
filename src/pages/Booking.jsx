@@ -5,6 +5,7 @@ import { supabase } from '../supabaseClient';
 import toast from 'react-hot-toast';
 import { GoogleMap, useJsApiLoader, Marker, Autocomplete } from '@react-google-maps/api';
 import MercadoPagoButton from '../components/MercadoPagoButton';
+import { isWithinRadius } from '../utils/distance';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY; 
 const containerStyle = { width: '100%', height: '100%' };
@@ -29,9 +30,9 @@ const Booking = ({ setView, navigate }) => {
   const [gettingLocation, setGettingLocation] = useState(false);
   const [isReadyForPayment, setIsReadyForPayment] = useState(false);
   
-  // Wallet balance
+  
   const [walletBalance, setWalletBalance] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState('wallet'); // 'wallet' or 'mercadopago'
+  const [paymentMethod, setPaymentMethod] = useState('wallet'); 
   
   const [map, setMap] = useState(null);
   const [markerPos, setMarkerPos] = useState(centerMedellin);
@@ -49,12 +50,11 @@ const Booking = ({ setView, navigate }) => {
     const fetchPetsAndWallet = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        // Fetch pets
+        
         const { data } = await supabase.from('pets').select('*').eq('owner_id', user.id).eq('is_active', true);
         setMyPets(data || []);
         if (data?.length > 0) setSelectedPets([data[0].id]);
         
-        // Fetch wallet balance
         const { data: profile } = await supabase
           .from('user_profiles')
           .select('balance')
@@ -66,7 +66,7 @@ const Booking = ({ setView, navigate }) => {
     fetchPetsAndWallet();
   }, []);
 
-  // Validar disponibilidad de paseadores
+  
   const [availableWalkers, setAvailableWalkers] = useState(0);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
 
@@ -90,17 +90,28 @@ const Booking = ({ setView, navigate }) => {
 
       if (error) throw error;
       
-      // Filtrar solo paseadores verificados
       const walkerIds = availability?.map(a => a.walker_id) || [];
       
       if (walkerIds.length > 0) {
         const { data: verifiedWalkers } = await supabase
           .from('walkers')
-          .select('id')
+          .select('id, service_latitude, service_longitude, service_radius_km')
           .eq('overall_verification_status', 'approved')
           .in('id', walkerIds);
         
-        setAvailableWalkers(verifiedWalkers?.length || 0);
+        if (verifiedWalkers && markerPos) {
+          const nearbyWalkers = verifiedWalkers.filter(walker => {
+            if (!walker.service_latitude || !walker.service_longitude || !walker.service_radius_km) return false;
+            return isWithinRadius(
+              markerPos.lat, markerPos.lng,
+              walker.service_latitude, walker.service_longitude,
+              walker.service_radius_km
+            );
+          });
+          setAvailableWalkers(nearbyWalkers.length);
+        } else {
+          setAvailableWalkers(verifiedWalkers?.length || 0);
+        }
       } else {
         setAvailableWalkers(0);
       }
@@ -115,13 +126,13 @@ const Booking = ({ setView, navigate }) => {
   useEffect(() => {
     if (bookingType === 'schedule' && date && time) {
       checkWalkerAvailability(date, time);
-    } else if (bookingType === 'now') {
+    } else if (bookingType === 'now' && markerPos) {
       const now = new Date();
       const currentTime = now.toTimeString().slice(0, 5);
       const currentDate = now.toISOString().slice(0, 10);
       checkWalkerAvailability(currentDate, currentTime);
     }
-  }, [date, time, bookingType]);
+  }, [date, time, bookingType, markerPos]);
 
   useEffect(() => {
     const validate = () => {
@@ -166,17 +177,17 @@ const Booking = ({ setView, navigate }) => {
 
       const price = prices[duration];
       
-      // Verificar saldo suficiente
+      
       if (walletBalance < price) {
         throw new Error('Saldo insuficiente. Usa otro método de pago.');
       }
 
-      // Crear la reserva
+      
       const bookingData = await createBooking();
       const { error: bookingError } = await supabase.from('bookings').insert([bookingData]);
       if (bookingError) throw bookingError;
 
-      // Obtener la reserva creada
+      
       const { data: newBooking } = await supabase
         .from('bookings')
         .select('id')
@@ -185,7 +196,7 @@ const Booking = ({ setView, navigate }) => {
         .limit(1)
         .single();
 
-      // Descontar del balance
+      
       const newBalance = walletBalance - price;
       const { error: updateError } = await supabase
         .from('user_profiles')
@@ -194,7 +205,7 @@ const Booking = ({ setView, navigate }) => {
       
       if (updateError) throw updateError;
 
-      // Registrar transacción
+      
       await supabase.from('transactions').insert({
         user_id: user.id,
         booking_id: newBooking.id,
@@ -348,7 +359,14 @@ const Booking = ({ setView, navigate }) => {
                 </div>
                 <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
                     <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Hora</label>
-                    <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="bg-transparent font-bold text-gray-800 outline-none w-full text-sm" />
+                    <input 
+                      type="time" 
+                      value={time} 
+                      onChange={(e) => setTime(e.target.value)} 
+                      min="06:00" 
+                      max="18:00"
+                      className="bg-transparent font-bold text-gray-800 outline-none w-full text-sm" 
+                    />
                 </div>
               </div>
               

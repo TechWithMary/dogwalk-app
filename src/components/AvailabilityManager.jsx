@@ -155,6 +155,8 @@ const AvailabilityManager = ({ walkerId, onClose }) => {
                                     type="time"
                                     value={newSlot.start_time}
                                     onChange={(e) => setNewSlot({ ...newSlot, start_time: e.target.value })}
+                                    min="06:00"
+                                    max="17:00"
                                     className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-700 outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
                                 />
                             </div>
@@ -166,6 +168,8 @@ const AvailabilityManager = ({ walkerId, onClose }) => {
                                     type="time"
                                     value={newSlot.end_time}
                                     onChange={(e) => setNewSlot({ ...newSlot, end_time: e.target.value })}
+                                    min="07:00"
+                                    max="18:00"
                                     className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-700 outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
                                 />
                             </div>

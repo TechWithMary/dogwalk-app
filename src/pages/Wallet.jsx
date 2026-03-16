@@ -43,7 +43,7 @@ const Wallet = () => {
       const { data: history } = await supabase
         .from('transactions')
         .select('*')
-        .eq('user_id', user.id) // Seguridad: solo tus transacciones
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -61,7 +61,6 @@ const Wallet = () => {
   };
 
   useEffect(() => {
-    // Manejar parámetros de URL después del pago
     const params = new URLSearchParams(window.location.search);
     const success = params.get('success');
     const failed = params.get('failed');
@@ -69,7 +68,6 @@ const Wallet = () => {
 
     if (success === 'true') {
       toast.success("¡Recarga exitosa! Tu saldo se ha actualizado.");
-      // Limpiar URL
       window.history.replaceState({}, document.title, '/wallet');
     } else if (failed === 'true') {
       toast.error("El pago no se completó. Intenta de nuevo.");
@@ -88,7 +86,7 @@ const Wallet = () => {
     toast.success("¡Recarga exitosa! Tu saldo se actualizará pronto.");
     setIsToppingUp(false);
     setTopUpAmount('');
-    fetchWalletData(); // Actualiza el saldo en pantalla inmediatamente
+    fetchWalletData();
   };
 
   if (loading) return <SkeletonLoader />;

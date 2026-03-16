@@ -13,13 +13,13 @@ serve(async (req) => {
     const { bookingId } = await req.json();
     if (!bookingId) throw new Error("Booking ID is required.");
 
-    // Crear un cliente de Supabase con rol de servicio para poder modificar datos sin RLS
+    
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // 1. Obtener la transacción asociada a la reserva
+    
     const { data: transaction, error: transError } = await supabaseAdmin
       .from('transactions')
       .select('*')
@@ -29,18 +29,18 @@ serve(async (req) => {
     if (transError) throw new Error(`Error fetching transaction: ${transError.message}`);
     if (!transaction) throw new Error(`No transaction found for booking ID: ${bookingId}`);
 
-    // 2. Calcular la comisión y la ganancia
+   
     const totalAmount = transaction.amount;
     const platformFee = totalAmount * COMMISSION_RATE;
     const netEarning = totalAmount - platformFee;
 
-    // 3. Actualizar la transacción con los nuevos valores
+   
     const { error: updateError } = await supabaseAdmin
       .from('transactions')
       .update({
         platform_fee: platformFee,
         net_earning: netEarning,
-        status: 'completed' // Asegurarnos de que el estado final sea 'completed'
+        status: 'completed' 
       })
       .eq('id', transaction.id);
 
