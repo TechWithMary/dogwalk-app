@@ -205,12 +205,14 @@ const HomeWalker = ({ currentUser }) => {
         return;
       }
 
-      const { data: bookings } = await supabase
+      let bookingsQuery = supabase
         .from('bookings')
         .select('*')
-        .eq('walker_id', walkerId)
-        .in('status', ['pending', 'accepted', 'in_progress'])
+        .in('status', ['pending', 'accepted', 'in_progress', 'confirmed'])
+        .or(`walker_id.eq.${walkerId},walker_id.is.null`)
         .order('created_at', { ascending: false });
+
+      const { data: bookings } = await bookingsQuery;
 
       const { data: statsData } = await supabase
         .from('bookings')

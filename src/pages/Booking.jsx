@@ -216,24 +216,30 @@ const Booking = ({ setView, navigate }) => {
         .single();
 
       if (selectedWalker && selectedWalker.user_id) {
-        await supabase.from('notifications').insert({
-          user_id: selectedWalker.user_id,
-          title: '🐕 Nueva Reserva',
-          body: `Tienes una nueva reserva programada para ${finalDate} a las ${finalTime}`,
-          link_to: '/walker-home'
-        });
-      } else if (nearbyWalkers.length > 0) {
-        const walkerUserIds = nearbyWalkers
-          .map(w => w.user_id)
-          .filter(Boolean);
-        
-        for (const walkerUserId of walkerUserIds) {
+        try {
           await supabase.from('notifications').insert({
-            user_id: walkerUserId,
-            title: '🐕 Nueva Reserva Disponible',
-            body: `Nueva reserva en tu zona para ${finalDate} a las ${finalTime}. ¡Accepta antes de que otro lo haga!`,
+            user_id: selectedWalker.user_id,
+            title: '🐕 Nueva Reserva',
+            body: `Tienes una nueva reserva programada para ${finalDate} a las ${finalTime}`,
             link_to: '/walker-home'
           });
+        } catch (e) {
+          console.error('Error notificacion:', e);
+        }
+      } else if (nearbyWalkers.length > 0) {
+        for (const walker of nearbyWalkers) {
+          if (walker.user_id) {
+            try {
+              await supabase.from('notifications').insert({
+                user_id: walker.user_id,
+                title: '🐕 Nueva Reserva Disponible',
+                body: `Nueva reserva en tu zona para ${finalDate} a las ${finalTime}. ¡Accepta antes de que otro lo haga!`,
+                link_to: '/walker-home'
+              });
+            } catch (e) {
+              console.error('Error notificacion walker:', walker.user_id, e);
+            }
+          }
         }
       }
 
