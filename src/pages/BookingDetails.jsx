@@ -75,7 +75,7 @@ const BookingDetails = () => {
   const formatLocalDate = (dateStr) => {
     if (!dateStr) return '';
     const [year, month, day] = dateStr.split('-');
-    const date = new Date(year, month - 1, day);
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
     return date.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
   };
 

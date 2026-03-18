@@ -14,7 +14,10 @@ const libraries = ['places'];
 
 const getLocalDate = () => {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 const Booking = ({ setView, navigate }) => {
@@ -200,7 +203,7 @@ const Booking = ({ setView, navigate }) => {
         address: address,
         duration: duration,
         total_price: price,
-        status: selectedWalker ? 'accepted' : 'confirmed',
+        status: selectedWalker ? 'accepted' : 'pending',
         walker_id: selectedWalker ? selectedWalker.id : null,
         scheduled_date: finalDate,
         scheduled_time: finalTime,

@@ -198,8 +198,17 @@ const Home = ({ currentUser, navigate, setView }) => {
             <div className={`bg-white p-5 rounded-3xl shadow-sm border ${upcomingWalk.status === 'pending' ? 'border-orange-200' : 'border-gray-100'}`}>
               <div className="flex items-center gap-4 mb-4">
                 <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center font-black ${upcomingWalk.status === 'pending' ? 'bg-orange-50 text-orange-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                  <span className="text-[10px] uppercase">{new Date(upcomingWalk.scheduled_date).toLocaleDateString('es-CO', { month: 'short' })}</span>
-                  <span className="text-2xl">{new Date(upcomingWalk.scheduled_date).getDate()}</span>
+                  {(() => {
+                    const dateParts = upcomingWalk.scheduled_date?.split('-');
+                    const month = dateParts ? new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2])).toLocaleDateString('es-CO', { month: 'short' }) : '';
+                    const dayNum = dateParts ? parseInt(dateParts[2]) : '';
+                    return (
+                      <>
+                        <span className="text-[10px] uppercase">{month}</span>
+                        <span className="text-2xl">{dayNum}</span>
+                      </>
+                    );
+                  })()}
                 </div>
                 <div className="flex-1">
                   <p className="font-bold text-gray-800 text-sm">Paseo de {upcomingWalk.duration}</p>
