@@ -62,16 +62,22 @@ const App = () => {
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('role, first_name, last_name')
-          .eq('id', user.id)
+        const { data: walkerData } = await supabase
+          .from('walkers')
+          .select('name, first_name')
+          .eq('user_id', user.id)
           .single();
         
-        if (profile?.role === 'walker') {
+        if (walkerData) {
           setUserRole('walker');
-          setUserName(profile.first_name || 'Paseador');
+          setUserName(walkerData.name || walkerData.first_name || 'Paseador');
         } else {
+          const { data: profile } = await supabase
+            .from('user_profiles')
+            .select('role, first_name, last_name')
+            .eq('id', user.id)
+            .single();
+          
           setUserRole(profile?.role || 'owner');
           setUserName(profile?.first_name || 'Usuario');
         }
@@ -214,7 +220,7 @@ const App = () => {
           <Route path="/" element={<Navigate to="/login" replace />} />
           
           {/* Rutas de Dueño */}
-          <Route path="/home" element={isAdmin ? <Navigate to="/admin/verifications" /> : <Home setView={navigate} currentUser={{ name: userName }} navigate={navigate} />} />
+          <Route path="/home" element={isWalker ? <Navigate to="/walker-home" replace /> : isAdmin ? <Navigate to="/admin/verifications" /> : <Home setView={navigate} currentUser={{ name: userName }} navigate={navigate} />} />
           <Route path="/booking" element={<Booking setView={navigate} />} />
           <Route path="/manage-pets" element={<PetManager onBack={() => navigate(-1)} />} />
           
