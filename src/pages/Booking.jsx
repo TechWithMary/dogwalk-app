@@ -12,6 +12,11 @@ const containerStyle = { width: '100%', height: '100%' };
 const centerMedellin = { lat: 6.2442, lng: -75.5812 };
 const libraries = ['places'];
 
+const getLocalDate = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 const Booking = ({ setView, navigate }) => {
   const location = useLocation();
   const preferredWalker = location.state?.preferredWalker || null;
@@ -135,8 +140,8 @@ const Booking = ({ setView, navigate }) => {
       checkWalkerAvailability(date, time);
     } else if (bookingType === 'now' && markerPos) {
       const now = new Date();
-      const currentTime = now.toTimeString().slice(0, 5);
-      const currentDate = now.toISOString().slice(0, 10);
+      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const currentDate = getLocalDate();
       checkWalkerAvailability(currentDate, currentTime);
     }
   }, [date, time, bookingType, markerPos]);
@@ -155,8 +160,8 @@ const Booking = ({ setView, navigate }) => {
     if (!user) throw new Error('No hay usuario conectado');
 
     const isScheduled = bookingType === 'schedule';
-    const finalDate = isScheduled ? date : new Date().toISOString().slice(0, 10);
-    const finalTime = isScheduled ? time : new Date().toTimeString().slice(0, 5);
+    const finalDate = isScheduled ? date : getLocalDate();
+    const finalTime = isScheduled ? time : `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
 
     const bookingData = {
         user_id: user.id,
@@ -187,8 +192,8 @@ const Booking = ({ setView, navigate }) => {
       }
 
       const isScheduled = bookingType === 'schedule';
-      const finalDate = isScheduled ? date : new Date().toISOString().slice(0, 10);
-      const finalTime = isScheduled ? time : new Date().toTimeString().slice(0, 5);
+      const finalDate = isScheduled ? date : getLocalDate();
+      const finalTime = isScheduled ? time : `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
 
       const bookingData = {
         user_id: user.id,
