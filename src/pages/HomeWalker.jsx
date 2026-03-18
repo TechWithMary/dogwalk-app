@@ -219,6 +219,11 @@ const HomeWalker = ({ currentUser }) => {
 
       const bookings = [...(myBookings || []), ...(availableBookings || [])];
 
+      console.log('Walker ID:', walkerId);
+      console.log('My bookings:', myBookings);
+      console.log('Available bookings:', availableBookings);
+      console.log('Combined:', bookings);
+
       const { data: statsData } = await supabase
         .from('bookings')
         .select('total_price')

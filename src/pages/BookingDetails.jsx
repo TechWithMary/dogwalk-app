@@ -72,6 +72,13 @@ const BookingDetails = () => {
 
   const formatMoney = (val) => '$' + (val || 0).toLocaleString('es-CO');
 
+  const formatLocalDate = (dateStr) => {
+    if (!dateStr) return '';
+    const [year, month, day] = dateStr.split('-');
+    const date = new Date(year, month - 1, day);
+    return date.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
+  };
+
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-white">
@@ -118,7 +125,7 @@ const BookingDetails = () => {
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-gray-400 text-xs">Fecha</p>
-              <p className="font-bold">{new Date(booking.scheduled_date).toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+              <p className="font-bold">{formatLocalDate(booking.scheduled_date)}</p>
             </div>
             <div>
               <p className="text-gray-400 text-xs">Hora</p>
