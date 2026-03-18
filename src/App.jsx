@@ -59,6 +59,28 @@ const App = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('role, first_name, last_name')
+          .eq('id', user.id)
+          .single();
+        
+        if (profile?.role === 'walker') {
+          setUserRole('walker');
+          setUserName(profile.first_name || 'Paseador');
+        } else {
+          setUserRole(profile?.role || 'owner');
+          setUserName(profile?.first_name || 'Usuario');
+        }
+      }
+    };
+    checkUser();
+  }, []);
+
+  useEffect(() => {
     const initializeBasicAgents = async () => {
       try {
         agentRegistry.register('FrontendAgent', new FrontendAgent());
