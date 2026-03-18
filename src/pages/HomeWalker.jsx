@@ -188,14 +188,24 @@ const HomeWalker = ({ currentUser }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: walkerData } = await supabase
+      const { data: walkerData, error: walkerError } = await supabase
         .from('walkers')
-        .select('id, balance, overall_verification_status')
+        .select('id, overall_verification_status')
         .eq('user_id', user.id);
 
-      const walkerId = walkerData?.[0]?.id;
-      const walkerBalance = walkerData?.[0]?.balance || 0;
+      if (walkerError) {
+        console.error('Error fetching walker:', walkerError);
+      }
 
+      const walkerId = walkerData?.[0]?.id;
+
+      const { data: profileData } = await supabase
+        .from('user_profiles')
+        .select('balance')
+        .eq('user_id', user.id)
+        .single();
+      
+      const walkerBalance = profileData?.balance || 0;
       setBalance(walkerBalance);
 
       if (!walkerId) {
