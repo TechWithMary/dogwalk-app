@@ -203,7 +203,7 @@ const Booking = ({ setView, navigate }) => {
         address: address,
         duration: duration,
         total_price: price,
-        status: selectedWalker ? 'accepted' : 'pending',
+        status: selectedWalker ? 'accepted' : 'confirmed',
         walker_id: selectedWalker ? selectedWalker.id : null,
         scheduled_date: finalDate,
         scheduled_time: finalTime,
