@@ -191,11 +191,10 @@ const HomeWalker = ({ currentUser }) => {
       const { data: walkerData } = await supabase
         .from('walkers')
         .select('id, balance, overall_verification_status')
-        .eq('user_id', user.id)
-        .single();
+        .eq('user_id', user.id);
 
-      const walkerId = walkerData?.id;
-      const walkerBalance = walkerData?.balance || 0;
+      const walkerId = walkerData?.[0]?.id;
+      const walkerBalance = walkerData?.[0]?.balance || 0;
 
       setBalance(walkerBalance);
 
