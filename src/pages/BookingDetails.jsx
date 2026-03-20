@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
-import { ArrowLeft, MapPin, Clock, Dog, Phone, MessageSquare, Navigation, CheckCircle, PlayCircle, Check, Loader2, MapPinned } from 'lucide-react';
+import { ArrowLeft, MapPin, Clock, Dog, Phone, MessageSquare, Navigation, CheckCircle, Check, Loader2, MapPinned, PawPrint } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, Marker } from '@react-google/maps/api';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
@@ -14,8 +14,10 @@ const BookingDetails = () => {
   
   const [booking, setBooking] = useState(null);
   const [walker, setWalker] = useState(null);
+  const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
+  const [walkerLocation, setWalkerLocation] = useState(null);
 
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
@@ -52,17 +54,73 @@ const BookingDetails = () => {
         setWalker(walkerProfile);
       }
 
+      const { data: petsData } = await supabase
+        .from('pets')
+        .select('*')
+        .eq('owner_id', bookingData?.user_id);
+
+      setPets(petsData || []);
+
       setLoading(false);
     };
 
     fetchData();
   }, [bookingId]);
 
+  useEffect(() => {
+    if (booking?.status !== 'in_progress' || !booking?.id) return;
+
+    const fetchWalkerLocation = async () => {
+      const { data: locationData } = await supabase
+        .from('locations')
+        .select('*')
+        .eq('booking_id', booking.id)
+        .order('timestamp', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (locationData) {
+        setWalkerLocation({
+          lat: parseFloat(locationData.latitude),
+          lng: parseFloat(locationData.longitude)
+        });
+      }
+    };
+
+    fetchWalkerLocation();
+
+    const channel = supabase
+      .channel('tracking-' + booking.id)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'locations',
+          filter: `booking_id=eq.${booking.id}`
+        },
+        (payload) => {
+          if (payload.new) {
+            setWalkerLocation({
+              lat: parseFloat(payload.new.latitude),
+              lng: parseFloat(payload.new.longitude)
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [booking?.status, booking?.id]);
+
   const getStatusInfo = (status) => {
     const statuses = {
       'pending': { label: 'Por Confirmar', color: 'orange', icon: '⏳' },
       'confirmed': { label: 'Confirmado', color: 'blue', icon: '✓' },
-      'accepted': { label: 'Paseador Acceptado', color: 'emerald', icon: '🐕' },
+      'accepted': { label: 'En camino', color: 'blue', icon: '🚶' },
+      'picked_up': { label: 'Mascota recogida', color: 'purple', icon: '🐕' },
       'in_progress': { label: 'Paseo en Curso', color: 'emerald', icon: '🚶' },
       'completed': { label: 'Completado', color: 'gray', icon: '✅' },
       'cancelled': { label: 'Cancelado', color: 'red', icon: '❌' }
@@ -102,6 +160,7 @@ const BookingDetails = () => {
 
   const statusInfo = getStatusInfo(booking.status);
   const isWalker = booking.walker_id && walker?.user_id === user?.id;
+  const petNames = pets.map(p => p.name).join(', ') || 'tu(s) mascota(s)';
 
   return (
     <div className="min-h-screen bg-gray-50 pb-10">
@@ -113,7 +172,14 @@ const BookingDetails = () => {
       </div>
 
       <div className="p-4 space-y-4">
-        <div className={`bg-white p-4 rounded-2xl border-l-4 border-${statusInfo.color}-500`}>
+        <div className={`bg-white p-4 rounded-2xl border-l-4 ${
+          statusInfo.color === 'orange' ? 'border-orange-500' :
+          statusInfo.color === 'blue' ? 'border-blue-500' :
+          statusInfo.color === 'purple' ? 'border-purple-500' :
+          statusInfo.color === 'emerald' ? 'border-emerald-500' :
+          statusInfo.color === 'gray' ? 'border-gray-500' :
+          'border-red-500'
+        }`}>
           <div className="flex items-center gap-2 mb-3">
             <span className="text-2xl">{statusInfo.icon}</span>
             <div>
@@ -149,6 +215,21 @@ const BookingDetails = () => {
           <p className="text-sm text-gray-600">{booking.address}</p>
         </div>
 
+        {pets.length > 0 && (
+          <div className="bg-white p-4 rounded-2xl">
+            <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+              <PawPrint size={18} className="text-emerald-500" /> Mascota(s)
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {pets.map(pet => (
+                <span key={pet.id} className="bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full text-sm font-bold flex items-center gap-1">
+                  <Dog size={14} /> {pet.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {booking.walkers && (
           <div className="bg-white p-4 rounded-2xl">
             <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
@@ -176,23 +257,64 @@ const BookingDetails = () => {
         )}
 
         {booking.status === 'accepted' && (
-          <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl">
+          <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl">
             <div className="flex items-center gap-2 mb-2">
-              <CheckCircle className="w-5 h-5 text-emerald-500" />
-              <p className="font-bold text-emerald-700">El paseador va a buscar tu mascota</p>
+              <CheckCircle className="w-5 h-5 text-blue-500" />
+              <p className="font-bold text-blue-700">El paseador está en camino</p>
             </div>
-            <p className="text-sm text-emerald-600">Pronto podrás ver el recorrido en tiempo real</p>
+            <p className="text-sm text-blue-600">Pronto irá a recoger a {petNames}</p>
+          </div>
+        )}
+
+        {booking.status === 'picked_up' && (
+          <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl">
+            <div className="flex items-center gap-2 mb-2">
+              <Dog className="w-5 h-5 text-purple-500" />
+              <p className="font-bold text-purple-700">Mascota recogida</p>
+            </div>
+            <p className="text-sm text-purple-600">{petNames} está con el paseador. ¡El paseo está por comenzar!</p>
           </div>
         )}
 
         {booking.status === 'in_progress' && (
-          <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl">
-            <div className="flex items-center gap-2 mb-2">
-              <Navigation className="w-5 h-5 text-emerald-500" />
-              <p className="font-bold text-emerald-700">Paseo en curso</p>
+          <>
+            <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl">
+              <div className="flex items-center gap-2 mb-2">
+                <Navigation className="w-5 h-5 text-emerald-500" />
+                <p className="font-bold text-emerald-700">Paseo en curso</p>
+              </div>
+              <p className="text-sm text-emerald-600">{petNames} está disfrutando el paseo. ¡Sigue su recorrido en tiempo real!</p>
             </div>
-            <p className="text-sm text-emerald-600">Puedes seguir el recorrido en tiempo real</p>
-          </div>
+
+            {isLoaded && walkerLocation && (
+              <div className="bg-white p-4 rounded-2xl">
+                <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  <MapPinned size={18} className="text-emerald-500" /> Ubicación en tiempo real
+                </h3>
+                <div className="h-64 rounded-xl overflow-hidden">
+                  <GoogleMap
+                    mapContainerStyle={{ width: '100%', height: '100%' }}
+                    center={walkerLocation}
+                    zoom={15}
+                    options={{
+                      disableDefaultUI: true,
+                      zoomControl: true,
+                    }}
+                  >
+                    <Marker position={walkerLocation} />
+                    {booking.lat && booking.lng && (
+                      <Marker 
+                        position={{ lat: booking.lat, lng: booking.lng }}
+                        icon={{
+                          url: 'https://maps.google.com/mapfiles/ms/icons/home.png'
+                        }}
+                      />
+                    )}
+                  </GoogleMap>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {booking.status === 'completed' && (

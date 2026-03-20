@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import { Calendar, CheckCircle, ChevronRight, DollarSign, Loader2, MapPin, Power, Star, RefreshCw, CheckSquare, Wallet, Dog, AlertTriangle, XCircle, Clock, TrendingUp, Award } from 'lucide-react';
+import { Calendar, CheckCircle, ChevronRight, DollarSign, Loader2, MapPin, Power, Star, RefreshCw, CheckSquare, Wallet, Dog, AlertTriangle, XCircle, Clock, TrendingUp, Award, Navigation } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import AvailabilityManager from '../components/AvailabilityManager';
 import ServiceAreaManager from '../components/ServiceAreaManager';
@@ -28,6 +28,10 @@ const HomeWalker = ({ currentUser }) => {
   });
   const [acceptingId, setAcceptingId] = useState(null);
   const [processingWalkId, setProcessingWalkId] = useState(null);
+  const [isTracking, setIsTracking] = useState(false);
+  const [currentWalkId, setCurrentWalkId] = useState(null);
+  const locationIntervalRef = useRef(null);
+  const walkerIdRef = useRef(null);
 
   const acceptBooking = async (bookingId) => {
     try {
@@ -86,7 +90,7 @@ const HomeWalker = ({ currentUser }) => {
         .from('bookings')
         .update({ status: 'in_progress', walk_start_time: new Date().toISOString() })
         .eq('id', walkId)
-        .eq('status', 'accepted');
+        .eq('status', 'picked_up');
 
       if (error) throw error;
 
@@ -105,7 +109,8 @@ const HomeWalker = ({ currentUser }) => {
         });
       }
       
-      toast.success('¡Paseo iniciado! Dirígete al punto de encuentro.');
+      startGPSTracking(walkId);
+      toast.success('¡Paseo iniciado! GPS activo.');
       fetchWalkerData();
     } catch (error) {
       console.error(error);
@@ -114,6 +119,75 @@ const HomeWalker = ({ currentUser }) => {
       setProcessingWalkId(null);
     }
   };
+
+  const sendLocation = async (bookingId) => {
+    if (!navigator.geolocation) return;
+    
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          await supabase.from('locations').insert({
+            booking_id: bookingId,
+            walker_id: walkerIdRef.current,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            timestamp: new Date().toISOString(),
+            activity_type: 'walking',
+            location_source: 'gps'
+          });
+        } catch (err) {
+          console.error('Error enviando ubicación:', err);
+        }
+      },
+      (err) => console.error('Error GPS:', err),
+      { enableHighAccuracy: true, maximumAge: 0 }
+    );
+  };
+
+  const startGPSTracking = async (walkId) => {
+    if (locationIntervalRef.current) return;
+    
+    if (!walkerIdRef.current) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: walkerData } = await supabase
+          .from('walkers')
+          .select('id')
+          .eq('user_id', user.id)
+          .single();
+        if (walkerData) {
+          walkerIdRef.current = walkerData.id;
+        }
+      }
+    }
+    
+    setCurrentWalkId(walkId);
+    setIsTracking(true);
+    
+    sendLocation(walkId);
+    
+    locationIntervalRef.current = setInterval(() => {
+      sendLocation(walkId);
+    }, 10000);
+  };
+
+  const stopGPSTracking = () => {
+    if (locationIntervalRef.current) {
+      clearInterval(locationIntervalRef.current);
+      locationIntervalRef.current = null;
+    }
+    setIsTracking(false);
+    setCurrentWalkId(null);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (locationIntervalRef.current) {
+        clearInterval(locationIntervalRef.current);
+      }
+    };
+  }, []);
 
   const finishWalk = async (walkId) => {
     if (!confirm('¿Confirmas que has terminado el paseo?')) return;
@@ -174,10 +248,55 @@ const HomeWalker = ({ currentUser }) => {
       }
       
       toast.success('¡Paseo completado! Gracias por tu trabajo.');
+      stopGPSTracking();
       fetchWalkerData();
     } catch (error) {
       console.error(error);
       toast.error('Error al finalizar paseo');
+    } finally {
+      setProcessingWalkId(null);
+    }
+  };
+
+  const confirmPickup = async (walkId) => {
+    setProcessingWalkId(walkId);
+    try {
+      const { data: walkerData } = await supabase
+        .from('walkers')
+        .select('name')
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+        .single();
+
+      const { data: booking } = await supabase
+        .from('bookings')
+        .select('user_id, pets(name)')
+        .eq('id', walkId)
+        .single();
+
+      const petName = booking?.pets?.[0]?.name || 'tu mascota';
+
+      const { error } = await supabase
+        .from('bookings')
+        .update({ status: 'picked_up' })
+        .eq('id', walkId)
+        .eq('status', 'accepted');
+
+      if (error) throw error;
+
+      if (booking?.user_id) {
+        await supabase.from('notifications').insert({
+          user_id: booking.user_id,
+          title: '🐕 Mascota Recogida',
+          body: `${walkerData?.name || 'El paseador'} ha recogido a ${petName}. ¡El paseo está por comenzar!`,
+          link_to: '/home'
+        });
+      }
+      
+      toast.success('¡Mascota recogida! Ahora puedes iniciar el paseo.');
+      fetchWalkerData();
+    } catch (error) {
+      console.error(error);
+      toast.error('Error al confirmar recogida');
     } finally {
       setProcessingWalkId(null);
     }
@@ -216,9 +335,9 @@ const HomeWalker = ({ currentUser }) => {
 
       const { data: myBookings } = await supabase
         .from('bookings')
-        .select('*')
+        .select('*, pets(*)')
         .eq('walker_id', walkerId)
-        .in('status', ['accepted', 'in_progress']);
+        .in('status', ['accepted', 'picked_up', 'in_progress']);
 
       const { data: availableBookings } = await supabase
         .from('bookings')
@@ -248,7 +367,7 @@ const HomeWalker = ({ currentUser }) => {
           rating: 5.0
         },
         newRequests: bookings?.filter(b => b.status === 'pending' || b.status === 'confirmed') || [],
-        activeWalks: bookings?.filter(b => b.status === 'accepted' || b.status === 'in_progress') || []
+        activeWalks: bookings?.filter(b => b.status === 'accepted' || b.status === 'picked_up' || b.status === 'in_progress') || []
       });
     } catch (error) {
       console.error(error);
@@ -367,9 +486,12 @@ const HomeWalker = ({ currentUser }) => {
                       <h4 className="font-black text-gray-900">Paseo {walk.duration}</h4>
                       <p className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1"><MapPin size={10}/> {walk.address?.split(',')[0] || 'Dirección no disponible'}</p>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase mt-1 inline-block ${
-                        walk.status === 'accepted' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'
+                        walk.status === 'accepted' ? 'bg-blue-100 text-blue-600' : 
+                        walk.status === 'picked_up' ? 'bg-purple-100 text-purple-600' : 
+                        'bg-emerald-100 text-emerald-600'
                       }`}>
-                        {walk.status === 'accepted' ? 'Por iniciar' : 'En curso'}
+                        {walk.status === 'accepted' ? 'En camino' : 
+                         walk.status === 'picked_up' ? 'Mascota recogida' : 'En curso'}
                       </span>
                     </div>
                   </div>
@@ -378,22 +500,38 @@ const HomeWalker = ({ currentUser }) => {
 
                 {walk.status === 'accepted' && (
                   <button 
+                    onClick={() => confirmPickup(walk.id)}
+                    disabled={processingWalkId === walk.id}
+                    className="w-full bg-purple-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {processingWalkId === walk.id ? <Loader2 className="animate-spin w-4 h-4" /> : <><Dog size={16} /> Ya recogí la mascota</>}
+                  </button>
+                )}
+
+                {walk.status === 'picked_up' && (
+                  <button 
                     onClick={() => startWalk(walk.id)}
                     disabled={processingWalkId === walk.id}
                     className="w-full bg-blue-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    {processingWalkId === walk.id ? <Loader2 className="animate-spin w-4 h-4" /> : <><MapPin size={16} /> Iniciar Paseo</>}
+                    {processingWalkId === walk.id ? <Loader2 className="animate-spin w-4 h-4" /> : <><MapPin size={16} /> Iniciar Paseo GPS</>}
                   </button>
                 )}
 
                 {walk.status === 'in_progress' && (
-                  <button 
-                    onClick={() => finishWalk(walk.id)}
-                    disabled={processingWalkId === walk.id}
-                    className="w-full bg-emerald-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {processingWalkId === walk.id ? <Loader2 className="animate-spin w-4 h-4" /> : <><CheckCircle size={16} /> Finalizar Paseo</>}
-                  </button>
+                  <>
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-3 flex items-center justify-center gap-2">
+                      <Navigation className="w-4 h-4 text-emerald-500 animate-pulse" />
+                      <span className="text-xs font-bold text-emerald-700">GPS activo - El dueño puede ver tu ubicación</span>
+                    </div>
+                    <button 
+                      onClick={() => finishWalk(walk.id)}
+                      disabled={processingWalkId === walk.id}
+                      className="w-full bg-emerald-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {processingWalkId === walk.id ? <Loader2 className="animate-spin w-4 h-4" /> : <><CheckCircle size={16} /> Finalizar Paseo</>}
+                    </button>
+                  </>
                 )}
               </div>
             )) : (
