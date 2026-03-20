@@ -50,7 +50,7 @@ const HomeWalker = ({ currentUser }) => {
         .from('bookings')
         .update({ status: 'accepted', walker_id: walkerData.id })
         .eq('id', bookingId)
-        .eq('status', 'confirmed');
+        .in('status', ['pending', 'confirmed']);
 
       if (error) throw error;
 
