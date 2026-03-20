@@ -92,6 +92,7 @@ const HomeWalker = ({ currentUser }) => {
       }
       
       toast.success('¡Paseo aceptado!');
+      setActiveTab('active');
       fetchWalkerData();
     } catch (error) {
       console.error('Catch error:', error);
