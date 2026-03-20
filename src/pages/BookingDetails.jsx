@@ -283,7 +283,6 @@ const BookingDetails = () => {
                   </>
                 )}
               </div>
-              </div>
             </div>
           </div>
         )}
