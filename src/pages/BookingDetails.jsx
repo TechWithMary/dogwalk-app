@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { ArrowLeft, MapPin, Clock, Dog, Phone, MessageSquare, Navigation, CheckCircle, Check, Loader2, MapPinned, PawPrint } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { GoogleMap, useJsApiLoader, Marker } from '@react-google/maps/api';
+import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
