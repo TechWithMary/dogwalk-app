@@ -39,24 +39,39 @@ const HomeWalker = ({ currentUser }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: walkerData } = await supabase
+      const { data: walkerData, error: walkerError } = await supabase
         .from('walkers')
         .select('id, name')
         .eq('user_id', user.id)
         .single();
+
+      if (walkerError) {
+        console.error('Error walker:', walkerError);
+        toast.error('Error: ' + walkerError.message);
+        return;
+      }
 
       if (!walkerData) {
         toast.error('Perfil de paseador no encontrado');
         return;
       }
 
-      const { error } = await supabase
+      console.log('Aceptando booking:', bookingId, 'con walker_id:', walkerData.id);
+
+      const { data: updateData, error: updateError } = await supabase
         .from('bookings')
         .update({ status: 'accepted', walker_id: walkerData.id })
         .eq('id', bookingId)
-        .in('status', ['pending', 'confirmed']);
+        .in('status', ['pending', 'confirmed'])
+        .select();
 
-      if (error) throw error;
+      console.log('Update result:', updateData, 'Error:', updateError);
+
+      if (updateError) {
+        console.error('Error actualizando:', updateError);
+        toast.error('Error: ' + updateError.message);
+        return;
+      }
 
       const { data: booking } = await supabase
         .from('bookings')
@@ -64,20 +79,23 @@ const HomeWalker = ({ currentUser }) => {
         .eq('id', bookingId)
         .single();
 
+      console.log('Booking después de actualizar:', booking);
+
       if (booking?.user_id) {
-        await supabase.from('notifications').insert({
+        const { error: notifError } = await supabase.from('notifications').insert({
           user_id: booking.user_id,
           title: '🐕 Paseador Acceptado',
           body: `${walkerData.name || 'El paseador'} ha aceptado tu reserva. Pronto irá a buscar tu mascota.`,
           link_to: '/home'
         });
+        console.log('Notificación error:', notifError);
       }
       
       toast.success('¡Paseo aceptado!');
       fetchWalkerData();
     } catch (error) {
-      console.error(error);
-      toast.error('Error al aceptar paseo');
+      console.error('Catch error:', error);
+      toast.error('Error al aceptar paseo: ' + error.message);
     } finally {
       setAcceptingId(null);
     }
