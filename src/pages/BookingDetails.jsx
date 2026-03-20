@@ -256,7 +256,7 @@ const BookingDetails = () => {
           </div>
         )}
 
-        {booking.walkers && (
+        {booking.walkers && walker && (
           <div className="bg-white p-4 rounded-2xl">
             <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
               <Dog size={18} className="text-emerald-500" /> Paseador
@@ -267,16 +267,22 @@ const BookingDetails = () => {
                 className="w-12 h-12 rounded-full object-cover" 
               />
               <div className="flex-1">
-                <p className="font-bold">{booking.walkers.name || 'Paseador'}</p>
+                <p className="font-bold">{booking.walkers.name || walker.first_name || 'Paseador'}</p>
                 <p className="text-xs text-gray-500">⭐ {booking.walkers.rating || 'Nuevo'}</p>
+                {walker.phone && <p className="text-xs text-gray-400">{walker.phone}</p>}
               </div>
               <div className="flex gap-2">
-                <button className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                  <Phone size={18} className="text-gray-600" />
-                </button>
-                <button className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                  <MessageSquare size={18} className="text-gray-600" />
-                </button>
+                {walker.phone && (
+                  <>
+                    <a href={`tel:${walker.phone}`} className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
+                      <Phone size={18} className="text-emerald-600" />
+                    </a>
+                    <a href={`https://wa.me/57${walker.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                      <MessageSquare size={18} className="text-green-600" />
+                    </a>
+                  </>
+                )}
+              </div>
               </div>
             </div>
           </div>

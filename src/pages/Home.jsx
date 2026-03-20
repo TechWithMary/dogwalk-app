@@ -192,10 +192,24 @@ const Home = ({ currentUser, navigate, setView }) => {
 
       <div className="px-6">
         
-        <div className="mb-8">
-          <h3 className="font-black text-gray-900 text-lg mb-3">Tu Próximo Paseo</h3>
-          {upcomingWalk ? (
-            <div className={`bg-white p-5 rounded-3xl shadow-sm border ${upcomingWalk.status === 'pending' ? 'border-orange-200' : upcomingWalk.status === 'accepted' || upcomingWalk.status === 'picked_up' ? 'border-blue-200' : 'border-gray-100'}`}>
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="bg-emerald-500 text-white p-4 rounded-2xl shadow-lg shadow-emerald-200 flex flex-col justify-between h-32 cursor-pointer active:scale-95 transition-transform" onClick={() => onNavigate('/booking')}>
+            <Dog className="w-6 h-6" />
+            <span className="font-black text-base">Reservar un Paseo</span>
+          </div>
+          <div className="bg-white p-4 rounded-2xl shadow-sm border flex flex-col justify-between h-32 cursor-pointer active:scale-95 transition-transform" onClick={() => onNavigate('/manage-pets')}>
+            <div className="flex justify-between items-start">
+              <Dog className="w-6 h-6 text-blue-500" />
+              <span className="font-black text-2xl text-blue-500">{petCount}</span>
+            </div>
+            <span className="font-black text-base text-gray-800">Mis Mascotas</span>
+          </div>
+        </div>
+
+        {upcomingWalk && (
+          <div className="mb-6">
+            <h3 className="font-black text-gray-900 text-lg mb-3">Tu Paseo</h3>
+            <div className={`bg-white p-5 rounded-3xl shadow-sm border ${upcomingWalk.status === 'pending' ? 'border-orange-200' : upcomingWalk.status === 'accepted' || upcomingWalk.status === 'picked_up' ? 'border-blue-200' : 'border-emerald-200'}`}>
               <div className="flex items-center gap-4 mb-4">
                 <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center font-black ${upcomingWalk.status === 'pending' ? 'bg-orange-50 text-orange-600' : upcomingWalk.status === 'accepted' || upcomingWalk.status === 'picked_up' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
                   {(() => {
@@ -231,8 +245,8 @@ const Home = ({ currentUser, navigate, setView }) => {
                   }`}>
                     {upcomingWalk.status === 'pending' ? 'Por Pagar' : 
                      upcomingWalk.status === 'confirmed' ? 'Pagado' :
-                     upcomingWalk.status === 'accepted' ? 'Paseador en camino' :
-                     upcomingWalk.status === 'picked_up' ? 'Mascota recogida' :
+                     upcomingWalk.status === 'accepted' ? 'En camino' :
+                     upcomingWalk.status === 'picked_up' ? 'Recogida' :
                      upcomingWalk.status === 'in_progress' ? 'En curso' :
                      upcomingWalk.status}
                   </span>
@@ -252,31 +266,12 @@ const Home = ({ currentUser, navigate, setView }) => {
                 onClick={() => onNavigate('/booking-details', { state: { bookingId: upcomingWalk.id } })}
                 className={`w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 ${upcomingWalk.status === 'pending' ? 'bg-orange-500 text-white shadow-lg shadow-orange-200' : 'bg-gray-100 text-gray-700'}`}
               >
-                {upcomingWalk.status === 'pending' ? <><CreditCard size={14}/> Completar Pago Ahora</> : 'Ver detalles del paseo'} 
+                {upcomingWalk.status === 'pending' ? <><CreditCard size={14}/> Completar Pago</> : 'Ver detalles'} 
                 <ChevronRight size={14} />
               </button>
             </div>
-          ) : (
-            <div className="text-center bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <p className="text-sm font-bold text-gray-600">No tienes paseos programados.</p>
-              <button onClick={() => onNavigate('/booking')} className="text-emerald-600 text-xs font-bold mt-2">¡Programar uno ahora!</button>
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 mb-8">
-          <div className="bg-emerald-500 text-white p-4 rounded-2xl shadow-lg shadow-emerald-200 flex flex-col justify-between h-32 cursor-pointer active:scale-95 transition-transform" onClick={() => onNavigate('/booking')}>
-            <Dog className="w-6 h-6" />
-            <span className="font-black text-base">Reservar un Paseo</span>
           </div>
-          <div className="bg-white p-4 rounded-2xl shadow-sm border flex flex-col justify-between h-32 cursor-pointer active:scale-95 transition-transform" onClick={() => onNavigate('/manage-pets')}>
-            <div className="flex justify-between items-start">
-              <Dog className="w-6 h-6 text-blue-500" />
-              <span className="font-black text-2xl text-blue-500">{petCount}</span>
-            </div>
-            <span className="font-black text-base text-gray-800">Mis Mascotas</span>
-          </div>
-        </div>
+        )}
 
         <h3 className="font-black text-gray-900 text-lg mb-4">Paseadores Verificados</h3>
         <div className="space-y-4">
