@@ -287,11 +287,21 @@ const HomeWalker = ({ currentUser }) => {
 
       const { data: booking } = await supabase
         .from('bookings')
-        .select('user_id, pets(name)')
+        .select('user_id')
         .eq('id', walkId)
         .single();
 
-      const petName = booking?.pets?.[0]?.name || 'tu mascota';
+      let petName = 'tu mascota';
+      if (booking?.user_id) {
+        const { data: pets } = await supabase
+          .from('pets')
+          .select('name')
+          .eq('owner_id', booking.user_id)
+          .limit(1);
+        if (pets && pets.length > 0) {
+          petName = pets[0].name;
+        }
+      }
 
       const { error } = await supabase
         .from('bookings')
@@ -353,7 +363,7 @@ const HomeWalker = ({ currentUser }) => {
 
       const { data: myBookings } = await supabase
         .from('bookings')
-        .select('*, pets(*)')
+        .select('*')
         .eq('walker_id', walkerId)
         .in('status', ['accepted', 'picked_up', 'in_progress']);
 
