@@ -68,6 +68,32 @@ const BookingDetails = () => {
   }, [bookingId]);
 
   useEffect(() => {
+    if (!bookingId) return;
+
+    const channel = supabase
+      .channel('booking-updates-' + bookingId)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'bookings',
+          filter: `id=eq.${bookingId}`
+        },
+        (payload) => {
+          if (payload.new) {
+            setBooking(prev => ({ ...prev, ...payload.new }));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [bookingId]);
+
+  useEffect(() => {
     if (booking?.status !== 'in_progress' || !booking?.id) return;
 
     const fetchWalkerLocation = async () => {

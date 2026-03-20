@@ -108,7 +108,7 @@ const Home = ({ currentUser, navigate, setView }) => {
           .from('bookings')
           .select('*, walkers (*)')
           .eq('user_id', user.id)
-          .in('status', ['pending', 'confirmed', 'in_progress'])
+          .in('status', ['pending', 'confirmed', 'accepted', 'picked_up', 'in_progress'])
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -195,9 +195,9 @@ const Home = ({ currentUser, navigate, setView }) => {
         <div className="mb-8">
           <h3 className="font-black text-gray-900 text-lg mb-3">Tu Próximo Paseo</h3>
           {upcomingWalk ? (
-            <div className={`bg-white p-5 rounded-3xl shadow-sm border ${upcomingWalk.status === 'pending' ? 'border-orange-200' : 'border-gray-100'}`}>
+            <div className={`bg-white p-5 rounded-3xl shadow-sm border ${upcomingWalk.status === 'pending' ? 'border-orange-200' : upcomingWalk.status === 'accepted' || upcomingWalk.status === 'picked_up' ? 'border-blue-200' : 'border-gray-100'}`}>
               <div className="flex items-center gap-4 mb-4">
-                <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center font-black ${upcomingWalk.status === 'pending' ? 'bg-orange-50 text-orange-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center font-black ${upcomingWalk.status === 'pending' ? 'bg-orange-50 text-orange-600' : upcomingWalk.status === 'accepted' || upcomingWalk.status === 'picked_up' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
                   {(() => {
                     const dateParts = upcomingWalk.scheduled_date?.split('-');
                     const month = dateParts ? new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2])).toLocaleDateString('es-CO', { month: 'short' }) : '';
@@ -216,20 +216,43 @@ const Home = ({ currentUser, navigate, setView }) => {
                     <Clock className="w-3 h-3" />
                     <span className="text-xs">{upcomingWalk.scheduled_time}</span>
                   </div>
+                  {upcomingWalk.walkers && (
+                    <p className="text-xs text-blue-600 font-bold mt-1">🐕 {upcomingWalk.walkers.name || 'Paseador asignado'}</p>
+                  )}
                 </div>
                 <div className="text-right">
                   <span className="block text-xs font-black text-gray-900">{formatMoney(upcomingWalk.total_price)}</span>
-                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${upcomingWalk.status === 'pending' ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                    {upcomingWalk.status === 'pending' ? 'Por Pagar' : 'Programado'}
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                    upcomingWalk.status === 'pending' ? 'bg-orange-100 text-orange-700' : 
+                    upcomingWalk.status === 'accepted' ? 'bg-blue-100 text-blue-700' :
+                    upcomingWalk.status === 'picked_up' ? 'bg-purple-100 text-purple-700' :
+                    upcomingWalk.status === 'in_progress' ? 'bg-emerald-100 text-emerald-700' :
+                    'bg-gray-100 text-gray-700'
+                  }`}>
+                    {upcomingWalk.status === 'pending' ? 'Por Pagar' : 
+                     upcomingWalk.status === 'confirmed' ? 'Pagado' :
+                     upcomingWalk.status === 'accepted' ? 'Paseador en camino' :
+                     upcomingWalk.status === 'picked_up' ? 'Mascota recogida' :
+                     upcomingWalk.status === 'in_progress' ? 'En curso' :
+                     upcomingWalk.status}
                   </span>
                 </div>
               </div>
 
+              {(upcomingWalk.status === 'in_progress') && (
+                <button 
+                  onClick={() => onNavigate('/live-walk')}
+                  className="w-full py-3 mb-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 bg-emerald-500 text-white shadow-lg shadow-emerald-200 animate-pulse"
+                >
+                  🐕 ¡Mira a tu mascota en tiempo real!
+                </button>
+              )}
+
               <button 
                 onClick={() => onNavigate('/booking-details', { state: { bookingId: upcomingWalk.id } })}
-                className={`w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 ${upcomingWalk.status === 'pending' ? 'bg-orange-500 text-white shadow-lg shadow-orange-200' : 'bg-gray-50 text-gray-600 border border-gray-100'}`}
+                className={`w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 ${upcomingWalk.status === 'pending' ? 'bg-orange-500 text-white shadow-lg shadow-orange-200' : 'bg-gray-100 text-gray-700'}`}
               >
-                {upcomingWalk.status === 'pending' ? <><CreditCard size={14}/> Completar Pago Ahora</> : 'Ver detalles de la reserva'} 
+                {upcomingWalk.status === 'pending' ? <><CreditCard size={14}/> Completar Pago Ahora</> : 'Ver detalles del paseo'} 
                 <ChevronRight size={14} />
               </button>
             </div>
