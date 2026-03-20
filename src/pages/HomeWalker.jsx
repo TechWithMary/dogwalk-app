@@ -58,11 +58,16 @@ const HomeWalker = ({ currentUser }) => {
 
       console.log('Aceptando booking:', bookingId, 'con walker_id:', walkerData.id);
 
+      // Update directo
       const { data: updateData, error: updateError } = await supabase
         .from('bookings')
-        .update({ status: 'accepted', walker_id: walkerData.id })
+        .update({ 
+          status: 'accepted', 
+          walker_id: walkerData.id,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', bookingId)
-        .in('status', ['pending', 'confirmed'])
+        .neq('status', 'cancelled')
         .select();
 
       console.log('Update result:', updateData, 'Error:', updateError);
@@ -71,6 +76,25 @@ const HomeWalker = ({ currentUser }) => {
         console.error('Error actualizando:', updateError);
         toast.error('Error: ' + updateError.message);
         return;
+      }
+
+      if (!updateData || updateData.length === 0) {
+        // Intentar forzar el update sin condiciones de status
+        const { data: forceUpdate, error: forceError } = await supabase
+          .from('bookings')
+          .update({ 
+            status: 'accepted', 
+            walker_id: walkerData.id
+          })
+          .eq('id', bookingId)
+          .select();
+        
+        console.log('Force update:', forceUpdate, 'Error:', forceError);
+        
+        if (forceError || !forceUpdate || forceUpdate.length === 0) {
+          toast.error('No se pudo aceptar la reserva. Verifica que no esté cancelada.');
+          return;
+        }
       }
 
       const { data: booking } = await supabase
