@@ -47,13 +47,16 @@ const AdminPayouts = () => {
     try {
       console.log('Procesando payout:', payoutId, 'nuevo status:', newStatus);
       
+      // Primero obtener los datos del payout
       const { data: payoutData, error: fetchError } = await supabase
         .from('payouts')
-        .select('*, walkers!inner(user_id)')
+        .select('*, walkers(*)')
         .eq('id', payoutId)
         .single();
 
       if (fetchError) throw fetchError;
+
+      console.log('Payout data:', payoutData);
 
       const { data, error } = await supabase
         .from('payouts')
@@ -68,6 +71,7 @@ const AdminPayouts = () => {
       // Si se aprueba, restar del balance del paseador
       if (newStatus === 'completed' && payoutData?.walkers?.user_id) {
         const walkerUserId = payoutData.walkers.user_id;
+        console.log('Restando balance del walker:', walkerUserId, 'monto:', payoutData.amount);
         
         // Obtener balance actual
         const { data: profile } = await supabase
@@ -79,11 +83,15 @@ const AdminPayouts = () => {
         const currentBalance = profile?.balance || 0;
         const newBalance = Math.max(0, currentBalance - payoutData.amount);
 
+        console.log('Balance actual:', currentBalance, 'Nuevo balance:', newBalance);
+
         // Actualizar balance
-        await supabase
+        const { error: balanceError } = await supabase
           .from('user_profiles')
           .update({ balance: newBalance })
           .eq('user_id', walkerUserId);
+
+        console.log('Balance update error:', balanceError);
 
         // Registrar transacción de retiro
         await supabase.from('transactions').insert({
