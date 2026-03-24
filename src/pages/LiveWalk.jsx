@@ -107,11 +107,24 @@ const LiveWalk = ({ setView }) => {
         try {
             const { data: { user } } = await supabase.auth.getUser();
 
+            // Obtener el user_id del paseador
+            const { data: walkerData } = await supabase
+                .from('walkers')
+                .select('user_id')
+                .eq('id', booking.walker_id)
+                .single();
+
+            const revieweeId = walkerData?.user_id;
+
+            if (!revieweeId) {
+                throw new Error('No se encontró el usuario del paseador');
+            }
+
             // Insertar reseña
             await supabase.from('booking_reviews').insert([{
                 booking_id: booking.id,
                 reviewer_id: user.id,
-                reviewee_id: booking.walker_id,
+                reviewee_id: revieweeId,
                 rating: rating,
                 comment: review || null,
                 overall_experience_rating: rating
