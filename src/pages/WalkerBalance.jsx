@@ -226,9 +226,11 @@ const WalkerBalance = ({ onBack }) => {
         </div>
 
         <button 
-          onClick={() => setShowWithdrawModal(true)}
-          disabled={balance < MINIMUM_WITHDRAWAL || requesting}
-          className={`w-full mt-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all ${balance >= MINIMUM_WITHDRAWAL ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 active:scale-95' : 'bg-gray-800 text-gray-500 cursor-not-allowed'}`}
+          onClick={() => {
+            console.log('Abriendo modal de retiro. Balance:', balance);
+            setShowWithdrawModal(true);
+          }}
+          className={`w-full mt-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 active:scale-95`}
         >
           {requesting ? 'Procesando...' : <><ArrowDownCircle size={20}/> Solicitar Retiro</>}
         </button>
