@@ -73,19 +73,19 @@ const AdminPayouts = () => {
         const walkerUserId = payoutData.walkers.user_id;
         console.log('Restando balance del walker:', walkerUserId, 'monto:', payoutData.amount);
         
-        // Obtener balance actual
+        // Obtener balance actual (convertir a número)
         const { data: profile } = await supabase
           .from('user_profiles')
           .select('balance')
           .eq('user_id', walkerUserId)
           .single();
         
-        const currentBalance = profile?.balance || 0;
+        const currentBalance = Number(profile?.balance) || 0;
         const newBalance = Math.max(0, currentBalance - payoutData.amount);
 
         console.log('Balance actual:', currentBalance, 'Nuevo balance:', newBalance);
 
-        // Actualizar balance
+        // Actualizar balance (como número)
         const { error: balanceError } = await supabase
           .from('user_profiles')
           .update({ balance: newBalance })
@@ -117,7 +117,8 @@ const AdminPayouts = () => {
       }
 
       toast.success(newStatus === 'completed' ? 'Retiro aprobado y balance actualizado' : 'Retiro rechazado');
-      fetchPayouts();
+      // Forzar recarga de datos
+      setTimeout(() => fetchPayouts(), 500);
     } catch (error) {
       console.error('Error procesando payout:', error);
       toast.error("Error al procesar: " + error.message);
