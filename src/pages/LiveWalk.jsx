@@ -105,14 +105,29 @@ const LiveWalk = ({ setView }) => {
         }
         setSubmitting(true);
         try {
+            const { data: { user } } = await supabase.auth.getUser();
+
+            // Insertar reseña
+            await supabase.from('booking_reviews').insert([{
+                booking_id: booking.id,
+                reviewer_id: user.id,
+                reviewee_id: booking.walker_id,
+                rating: rating,
+                comment: review || null,
+                overall_experience_rating: rating
+            }]);
+
+            // Actualizar booking
             const { error } = await supabase
                 .from('bookings')
                 .update({ rating: rating, review_text: review })
                 .eq('id', booking.id);
 
             if (error) throw error;
+            toast.success('¡Gracias por tu calificación!');
             setView('/home');
         } catch (error) {
+            console.error(error);
             alert("Error: " + error.message);
         } finally {
             setSubmitting(false);

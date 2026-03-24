@@ -26,6 +26,10 @@ const Booking = ({ setView, navigate }) => {
   const onNavigate = navigate || setView;
 
   const prices = { '1h': 30000, '2h': 55000, '3h': 75000 };
+  const basePrice = prices[duration];
+  const petCount = selectedPets.length;
+  const additionalPetPrice = 10000;
+  const totalPrice = basePrice + (petCount > 1 ? (petCount - 1) * additionalPetPrice : 0);
 
   const [myPets, setMyPets] = useState([]);
   const [selectedPets, setSelectedPets] = useState([]);
@@ -188,7 +192,7 @@ const Booking = ({ setView, navigate }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No hay usuario conectado');
 
-      const price = prices[duration];
+      const price = totalPrice;
       
       if (walletBalance < price) {
         throw new Error('Saldo insuficiente. Usa otro método de pago.');
@@ -208,7 +212,9 @@ const Booking = ({ setView, navigate }) => {
         scheduled_date: finalDate,
         scheduled_time: finalTime,
         lat: markerPos.lat,
-        lng: markerPos.lng
+        lng: markerPos.lng,
+        pet_count: petCount,
+        pet_ids: selectedPets
       };
 
       const { error: bookingError } = await supabase.from('bookings').insert([bookingData]);
@@ -495,7 +501,8 @@ const Booking = ({ setView, navigate }) => {
         <div className="flex justify-between items-center mb-4">
           <div>
             <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Total Servicio</span>
-            <p className="text-3xl font-black text-gray-900">${prices[duration].toLocaleString('es-CO')}</p>
+            <p className="text-3xl font-black text-gray-900">${totalPrice.toLocaleString('es-CO')}</p>
+            {petCount > 1 && <span className="text-xs text-gray-500">{petCount} mascotas</span>}
           </div>
         </div>
         

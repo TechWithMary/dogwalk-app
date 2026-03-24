@@ -122,7 +122,7 @@ const Home = ({ currentUser, navigate, setView }) => {
 
         const { data: pendingReview } = await supabase
           .from('bookings')
-          .select('*')
+          .select('*, walkers(*)')
           .eq('user_id', user.id)
           .eq('status', 'completed')
           .is('rating', null)
@@ -130,8 +130,11 @@ const Home = ({ currentUser, navigate, setView }) => {
           .maybeSingle();
 
         if (pendingReview) {
+          console.log('Pending review booking:', pendingReview);
           setBookingToRate(pendingReview);
           setShowRatingModal(true);
+        } else {
+          setShowRatingModal(false);
         }
 
       } catch (error) {

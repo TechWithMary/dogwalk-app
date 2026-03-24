@@ -54,10 +54,24 @@ const BookingDetails = () => {
         setWalker(walkerProfile);
       }
 
-      const { data: petsData } = await supabase
-        .from('pets')
-        .select('*')
-        .eq('owner_id', bookingData?.user_id);
+      let petsData = [];
+      
+      // Si hay mascotas específicas guardadas en la reserva, obtenerlas
+      const petIds = bookingData?.pet_ids;
+      if (petIds && Array.isArray(petIds) && petIds.length > 0) {
+        const { data: specificPets } = await supabase
+          .from('pets')
+          .select('*')
+          .in('id', petIds);
+        petsData = specificPets || [];
+      } else {
+        // Si no hay pet_ids, obtener todas las mascotas del dueño
+        const { data: allPets } = await supabase
+          .from('pets')
+          .select('*')
+          .eq('owner_id', bookingData?.user_id);
+        petsData = allPets || [];
+      }
 
       setPets(petsData || []);
 

@@ -15,9 +15,21 @@ const RatingModal = ({ booking, onClose, onSuccess }) => {
       return;
     }
 
+    if (!booking?.walker_id) {
+      toast.error('Error: No hay paseador asociado a esta reserva');
+      return;
+    }
+
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
+
+      console.log('Guardando reseña:', {
+        booking_id: booking.id,
+        reviewer_id: user.id,
+        reviewee_id: booking.walker_id,
+        rating: rating
+      });
 
       const { error: reviewError } = await supabase
         .from('booking_reviews')
@@ -26,25 +38,60 @@ const RatingModal = ({ booking, onClose, onSuccess }) => {
           reviewer_id: user.id,
           reviewee_id: booking.walker_id,
           rating: rating,
-          comment: comment
+          comment: comment || null,
+          overall_experience_rating: rating
         }]);
 
-      if (reviewError) throw reviewError;
+      if (reviewError) {
+        console.error('Review error:', reviewError);
+        throw reviewError;
+      }
 
-      await supabase
+      const { error: updateError } = await supabase
         .from('bookings')
         .update({ rating: rating, review_text: comment })
         .eq('id', booking.id);
+
+      if (updateError) {
+        console.error('Update error:', updateError);
+      }
 
       toast.success('¡Gracias por tu calificación!');
       onSuccess();
     } catch (error) {
       console.error(error);
-      toast.error('Error al guardar');
+      toast.error('Error al guardar: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
+
+  if (!booking?.walker_id) {
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10000] flex items-center justify-center p-4">
+        <div className="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl p-6">
+          <div className="flex justify-end">
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full">
+              <X size={20} className="text-gray-400" />
+            </button>
+          </div>
+          <div className="text-center py-8">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Star size={32} className="text-gray-400" />
+            </div>
+            <h2 className="text-xl font-black text-gray-800 mb-2">Paseo Completado</h2>
+            <p className="text-gray-500 text-sm">No hay paseador asociado a esta reserva.</p>
+            <button
+              onClick={onClose}
+              className="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold mt-6"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10000] flex items-center justify-center p-4">
