@@ -45,10 +45,15 @@ const AdminPayouts = () => {
 
     setProcessingId(payoutId);
     try {
-      const { error } = await supabase
+      console.log('Procesando payout:', payoutId, 'nuevo status:', newStatus);
+      
+      const { data, error } = await supabase
         .from('payouts')
-        .update({ status: newStatus })
-        .eq('id', payoutId);
+        .update({ status: newStatus, payout_date: new Date().toISOString().split('T')[0] })
+        .eq('id', payoutId)
+        .select();
+
+      console.log('Update result:', data, 'Error:', error);
 
       if (error) throw error;
 
@@ -67,8 +72,8 @@ const AdminPayouts = () => {
       toast.success(newStatus === 'completed' ? 'Retiro aprobado' : 'Retiro rechazado');
       fetchPayouts();
     } catch (error) {
-      console.error(error);
-      toast.error("Error al procesar");
+      console.error('Error procesando payout:', error);
+      toast.error("Error al procesar: " + error.message);
     } finally {
       setProcessingId(null);
     }
