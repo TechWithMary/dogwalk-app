@@ -96,7 +96,6 @@ const AdminPayouts = () => {
         // Registrar transacción de retiro
         await supabase.from('transactions').insert({
           user_id: walkerUserId,
-          booking_id: payoutData.id,
           transaction_type: 'withdrawal',
           amount: payoutData.amount,
           net_amount: payoutData.amount,
