@@ -47,6 +47,14 @@ const AdminPayouts = () => {
     try {
       console.log('Procesando payout:', payoutId, 'nuevo status:', newStatus);
       
+      const { data: payoutData, error: fetchError } = await supabase
+        .from('payouts')
+        .select('*, walkers!inner(user_id)')
+        .eq('id', payoutId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
       const { data, error } = await supabase
         .from('payouts')
         .update({ status: newStatus, payout_date: new Date().toISOString().split('T')[0] })
@@ -57,19 +65,51 @@ const AdminPayouts = () => {
 
       if (error) throw error;
 
-      const payout = payouts.find(p => p.id === payoutId);
-      if (payout?.walkers?.user_id) {
+      // Si se aprueba, restar del balance del paseador
+      if (newStatus === 'completed' && payoutData?.walkers?.user_id) {
+        const walkerUserId = payoutData.walkers.user_id;
+        
+        // Obtener balance actual
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('balance')
+          .eq('user_id', walkerUserId)
+          .single();
+        
+        const currentBalance = profile?.balance || 0;
+        const newBalance = Math.max(0, currentBalance - payoutData.amount);
+
+        // Actualizar balance
+        await supabase
+          .from('user_profiles')
+          .update({ balance: newBalance })
+          .eq('user_id', walkerUserId);
+
+        // Registrar transacción de retiro
+        await supabase.from('transactions').insert({
+          user_id: walkerUserId,
+          booking_id: payoutData.id,
+          transaction_type: 'withdrawal',
+          amount: payoutData.amount,
+          net_amount: payoutData.amount,
+          status: 'completed',
+          description: `Retiro aprobado - ${payoutData.notes || ''}`
+        });
+      }
+
+      // Notificar al paseador
+      if (payoutData?.walkers?.user_id) {
         await supabase.from('notifications').insert({
-          user_id: payout.walkers.user_id,
+          user_id: payoutData.walkers.user_id,
           title: newStatus === 'completed' ? '✅ Retiro Aprobado' : '❌ Retiro Rechazado',
           body: newStatus === 'completed' 
-            ? `Tu retiro de $${payout.amount?.toLocaleString()} ha sido procesado.`
+            ? `Tu retiro de $${payoutData.amount?.toLocaleString()} ha sido procesado.`
             : 'Tu solicitud de retiro ha sido rechazada. Contacta soporte.',
           link_to: '/walker-balance'
         });
       }
 
-      toast.success(newStatus === 'completed' ? 'Retiro aprobado' : 'Retiro rechazado');
+      toast.success(newStatus === 'completed' ? 'Retiro aprobado y balance actualizado' : 'Retiro rechazado');
       fetchPayouts();
     } catch (error) {
       console.error('Error procesando payout:', error);
@@ -203,21 +243,24 @@ const AdminPayouts = () => {
                 </div>
 
                 {payout.status === 'pending' && (
-                  <div className="p-4 bg-white border-t border-gray-100 flex gap-3">
-                    <button 
-                      onClick={() => processPayout(payout.id, 'rejected')}
-                      disabled={processingId === payout.id}
-                      className="flex-1 py-3 rounded-xl border-2 border-red-100 text-red-500 font-bold hover:bg-red-50 transition-colors flex justify-center items-center gap-2 disabled:opacity-50"
-                    >
-                      <X size={18} /> Rechazar
-                    </button>
-                    <button 
-                      onClick={() => processPayout(payout.id, 'completed')}
-                      disabled={processingId === payout.id}
-                      className="flex-1 py-3 rounded-xl bg-emerald-500 text-white font-bold hover:bg-emerald-600 shadow-lg shadow-emerald-200 active:scale-95 transition-all flex justify-center items-center gap-2 disabled:opacity-50"
-                    >
-                      {processingId === payout.id ? <Loader2 className="animate-spin" /> : <><Check size={18} /> Aprobar Pago</>}
-                    </button>
+                  <div className="p-4 bg-orange-50 border-t border-orange-100">
+                    <p className="text-xs text-orange-700 font-bold mb-3">⚠️ IMPORTANTE: Haz la transferencia primero, luego confirma</p>
+                    <div className="flex gap-3">
+                      <button 
+                        onClick={() => processPayout(payout.id, 'rejected')}
+                        disabled={processingId === payout.id}
+                        className="flex-1 py-3 rounded-xl border-2 border-red-100 text-red-500 font-bold hover:bg-red-50 transition-colors flex justify-center items-center gap-2 disabled:opacity-50"
+                      >
+                        <X size={18} /> Rechazar
+                      </button>
+                      <button 
+                        onClick={() => processPayout(payout.id, 'completed')}
+                        disabled={processingId === payout.id}
+                        className="flex-1 py-3 rounded-xl bg-emerald-500 text-white font-bold hover:bg-emerald-600 shadow-lg shadow-emerald-200 active:scale-95 transition-all flex justify-center items-center gap-2 disabled:opacity-50"
+                      >
+                        {processingId === payout.id ? <Loader2 className="animate-spin" /> : <><Check size={18} /> Confirmar Transferencia</>}
+                      </button>
+                    </div>
                   </div>
                 )}
 
