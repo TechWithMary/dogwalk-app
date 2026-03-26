@@ -1,0 +1,72 @@
+{
+  "expo": {
+    "name": "HappiWalk",
+    "slug": "happiwalk",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "happiwalk",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#10B981"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.happiwalk.app",
+      "config": {
+        "googleMapsApiKey": "AIzaSyAl2je5gnJuDuhFlM1tjdFUF99vDREa9gc"
+      },
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "HappiWalk necesita tu ubicación para mostrar tu posición durante los paseos",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "HappiWalk necesita tu ubicación para rastrear el paseo de tu mascota",
+        "NSCameraUsageDescription": "HappiWalk necesita acceso a la cámara para tomar fotos de tu mascota",
+        "NSPhotoLibraryUsageDescription": "HappiWalk necesita acceso a tus fotos para seleccionar imágenes de tu mascota"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#10B981"
+      },
+      "package": "com.happiwalk.app",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyAl2je5gnJuDuhFlM1tjdFUF99vDREa9gc"
+        }
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "HappiWalk necesita tu ubicación para rastrear el paseo de tu mascota."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "HappiWalk necesita acceso a tus fotos para seleccionar imágenes de tu mascota.",
+          "cameraPermission": "HappiWalk necesita acceso a la cámara para tomar fotos."
+        }
+      ],
+      "expo-asset",
+      "expo-font"
+    ]
+  }
+}
