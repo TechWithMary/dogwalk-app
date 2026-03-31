@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Dimensions, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Dimensions, Alert, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import Svg, { Path } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
@@ -26,27 +27,37 @@ export default function LoginScreen() {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        handleSuccessfulLogin(session.user);
+        await handleSuccessfulLogin(session.user);
+        return;
       }
 
-      authSubscription = supabase.auth.onAuthStateChange((event, session) => {
+      authSubscription = supabase.auth.onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
-          handleSuccessfulLogin(session.user);
+          await handleSuccessfulLogin(session.user);
         }
       }).data.subscription;
 
-      const handleDeepLink = (event: { url: string }) => {
+      const handleDeepLink = async (event: { url: string }) => {
         const url = event.url;
-        if (url && url.includes('access_token')) {
-          const params = new URL(url).searchParams;
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
+        if (url && (url.includes('access_token') || url.includes('#'))) {
+          const urlObj = new URL(url);
+          
+          const hashParams = new URLSearchParams(urlObj.hash.substring(1));
+          const searchParams = new URLSearchParams(urlObj.search);
+          
+          const accessToken = hashParams.get('access_token') || searchParams.get('access_token');
+          const refreshToken = hashParams.get('refresh_token') || searchParams.get('refresh_token');
           
           if (accessToken) {
-            supabase.auth.setSession({
+            await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken || '',
             });
+            
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              await handleSuccessfulLogin(user);
+            }
           }
         }
       };
@@ -110,22 +121,44 @@ export default function LoginScreen() {
       setLoading(true);
       await AsyncStorage.setItem('oauth_role', roleMode);
       
-      const redirectUrl = 'happiwalk://login';
+      const redirectUrl = Linking.createURL('login');
+      console.log('Agregá esta URL en Supabase:', redirectUrl);
       
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: redirectUrl,
+          skipBrowserRedirect: true,
         }
       });
       
-      if (error) {
-        setLoading(false);
-        Alert.alert('Error', error.message);
+      if (error) throw error;
+      
+      if (data?.url) {
+        const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+        
+        if (result.type === 'success') {
+          await WebBrowser.dismissBrowser();
+          
+          const url = result.url;
+          const hashPart = url.split('#')[1];
+          const searchPart = url.split('?')[1];
+          const params = new URLSearchParams(hashPart || searchPart);
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+          
+          if (accessToken) {
+            await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken || '',
+            });
+          }
+        }
       }
     } catch (e: any) {
+      console.error('OAuth Error:', e);
+    } finally {
       setLoading(false);
-      Alert.alert('Error', e.message);
     }
   };
 
@@ -550,10 +583,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   switchModeLink: {
-    marginLeft: 8,
     color: '#059669',
     fontWeight: '900',
-    textDecorationLine: 'underline',
   },
   terms: {
     borderTopWidth: 1,

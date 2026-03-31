@@ -26,10 +26,7 @@ const Booking = ({ setView, navigate }) => {
   const onNavigate = navigate || setView;
 
   const prices = { '1h': 30000, '2h': 55000, '3h': 75000 };
-  const basePrice = prices[duration];
-  const petCount = selectedPets.length;
   const additionalPetPrice = 10000;
-  const totalPrice = basePrice + (petCount > 1 ? (petCount - 1) * additionalPetPrice : 0);
 
   const [myPets, setMyPets] = useState([]);
   const [selectedPets, setSelectedPets] = useState([]);
@@ -41,6 +38,10 @@ const Booking = ({ setView, navigate }) => {
   const [loading, setLoading] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
   const [isReadyForPayment, setIsReadyForPayment] = useState(false);
+  
+  const basePrice = prices[duration];
+  const petCount = selectedPets.length;
+  const totalPrice = basePrice + (petCount > 1 ? (petCount - 1) * additionalPetPrice : 0);
   
   
   const [walletBalance, setWalletBalance] = useState(0);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Alert, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Alert, Platform, ActivityIndicator, Modal } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -67,6 +67,14 @@ export default function BookingScreen() {
   const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'mercadopago'>('wallet');
   const [region, setRegion] = useState({ ...CENTER_MEDELLIN, latitudeDelta: 0.015, longitudeDelta: 0.015 });
   const [markerPosition, setMarkerPosition] = useState(CENTER_MEDELLIN);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+
+  const scrollRef = useRef<ScrollView>(null);
+
+  const scrollToTop = () => {
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  };
 
   useEffect(() => {
     fetchData();
@@ -285,7 +293,7 @@ export default function BookingScreen() {
 
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} style={styles.content} showsVerticalScrollIndicator={false}>
         {step === 1 ? (
           <>
             <Text style={styles.sectionTitle}>Paseadores Cercanos</Text>
@@ -430,37 +438,24 @@ export default function BookingScreen() {
 
             {bookingType === 'schedule' && (
               <View style={styles.dateTimeRow}>
-                <View style={styles.dateInput}>
+                <TouchableOpacity style={styles.dateInput} onPress={() => { scrollToTop(); setTimeout(() => setShowDatePicker(true), 300); }}>
                   <Calendar size={16} color="#9CA3AF" />
                   <View style={styles.dateInputContent}>
                     <Text style={styles.inputLabel}>Fecha</Text>
-                    <DateTimePicker
-                      value={date}
-                      mode="date"
-                      display="default"
-                      onChange={(event, selectedDate) => {
-                        if (selectedDate) setDate(selectedDate);
-                      }}
-                      minimumDate={new Date()}
-                      style={{ height: 40, marginTop: -10 }}
-                    />
+                    <Text style={styles.dateTimeText}>
+                      {date.toLocaleDateString('es-CO')}
+                    </Text>
                   </View>
-                </View>
-                <View style={styles.dateInput}>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.dateInput} onPress={() => { scrollToTop(); setTimeout(() => setShowTimePicker(true), 300); }}>
                   <Clock size={16} color="#9CA3AF" />
                   <View style={styles.dateInputContent}>
                     <Text style={styles.inputLabel}>Hora</Text>
-                    <DateTimePicker
-                      value={time}
-                      mode="time"
-                      display="default"
-                      onChange={(event, selectedTime) => {
-                        if (selectedTime) setTime(selectedTime);
-                      }}
-                      style={{ height: 40, marginTop: -10 }}
-                    />
+                    <Text style={styles.dateTimeText}>
+                      {time.toTimeString().slice(0, 5)}
+                    </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -581,6 +576,37 @@ export default function BookingScreen() {
         )}
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <Modal visible={showDatePicker} transparent animationType="slide">
+        <TouchableOpacity style={styles.modalOverlay} onPress={() => setShowDatePicker(false)} activeOpacity={1}>
+          <View style={styles.modalContent}>
+            <DateTimePicker
+              value={date}
+              mode="date"
+              display="spinner"
+              onChange={(event, selectedDate) => {
+                if (selectedDate) setDate(selectedDate);
+              }}
+              minimumDate={new Date()}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal visible={showTimePicker} transparent animationType="slide">
+        <TouchableOpacity style={styles.modalOverlay} onPress={() => setShowTimePicker(false)} activeOpacity={1}>
+          <View style={styles.modalContent}>
+            <DateTimePicker
+              value={time}
+              mode="time"
+              display="spinner"
+              onChange={(event, selectedTime) => {
+                if (selectedTime) setTime(selectedTime);
+              }}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -1140,5 +1166,18 @@ const styles = StyleSheet.create({
   pickerNative: {
     backgroundColor: '#FFFFFF',
     height: 250,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    width: '90%',
+    padding: 20,
+    alignItems: 'center',
   },
 });

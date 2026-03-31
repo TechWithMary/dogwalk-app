@@ -68,7 +68,7 @@ const SecureDocumentViewer = ({ path, altText = "Documento" }) => {
     );
   }
 
-  // Si es una foto normal (cédula, selfie), la mostramos
+  
   return (
     <div className="rounded-lg overflow-hidden border border-gray-700 bg-gray-900">
       <img 
