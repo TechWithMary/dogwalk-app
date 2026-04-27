@@ -6,8 +6,6 @@ import toast from 'react-hot-toast';
 import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from '../lib/mapsConfig';
 
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-
 const BookingDetails = () => {
   const location = useLocation();
   const navigate = useNavigate();

@@ -5,8 +5,6 @@ import { supabase } from '../supabaseClient';
 import { Save, X, MapPin, Navigation, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-
 const containerStyle = { width: '100%', height: '300px', borderRadius: '16px' };
 const defaultCenter = { lat: 6.2442, lng: -75.5812 }; 
 

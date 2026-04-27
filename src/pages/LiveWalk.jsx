@@ -5,7 +5,6 @@ import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from '../lib/mapsConfig';
 import toast from 'react-hot-toast';
 
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 const containerStyle = { width: '100%', height: '100%' };
 
 const LiveWalk = ({ setView }) => {

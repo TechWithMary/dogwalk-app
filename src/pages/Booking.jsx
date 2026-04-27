@@ -4,13 +4,11 @@ import { MapPin, Clock, ArrowLeft, Loader2, Crosshair, Star, Check, Dog, Chevron
 import { supabase } from '../supabaseClient';
 import toast from 'react-hot-toast';
 import { GoogleMap, useJsApiLoader, Marker, Autocomplete } from '@react-google-maps/api';
+import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES, centerMedellin } from '../lib/mapsConfig';
 import MercadoPagoButton from '../components/MercadoPagoButton';
 import { isWithinRadius } from '../utils/distance';
 
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY; 
 const containerStyle = { width: '100%', height: '100%' };
-const centerMedellin = { lat: 6.2442, lng: -75.5812 };
-const libraries = ['places'];
 
 const getLocalDate = () => {
   const d = new Date();
