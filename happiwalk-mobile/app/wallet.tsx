@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Plus, CreditCard, ArrowUpRight, ChevronLeft } from '../components/Icons';
 
 const formatMoney = (val: number) => '$' + (val || 0).toLocaleString('es-CO');
 
 export default function WalletScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [walletData, setWalletData] = useState({ balance: 0, transactions: [] });
-  const [isToppingUp, setIsToppingUp] = useState(false);
 
   useEffect(() => {
     fetchWalletData();
@@ -29,7 +31,7 @@ export default function WalletScreen() {
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
-        
+         
       setProfile(userProfile);
 
       const { data: history } = await supabase
@@ -43,7 +45,6 @@ export default function WalletScreen() {
         balance: userProfile?.balance || 0,
         transactions: history || []
       });
-
     } catch (error) {
       console.error(error);
     } finally {
@@ -51,98 +52,61 @@ export default function WalletScreen() {
     }
   };
 
-  const isWalker = profile?.role === 'walker';
-
   return (
-    <View style={[styles.container, isWalker && styles.containerDark]}>
-      <View style={styles.header}>
+    <SafeAreaView style={styles.container}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <ChevronLeft size={20} color="#374151" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{isWalker ? 'Mis Ganancias' : 'Mi Billetera'}</Text>
+        <Text style={styles.headerTitle}>Mi Billetera</Text>
         <View style={styles.headerRight} />
       </View>
 
-      <ScrollView style={styles.content}>
-        {/* Balance Card - EXACTAMENTE IGUAL A LA WEB */}
-        <View style={[styles.balanceCard, isWalker && styles.balanceCardDark]}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.balanceCard}>
           <View style={styles.balanceContent}>
-            <Text style={styles.balanceLabel}>
-              {isWalker ? "Saldo Disponible" : "Saldo Promocional"}
-            </Text>
+            <Text style={styles.balanceLabel}>Saldo Disponible</Text>
             <Text style={styles.balanceAmount}>{formatMoney(walletData.balance)}</Text>
-            <Text style={styles.balanceName}>{profile?.first_name || 'Usuario'}</Text>
+            <Text style={styles.balanceName}>Titular: {profile?.first_name || 'Usuario'}</Text>
           </View>
         </View>
 
-        {/* Action Buttons - EXACTAMENTE IGUAL A LA WEB */}
-        {!isWalker && (
-          isToppingUp ? (
-            <View style={styles.topUpSection}>
-              <Text style={styles.topUpTitle}>Recargar Saldo</Text>
-              <View style={styles.topUpInfo}>
-                <Text style={styles.topUpInfoText}>
-                  Para recargar, usa la versión web de HappiWalk o contacta al soporte.
-                </Text>
-              </View>
-              <TouchableOpacity 
-                style={styles.cancelTopUpBtn}
-                onPress={() => setIsToppingUp(false)}
-              >
-                <Text style={styles.cancelTopUpText}>Cancelar</Text>
-              </TouchableOpacity>
+        <View style={styles.actionButtons}>
+          <TouchableOpacity style={styles.actionBtn}>
+            <View style={[styles.actionIconBg, { backgroundColor: '#D1FAE5' }]}>
+              <Plus size={20} color="#059669" />
             </View>
-          ) : (
-            <View style={styles.actionButtons}>
-              <TouchableOpacity style={styles.actionBtn} onPress={() => setIsToppingUp(true)}>
-                <View style={[styles.actionIconBg, { backgroundColor: '#D1FAE5' }]}>
-                  <Text style={styles.actionIcon}>➕</Text>
-                </View>
-                <Text style={styles.actionLabel}>Recargar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionBtn}>
-                <View style={[styles.actionIconBg, { backgroundColor: '#DBEAFE' }]}>
-                  <Text style={styles.actionIcon}>💳</Text>
-                </View>
-                <Text style={styles.actionLabel}>Mis Tarjetas</Text>
-              </TouchableOpacity>
+            <Text style={styles.actionLabel}>Recargar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionBtn}>
+            <View style={[styles.actionIconBg, { backgroundColor: '#DBEAFE' }]}>
+              <CreditCard size={20} color="#2563EB" />
             </View>
-          )
-        )}
+            <Text style={styles.actionLabel}>Mis Tarjetas</Text>
+          </TouchableOpacity>
+        </View>
 
-        {/* Transactions - EXACTAMENTE IGUAL A LA WEB */}
-        <Text style={[styles.sectionTitle, isWalker && styles.sectionTitleDark]}>
-          Historial de Movimientos
-        </Text>
+        <Text style={styles.sectionTitle}>Historial de Movimientos</Text>
 
         <View style={styles.transactionsList}>
           {walletData.transactions.length > 0 ? (
             walletData.transactions.map((t: any, i: number) => (
-              <View key={i} style={[styles.transactionItem, isWalker && styles.transactionItemDark]}>
+              <View key={i} style={styles.transactionItem}>
                 <View style={styles.transactionLeft}>
-                  <View style={[styles.transactionIcon, { 
-                    backgroundColor: isWalker || t.transaction_type === 'deposit' ? '#D1FAE5' : '#FEE2E2'
-                  }]}>
-                    <Text style={styles.transactionIconText}>
-                      {t.transaction_type === 'payment' ? '⬆️' : '⬇️'}
-                    </Text>
+                  <View style={[styles.transactionIcon, { backgroundColor: '#FED7AA' }]}>
+                    <ArrowUpRight size={20} color="#EA580C" />
                   </View>
                   <View>
-                    <Text style={[styles.transactionDesc, isWalker && styles.transactionDescDark]}>
-                      {t.transaction_type === 'payment' 
-                        ? (isWalker ? "Ganancia por paseo" : "Pago de paseo") 
-                        : "Recarga de saldo"}
+                    <Text style={styles.transactionDesc}>
+                      {t.transaction_type === 'payment' ? 'Pago de paseo' : 'Recarga de saldo'}
                     </Text>
                     <Text style={styles.transactionDate}>
                       {new Date(t.created_at).toLocaleDateString('es-CO')}
                     </Text>
                   </View>
                 </View>
-                <Text style={[styles.transactionAmount, { 
-                  color: isWalker || t.transaction_type === 'deposit' ? '#10B981' : '#111827'
-                }]}>
-                  {t.transaction_type === 'payment' ? (isWalker ? '+' : '-') : '+'}
-                  {formatMoney(isWalker ? Math.abs(t.net_earning || 0) : Math.abs(t.amount || 0))}
+                <Text style={[styles.transactionAmount, { color: '#111827' }]}>
+                  -{formatMoney(Math.abs(t.amount || 0))}
                 </Text>
               </View>
             ))
@@ -152,8 +116,10 @@ export default function WalletScreen() {
             </View>
           )}
         </View>
+
+        <View style={styles.spacer} />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -162,14 +128,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  containerDark: {
-    backgroundColor: '#111827',
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingHorizontal: 20,
     paddingBottom: 16,
     backgroundColor: '#FFFFFF',
@@ -177,66 +139,58 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F3F4F6',
   },
   backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backText: {
-    fontSize: 20,
-    color: '#374151',
-  },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '900',
     color: '#111827',
   },
   headerRight: {
-    width: 36,
+    width: 40,
   },
   content: {
     flex: 1,
-    padding: 24,
+    padding: 20,
   },
   balanceCard: {
     backgroundColor: '#111827',
-    borderRadius: 24,
+    borderRadius: 32,
+    height: 192,
     padding: 24,
     marginBottom: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  balanceCardDark: {
-    backgroundColor: '#1F2937',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
   },
   balanceContent: {
-    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: '100%',
   },
   balanceLabel: {
     fontSize: 12,
     fontWeight: '700',
     color: '#9CA3AF',
     textTransform: 'uppercase',
-    letterSpacing: 2,
-    marginBottom: 8,
+    letterSpacing: 1,
   },
   balanceAmount: {
     fontSize: 36,
     fontWeight: '900',
     color: '#FFFFFF',
-    marginBottom: 8,
   },
   balanceName: {
     fontSize: 14,
     fontWeight: '700',
     color: '#9CA3AF',
     textTransform: 'uppercase',
-    letterSpacing: 1,
   },
   actionButtons: {
     flexDirection: 'row',
@@ -260,56 +214,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 8,
   },
-  actionIcon: {
-    fontSize: 20,
-  },
   actionLabel: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '700',
     color: '#374151',
-  },
-  topUpSection: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-  },
-  topUpTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 12,
-  },
-  topUpInfo: {
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  topUpInfoText: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
-  cancelTopUpBtn: {
-    alignItems: 'center',
-    padding: 8,
-  },
-  cancelTopUpText: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    fontWeight: '600',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '900',
     color: '#111827',
     marginBottom: 16,
-  },
-  sectionTitleDark: {
-    color: '#FFFFFF',
   },
   transactionsList: {
     gap: 12,
@@ -324,10 +238,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#F3F4F6',
   },
-  transactionItemDark: {
-    backgroundColor: '#1F2937',
-    borderColor: '#374151',
-  },
   transactionLeft: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -340,26 +250,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 12,
   },
-  transactionIconText: {
-    fontSize: 18,
-  },
   transactionDesc: {
     fontSize: 14,
     fontWeight: '700',
     color: '#374151',
   },
-  transactionDescDark: {
-    color: '#FFFFFF',
-  },
   transactionDate: {
     fontSize: 10,
+    fontWeight: '700',
     color: '#9CA3AF',
-    fontWeight: '600',
     textTransform: 'uppercase',
     marginTop: 2,
   },
   transactionAmount: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '900',
   },
   emptyTransactions: {
@@ -375,6 +279,9 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: 2,
+    letterSpacing: 1,
+  },
+  spacer: {
+    height: 40,
   },
 });

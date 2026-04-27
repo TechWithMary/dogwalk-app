@@ -122,7 +122,6 @@ export default function LoginScreen() {
       await AsyncStorage.setItem('oauth_role', roleMode);
       
       const redirectUrl = Linking.createURL('login');
-      console.log('Agregá esta URL en Supabase:', redirectUrl);
       
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -132,31 +131,43 @@ export default function LoginScreen() {
         }
       });
       
-      if (error) throw error;
+      if (error) {
+        Alert.alert('Error', error.message);
+        setLoading(false);
+        return;
+      }
       
       if (data?.url) {
         const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
         
-        if (result.type === 'success') {
-          await WebBrowser.dismissBrowser();
-          
+        if (result.type === 'success' && result.url) {
           const url = result.url;
-          const hashPart = url.split('#')[1];
-          const searchPart = url.split('?')[1];
-          const params = new URLSearchParams(hashPart || searchPart);
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
+          const hashIndex = url.indexOf('#');
           
-          if (accessToken) {
-            await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken || '',
-            });
+          if (hashIndex > 0) {
+            const hash = url.substring(hashIndex + 1);
+            const params = new URLSearchParams(hash);
+            const accessToken = params.get('access_token');
+            const refreshToken = params.get('refresh_token');
+            
+            if (accessToken) {
+              const { error: sessionError } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken || '',
+              });
+              
+              if (!sessionError) {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                  await handleSuccessfulLogin(user);
+                }
+              }
+            }
           }
         }
       }
     } catch (e: any) {
-      console.error('OAuth Error:', e);
+      console.error('OAuth Error:', e.message);
     } finally {
       setLoading(false);
     }
@@ -222,7 +233,6 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header Background */}
       <View style={[styles.headerBg, authMode === 'register' ? { height: height * 0.18 } : { height: height * 0.25 }]}>
         <Image 
           source={require('../../assets/login-bg.png')}
@@ -231,10 +241,7 @@ export default function LoginScreen() {
         />
       </View>
 
-      {/* Form Container */}
       <View style={styles.formContainer}>
-        
-        {/* Logo Section - EXACTO */}
         <View style={styles.logoSection}>
           <View style={styles.logoCircle}>
             <Dog size={24} color="#000000" />
@@ -242,7 +249,6 @@ export default function LoginScreen() {
           <Text style={styles.title}>HappiWalk</Text>
         </View>
 
-        {/* Role Selector - SOLO EN REGISTRO */}
         {authMode === 'register' && (
           <View style={styles.roleSelector}>
             <TouchableOpacity 
@@ -264,7 +270,6 @@ export default function LoginScreen() {
           </View>
         )}
 
-        {/* Form - EXACTO: space-y-3 */}
         <View style={styles.form}>
           {authMode === 'register' && (
             <View style={styles.inputWrapper}>
@@ -336,21 +341,18 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Divider - EXACTO: mt-6 gap-4 mb-4 */}
         <View style={styles.divider}>
           <View style={styles.dividerLine} />
           <Text style={styles.dividerText}>O continuar con</Text>
           <View style={styles.dividerLine} />
         </View>
 
-        {/* Social Button - GOOGLE SVG */}
         <TouchableOpacity style={styles.socialBtn} onPress={handleOAuthLogin}>
           <View style={styles.socialBtnInner}>
             <GoogleIcon />
           </View>
         </TouchableOpacity>
 
-        {/* Switch Mode - EXACTO: text-xs font-medium text-gray-400 + ml-2 text-emerald-600 font-black underline underline-offset-4 */}
         <View style={styles.switchMode}>
           <Text style={styles.switchModeText}>
             {authMode === 'login' ? '¿Eres nuevo en HappiWalk? ' : '¿Ya eres parte de la familia? '}
@@ -366,7 +368,6 @@ export default function LoginScreen() {
           </Text>
         </View>
 
-        {/* Terms - EXACTO: pt-3 border-t border-gray-100 mt-2 */}
         <View style={styles.terms}>
           <Text style={styles.termsText}>
             Al registrarte aceptas nuestros{' '}

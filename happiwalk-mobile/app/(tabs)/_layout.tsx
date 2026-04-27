@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
-import { Home, MessageSquare, User } from '../../components/Icons';
+import { Home, MessageSquare, User, House } from '../../components/Icons';
 
 export default function TabLayout() {
   return (
@@ -15,11 +15,11 @@ export default function TabLayout() {
         name="index"
         options={{
           tabBarIcon: ({ focused }) => (
-            <View style={focused ? styles.activeTab : styles.tabItem}>
-              <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
-                <Home size={24} color={focused ? '#059669' : '#9CA3AF'} />
+            <View style={styles.tabButton}>
+              <View style={[styles.iconCircle, focused && styles.iconCircleActive]}>
+                <House size={24} color={focused ? '#059669' : '#9CA3AF'} />
               </View>
-              {focused && <Text style={styles.activeLabel}>Inicio</Text>}
+              {focused && <Text style={styles.tabLabel}>Inicio</Text>}
             </View>
           ),
         }}
@@ -28,8 +28,8 @@ export default function TabLayout() {
         name="messages"
         options={{
           tabBarIcon: ({ focused }) => (
-            <View style={styles.tabItem}>
-              <View style={styles.iconContainer}>
+            <View style={[styles.tabButton, !focused && styles.tabButtonInactive]}>
+              <View style={[styles.iconCircle, focused && styles.iconCircleActive]}>
                 <MessageSquare size={24} color={focused ? '#059669' : '#9CA3AF'} />
               </View>
             </View>
@@ -40,8 +40,8 @@ export default function TabLayout() {
         name="profile"
         options={{
           tabBarIcon: ({ focused }) => (
-            <View style={styles.tabItem}>
-              <View style={styles.iconContainer}>
+            <View style={[styles.tabButton, !focused && styles.tabButtonInactive]}>
+              <View style={[styles.iconCircle, focused && styles.iconCircleActive]}>
                 <User size={24} color={focused ? '#059669' : '#9CA3AF'} />
               </View>
             </View>
@@ -58,43 +58,39 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
     height: 70,
-    paddingBottom: 20,
-    paddingTop: 10,
+    paddingBottom: 8,
+    paddingTop: 4,
     paddingHorizontal: 24,
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  tabItem: {
+  tabButton: {
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    opacity: 0.4,
-  },
-  activeTab: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    gap: 4,
     marginTop: -16,
   },
-  iconContainer: {
+  tabButtonInactive: {
+    opacity: 0.4,
+  },
+  iconCircle: {
     padding: 12,
     borderRadius: 999,
     backgroundColor: 'transparent',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
   },
-  iconContainerActive: {
+  iconCircleActive: {
     backgroundColor: '#ECFDF5',
     transform: [{ scale: 1.1 }],
     shadowColor: '#10B981',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
+    elevation: 2,
   },
-  activeLabel: {
+  tabLabel: {
     fontSize: 10,
     fontWeight: 'bold',
     color: '#111827',
-    marginTop: 4,
   },
 });

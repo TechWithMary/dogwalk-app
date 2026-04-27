@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Trash2, DogIcon, ArrowLeft, ShieldCheck } from '../components/Icons';
 
 interface Pet {
   id: string;
@@ -24,6 +26,7 @@ const BREEDS = [
 
 export default function PetManagerScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [pets, setPets] = useState<Pet[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -136,8 +139,8 @@ export default function PetManagerScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={styles.container}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
@@ -152,7 +155,7 @@ export default function PetManagerScreen() {
           </View>
         ) : pets.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>🐕</Text>
+            <DogIcon size={48} color="#9CA3AF" />
             <Text style={styles.emptyText}>No tienes mascotas registradas</Text>
           </View>
         ) : (
@@ -161,7 +164,7 @@ export default function PetManagerScreen() {
               <View key={pet.id} style={styles.petCard}>
                 <View style={styles.petInfo}>
                   <View style={styles.petImage}>
-                    <Text style={styles.petEmoji}>🐕</Text>
+                    <DogIcon size={28} color="#6B7280" />
                   </View>
                   <View>
                     <Text style={styles.petName}>{pet.name}</Text>
@@ -179,7 +182,7 @@ export default function PetManagerScreen() {
                     style={styles.deleteBtn}
                     onPress={() => handleDeletePet(pet.id)}
                   >
-                    <Text style={styles.deleteBtnText}>🗑️</Text>
+                    <Trash2 size={16} color="#DC2626" />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -194,11 +197,12 @@ export default function PetManagerScreen() {
           <Text style={styles.addBtnText}>+ Añadir Nueva Mascota</Text>
         </TouchableOpacity>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 function PetForm({ pet, onSave, onCancel }: { pet: Pet | null; onSave: (data: any) => void; onCancel: () => void }) {
+  const insets = useSafeAreaInsets();
   const [formData, setFormData] = useState({
     name: pet?.name || '',
     breed: pet?.breed || '',
@@ -221,16 +225,16 @@ function PetForm({ pet, onSave, onCancel }: { pet: Pet | null; onSave: (data: an
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={styles.container}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <TouchableOpacity onPress={onCancel} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <ArrowLeft size={20} color="#374151" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{pet ? 'Editar Mascota' : 'Añadir Mascota'}</Text>
         <View style={styles.headerRight} />
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.formSection}>
           <Text style={styles.label}>Información Básica</Text>
           
@@ -306,19 +310,21 @@ function PetForm({ pet, onSave, onCancel }: { pet: Pet | null; onSave: (data: an
         </View>
 
         <View style={styles.warningBox}>
-          <Text style={styles.warningIcon}>🛡️</Text>
+          <ShieldCheck size={20} color="#059669" />
           <Text style={styles.warningText}>
             Mantenemos la información de salud privada y solo la compartimos con el paseador asignado.
           </Text>
         </View>
+      </ScrollView>
 
+      <View style={styles.fixedBottom}>
         <TouchableOpacity style={styles.saveBtn} onPress={handleSubmit}>
           <Text style={styles.saveBtnText}>
             {pet ? 'Actualizar Mascota' : 'Guardar Mascota'}
           </Text>
         </TouchableOpacity>
-      </ScrollView>
-    </View>
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -331,7 +337,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingHorizontal: 20,
     paddingBottom: 16,
     backgroundColor: '#FFFFFF',
@@ -360,7 +365,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 24,
+    padding: 20,
+  },
+  scrollContent: {
+    paddingBottom: 100,
   },
   loadingContainer: {
     flex: 1,
@@ -413,13 +421,10 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 16,
-    backgroundColor: '#D1FAE5',
+    backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
-  },
-  petEmoji: {
-    fontSize: 28,
   },
   petName: {
     fontSize: 18,
@@ -451,12 +456,15 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   deleteBtn: {
-    padding: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: '#FEE2E2',
-    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   deleteBtnText: {
-    fontSize: 14,
+    fontSize: 12,
   },
   addBtn: {
     marginTop: 20,
@@ -548,10 +556,10 @@ const styles = StyleSheet.create({
   },
   warningBox: {
     flexDirection: 'row',
-    backgroundColor: '#D1FAE5',
+    backgroundColor: '#ECFDF5',
     borderRadius: 16,
     padding: 16,
-    marginBottom: 24,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: '#A7F3D0',
   },
@@ -567,12 +575,22 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     lineHeight: 16,
   },
+  fixedBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 20,
+    paddingBottom: 34,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
   saveBtn: {
     backgroundColor: '#10B981',
-    borderRadius: 16,
+    borderRadius: 24,
     padding: 20,
     alignItems: 'center',
-    marginBottom: 40,
     shadowColor: '#10B981',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,

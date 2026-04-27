@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, Platform, Linking } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Booking {
   id: string;
@@ -26,6 +27,7 @@ export default function BookingDetailsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const bookingId = params.id as string;
+  const insets = useSafeAreaInsets();
 
   const [booking, setBooking] = useState<Booking | null>(null);
   const [walkerProfile, setWalkerProfile] = useState<any>(null);
@@ -97,13 +99,13 @@ export default function BookingDetailsScreen() {
 
   const getStatusInfo = (status: string) => {
     const statuses: any = {
-      'pending': { label: 'Por Pagar', color: '#F59E0B', bg: '#FEF3C7', border: '#FCD34D' },
-      'confirmed': { label: 'Pagado', color: '#3B82F6', bg: '#DBEAFE', border: '#93C5FD' },
-      'accepted': { label: 'En camino', color: '#3B82F6', bg: '#DBEAFE', border: '#93C5FD' },
-      'picked_up': { label: 'Mascota recogida', color: '#8B5CF6', bg: '#EDE9FE', border: '#C4B5FD' },
-      'in_progress': { label: 'En curso', color: '#10B981', bg: '#D1FAE5', border: '#6EE7B7' },
-      'completed': { label: 'Completado', color: '#6B7280', bg: '#F3F4F6', border: '#D1D5DB' },
-      'cancelled': { label: 'Cancelado', color: '#EF4444', bg: '#FEE2E2', border: '#FCA5A5' }
+      'pending': { label: 'Por Pagar', emoji: '⏳', color: '#F59E0B', bg: '#FEF3C7', border: '#FCD34D' },
+      'confirmed': { label: 'Pagado', emoji: '✓', color: '#3B82F6', bg: '#DBEAFE', border: '#93C5FD' },
+      'accepted': { label: 'En Camino', emoji: '🐕', color: '#3B82F6', bg: '#DBEAFE', border: '#93C5FD' },
+      'picked_up': { label: 'Recogida', emoji: '🐕', color: '#8B5CF6', bg: '#EDE9FE', border: '#C4B5FD' },
+      'in_progress': { label: 'En Curso', emoji: '🚶', color: '#10B981', bg: '#D1FAE5', border: '#6EE7B7' },
+      'completed': { label: 'Completado', emoji: '✅', color: '#6B7280', bg: '#F3F4F6', border: '#D1D5DB' },
+      'cancelled': { label: 'Cancelado', emoji: '✕', color: '#EF4444', bg: '#FEE2E2', border: '#FCA5A5' }
     };
     return statuses[status] || statuses.pending;
   };
@@ -148,17 +150,17 @@ export default function BookingDetailsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
         <Text style={styles.loadingText}>Cargando...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (!booking) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
         <Text style={styles.errorText}>Reserva no encontrada</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -166,8 +168,8 @@ export default function BookingDetailsScreen() {
   const petNames = pets.map(p => p.name).join(', ') || 'tu(s) mascota(s)';
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={styles.container}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
@@ -178,33 +180,28 @@ export default function BookingDetailsScreen() {
       <ScrollView style={styles.content}>
         <View style={[styles.statusCard, { borderLeftColor: statusInfo.color }]}>
           <View style={styles.statusHeader}>
-            <Text style={styles.statusIcon}>
-              {booking.status === 'pending' ? '⏳' : 
-               booking.status === 'in_progress' ? '🚶' :
-               booking.status === 'completed' ? '✅' :
-               booking.status === 'cancelled' ? '❌' : '✓'}
-            </Text>
+            <Text style={styles.statusIcon}>{statusInfo.emoji}</Text>
             <View>
               <Text style={styles.statusLabel}>{statusInfo.label}</Text>
               <Text style={styles.bookingId}>#{booking.id.slice(0, 8).toUpperCase()}</Text>
             </View>
           </View>
 
-          <View style={styles.detailsGrid}>
-            <View>
-              <Text style={styles.detailLabel}>Fecha</Text>
+          <View style={[styles.detailsGrid]}>
+            <View style={styles.detailItem}>
+              <Text style={styles.detailLabel}>📅 Fecha</Text>
               <Text style={styles.detailValue}>{formatLocalDate(booking.scheduled_date)}</Text>
             </View>
-            <View>
-              <Text style={styles.detailLabel}>Hora</Text>
+            <View style={styles.detailItem}>
+              <Text style={styles.detailLabel}>🕐 Hora</Text>
               <Text style={styles.detailValue}>{booking.scheduled_time}</Text>
             </View>
-            <View>
-              <Text style={styles.detailLabel}>Duración</Text>
+            <View style={styles.detailItem}>
+              <Text style={styles.detailLabel}>⏱️ Duración</Text>
               <Text style={styles.detailValue}>{booking.duration}</Text>
             </View>
-            <View>
-              <Text style={styles.detailLabel}>Total</Text>
+            <View style={styles.detailItem}>
+              <Text style={styles.detailLabel}>💰 Total</Text>
               <Text style={[styles.detailValue, styles.priceValue]}>{formatMoney(booking.total_price)}</Text>
             </View>
           </View>
@@ -219,11 +216,11 @@ export default function BookingDetailsScreen() {
 
         {pets.length > 0 && (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>🐕 Mascota(s)</Text>
+            <Text style={styles.cardTitle}>🐕 Mascotas</Text>
             <View style={styles.petsRow}>
               {pets.map((pet) => (
                 <View key={pet.id} style={styles.petBadge}>
-                  <Text style={styles.petBadgeText}>🐕 {pet.name}</Text>
+                  <Text style={styles.petBadgeText}>{pet.name}</Text>
                 </View>
               ))}
             </View>
@@ -265,8 +262,8 @@ export default function BookingDetailsScreen() {
         )}
 
         {booking.status === 'accepted' && (
-          <View style={styles.infoBanner}>
-            <Text style={styles.infoIcon}>✓</Text>
+          <View style={[styles.infoBanner, { backgroundColor: statusInfo.bg, borderColor: statusInfo.border }]}>
+            <Text style={styles.infoIcon}>🐕</Text>
             <Text style={styles.infoText}>El paseador está en camino</Text>
           </View>
         )}
@@ -274,7 +271,7 @@ export default function BookingDetailsScreen() {
         {booking.status === 'picked_up' && (
           <View style={[styles.infoBanner, { backgroundColor: '#EDE9FE', borderColor: '#C4B5FD' }]}>
             <Text style={styles.infoIcon}>🐕</Text>
-            <Text style={styles.infoText}>Mascota recogida. ¡El paseo está por comenzar!</Text>
+            <Text style={styles.infoText}>El paseo está por comenzar</Text>
           </View>
         )}
 
@@ -283,7 +280,7 @@ export default function BookingDetailsScreen() {
             style={styles.liveBtn}
             onPress={() => router.push({ pathname: '/live-walk', params: { bookingId: booking.id } })}
           >
-            <Text style={styles.liveBtnText}>📍 Ver ubicación en tiempo real</Text>
+            <Text style={styles.liveBtnText}>📍 Ver Walk en Vivo</Text>
           </TouchableOpacity>
         )}
 
@@ -299,7 +296,7 @@ export default function BookingDetailsScreen() {
           </TouchableOpacity>
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -312,7 +309,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingHorizontal: 20,
     paddingBottom: 16,
     backgroundColor: '#FFFFFF',
@@ -381,6 +377,10 @@ const styles = StyleSheet.create({
   detailsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: 16,
+  },
+  detailItem: {
+    width: '45%',
   },
   detailLabel: {
     fontSize: 10,
@@ -393,7 +393,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
     marginBottom: 8,
-    width: '50%',
   },
   priceValue: {
     color: '#10B981',

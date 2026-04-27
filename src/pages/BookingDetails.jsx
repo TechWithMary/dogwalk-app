@@ -4,6 +4,7 @@ import { supabase } from '../supabaseClient';
 import { ArrowLeft, MapPin, Clock, Dog, Phone, MessageSquare, Navigation, CheckCircle, Check, Loader2, MapPinned, PawPrint } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
+import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from '../lib/mapsConfig';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
@@ -19,12 +20,9 @@ const BookingDetails = () => {
   const [user, setUser] = useState(null);
   const [walkerLocation, setWalkerLocation] = useState(null);
 
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
+const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: GOOGLE_MAPS_API_KEY,
-    libraries: ['places'],
-    language: 'es',
-    region: 'CO'
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
   useEffect(() => {

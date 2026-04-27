@@ -3,6 +3,7 @@ import { MapPin, Dog, Star, ChevronRight, Bell, Loader2, CreditCard, Clock } fro
 import { supabase } from '../supabaseClient'; 
 import { formatMoney } from '../utils/format';
 import { isWithinRadius } from '../utils/distance';
+import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from '../lib/mapsConfig';
 import RatingModal from './RatingModal';
 import WalkerProfileView from './WalkerProfileView'; 
 import { useJsApiLoader } from '@react-google-maps/api';
@@ -11,12 +12,9 @@ const Home = ({ currentUser, navigate, setView }) => {
   
   const onNavigate = navigate || setView;
 
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-    libraries: ['places'],
-    language: 'es',
-    region: 'CO'
+const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
   const [walkers, setWalkers] = useState([]);

@@ -2,6 +2,7 @@ import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import { useJsApiLoader } from '@react-google-maps/api';
+import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from './lib/mapsConfig';
 
 import MobileLayout from './layouts/MobileLayout';
 import { Toaster } from 'react-hot-toast';
@@ -47,8 +48,8 @@ const App = () => {
 
   useJsApiLoader({
     id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-    libraries: ['places'],
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
     language: 'es',
     region: 'CO'
   });

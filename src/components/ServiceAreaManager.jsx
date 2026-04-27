@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, Circle } from '@react-google-maps/api';
+import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from '../lib/mapsConfig';
 import { supabase } from '../supabaseClient';
 import { Save, X, MapPin, Navigation, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -16,12 +17,9 @@ const ServiceAreaManager = ({ walkerId, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [map, setMap] = useState(null);
 
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
+const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: GOOGLE_MAPS_API_KEY,
-    libraries: ['places'],
-    language: 'es',
-    region: 'CO'
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
   

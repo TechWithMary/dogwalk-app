@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { Phone, MapPin, Calendar as CalendarIcon, ArrowRight, Loader2, CreditCard, User, FileText, Briefcase, Shield, CheckCircle, Info, Crosshair } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useJsApiLoader, Autocomplete } from '@react-google-maps/api';
+import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from '../lib/mapsConfig';
 import ServiceAreaManager from '../components/ServiceAreaManager';
 import AvailabilityManager from '../components/AvailabilityManager';
 import DocumentUploader from '../components/DocumentUploader';
@@ -44,12 +45,9 @@ const OnboardingWalker = () => {
     selfie_with_id: null
   });
 
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-    libraries: ['places'],
-    language: 'es',
-    region: 'CO'
+const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
   useEffect(() => {

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { Loader2, ArrowLeft, User, Phone, MapPin, Save, Crosshair } from 'lucide-react';
 import { useJsApiLoader, Autocomplete } from '@react-google-maps/api';
+import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from '../lib/mapsConfig';
 import toast from 'react-hot-toast';
 
 const libraries = ['places'];
@@ -21,12 +22,9 @@ const EditProfile = ({ navigate }) => {
     bio: ''
   });
 
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-    libraries: ['places'],
-    language: 'es',
-    region: 'CO'
+const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
   useEffect(() => {

@@ -118,7 +118,7 @@ const WalletBalanceCard = ({ balance, profile, isWalker }) => (
   <div className={`relative w-full h-48 rounded-3xl overflow-hidden shadow-2xl mb-8 ${isWalker ? 'bg-gray-800' : 'bg-gray-900'}`}>
     <div className="p-6 flex flex-col justify-between h-full text-white">
       <div>
-        <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">{isWalker ? "Saldo Disponible" : "Saldo Promocional"}</p>
+        <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">Saldo Disponible</p>
         <h2 className="text-3xl font-black tracking-tight">{formatMoney(balance)}</h2>
       </div>
       <div>

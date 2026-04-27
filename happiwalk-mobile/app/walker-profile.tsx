@@ -206,7 +206,9 @@ export default function WalkerProfileScreen() {
           style={styles.bookBtn}
           onPress={() => router.push({ pathname: '/booking', params: { walkerId } })}
         >
-          <Text style={styles.bookBtnText}>Reservar Paseo</Text>
+          <Text style={styles.bookBtnText}>
+            Reservar {walker.name?.split(' ')[0] || 'Paseo'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>

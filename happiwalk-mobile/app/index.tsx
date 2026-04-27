@@ -12,7 +12,17 @@ export default function Index() {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session?.user) {
-        router.replace('/(tabs)');
+        const { data: walkerData } = await supabase
+          .from('walkers')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        if (walkerData) {
+          router.replace('/walker-home');
+        } else {
+          router.replace('/(tabs)');
+        }
       } else {
         router.replace('/(auth)/login');
       }

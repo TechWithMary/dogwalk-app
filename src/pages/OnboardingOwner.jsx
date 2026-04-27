@@ -3,16 +3,14 @@ import { supabase } from '../supabaseClient';
 import toast from 'react-hot-toast';
 import { Dog, ArrowRight, Loader2, AlertTriangle, MapPin, Crosshair } from 'lucide-react';
 import { useJsApiLoader, Autocomplete } from '@react-google-maps/api';
+import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from '../lib/mapsConfig';
 
 const libraries = ['places'];
 
 const OnboardingOwner = () => {
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-    libraries: ['places'],
-    language: 'es',
-    region: 'CO'
+const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
   const [petData, setPetData] = useState({ name: '', breed: '', energy_level: 'medium', age_years: '' });

@@ -1,18 +1,22 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabase';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowLeft, User, Phone, MapPin, Save, Camera } from '../components/Icons';
 
 export default function EditProfileScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
     phone: '',
-    address: ''
+    address: '',
+    bio: ''
   });
 
   useEffect(() => {
@@ -36,7 +40,8 @@ export default function EditProfileScreen() {
           first_name: profileData.first_name || '',
           last_name: profileData.last_name || '',
           phone: profileData.phone || '',
-          address: profileData.address || ''
+          address: profileData.address || '',
+          bio: profileData.bio || ''
         });
       }
     } catch (error) {
@@ -121,7 +126,8 @@ export default function EditProfileScreen() {
           first_name: formData.first_name,
           last_name: formData.last_name,
           phone: formData.phone,
-          address: formData.address
+          address: formData.address,
+          bio: formData.bio
         })
         .eq('user_id', user.id);
 
@@ -137,92 +143,104 @@ export default function EditProfileScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={styles.container}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <ArrowLeft size={20} color="#374151" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Editar Perfil</Text>
         <View style={styles.headerRight} />
       </View>
 
-      <ScrollView style={styles.content}>
-        <View style={styles.photoSection}>
-          <TouchableOpacity style={styles.photoContainer} onPress={pickImage}>
-            {profile?.profile_photo_url ? (
-              <View style={styles.photoWrapper}>
-                <Text style={styles.photoImage}>📷</Text>
-                <View style={styles.editBadge}>
-                  <Text style={styles.editBadgeText}>✏️</Text>
-                </View>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.formCard}>
+          <View style={styles.row}>
+            <View style={styles.halfField}>
+              <Text style={styles.label}>Nombre</Text>
+              <View style={styles.inputContainer}>
+                <User size={16} color="#9CA3AF" />
+                <TextInput
+                  style={styles.input}
+                  value={formData.first_name}
+                  onChangeText={(text) => setFormData({ ...formData, first_name: text })}
+                  placeholder="Nombre"
+                  placeholderTextColor="#9CA3AF"
+                />
               </View>
-            ) : (
-              <View style={styles.photoPlaceholder}>
-                <Text style={styles.photoPlaceholderText}>📷</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          <Text style={styles.photoHint}>Toca para cambiar</Text>
-        </View>
+            </View>
 
-        <View style={styles.form}>
-          <View style={styles.formSection}>
-            <Text style={styles.label}>Nombre</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.first_name}
-              onChangeText={(text) => setFormData({ ...formData, first_name: text })}
-              placeholder="Tu nombre"
-              placeholderTextColor="#9CA3AF"
-            />
+            <View style={styles.halfField}>
+              <Text style={styles.label}>Apellido</Text>
+              <View style={styles.inputContainer}>
+                <User size={16} color="#9CA3AF" />
+                <TextInput
+                  style={styles.input}
+                  value={formData.last_name}
+                  onChangeText={(text) => setFormData({ ...formData, last_name: text })}
+                  placeholder="Apellido"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+            </View>
           </View>
 
-          <View style={styles.formSection}>
-            <Text style={styles.label}>Apellido</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.last_name}
-              onChangeText={(text) => setFormData({ ...formData, last_name: text })}
-              placeholder="Tu apellido"
-              placeholderTextColor="#9CA3AF"
-            />
-          </View>
-
-          <View style={styles.formSection}>
+          <View style={styles.field}>
             <Text style={styles.label}>Teléfono</Text>
+            <View style={styles.inputContainer}>
+              <Phone size={16} color="#9CA3AF" />
+              <TextInput
+                style={styles.input}
+                value={formData.phone}
+                onChangeText={(text) => setFormData({ ...formData, phone: text })}
+                placeholder="Número celular"
+                keyboardType="phone-pad"
+                placeholderTextColor="#9CA3AF"
+              />
+            </View>
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Dirección de residencia</Text>
+            <View style={styles.inputContainer}>
+              <MapPin size={16} color="#9CA3AF" />
+              <TextInput
+                style={styles.input}
+                value={formData.address}
+                onChangeText={(text) => setFormData({ ...formData, address: text })}
+                placeholder="Busca tu dirección..."
+                placeholderTextColor="#9CA3AF"
+              />
+            </View>
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Sobre ti</Text>
             <TextInput
-              style={styles.input}
-              value={formData.phone}
-              onChangeText={(text) => setFormData({ ...formData, phone: text })}
-              placeholder="300 123 4567"
-              keyboardType="phone-pad"
+              style={[styles.input, styles.textArea]}
+              value={formData.bio}
+              onChangeText={(text) => setFormData({ ...formData, bio: text })}
+              placeholder="Cuéntanos un poco sobre ti..."
+              multiline
+              numberOfLines={3}
               placeholderTextColor="#9CA3AF"
             />
           </View>
-
-          <View style={styles.formSection}>
-            <Text style={styles.label}>Dirección</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.address}
-              onChangeText={(text) => setFormData({ ...formData, address: text })}
-              placeholder="Tu dirección"
-              placeholderTextColor="#9CA3AF"
-            />
-          </View>
-
-          <TouchableOpacity 
-            style={[styles.saveBtn, loading && styles.saveBtnDisabled]}
-            onPress={handleSave}
-            disabled={loading}
-          >
-            <Text style={styles.saveBtnText}>
-              {loading ? 'Guardando...' : 'Guardar Cambios'}
-            </Text>
-          </TouchableOpacity>
         </View>
+
+        <TouchableOpacity 
+          style={[styles.saveBtn, loading && styles.saveBtnDisabled]}
+          onPress={handleSave}
+          disabled={loading}
+        >
+          <Save size={20} color="#13ec13" />
+          <Text style={styles.saveBtnText}>
+            {loading ? 'Guardando...' : 'Guardar Cambios'}
+          </Text>
+        </TouchableOpacity>
+
+        <View style={styles.spacer} />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -235,7 +253,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingHorizontal: 20,
     paddingBottom: 16,
     backgroundColor: '#FFFFFF',
@@ -243,83 +260,46 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F3F4F6',
   },
   backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  backText: {
-    fontSize: 20,
-    color: '#374151',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '900',
     color: '#111827',
   },
   headerRight: {
-    width: 36,
+    width: 40,
   },
   content: {
     flex: 1,
     padding: 20,
   },
-  photoSection: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  photoContainer: {
-    marginBottom: 8,
-  },
-  photoWrapper: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#D1FAE5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  photoImage: {
-    fontSize: 40,
-  },
-  editBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#10B981',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  editBadgeText: {
-    fontSize: 14,
-  },
-  photoPlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  photoPlaceholderText: {
-    fontSize: 40,
-  },
-  photoHint: {
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-  form: {
+  formCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
+    borderRadius: 32,
     padding: 24,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
-  formSection: {
+  row: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  field: {
+    marginBottom: 20,
+  },
+  halfField: {
+    flex: 1,
     marginBottom: 20,
   },
   label: {
@@ -330,31 +310,55 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginLeft: 4,
   },
-  input: {
-    backgroundColor: '#FFFFFF',
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
     borderRadius: 16,
     padding: 16,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  input: {
+    flex: 1,
     fontSize: 14,
     fontWeight: '700',
     color: '#111827',
+    marginLeft: 8,
+  },
+  textArea: {
+    height: 100,
+    textAlignVertical: 'top',
     borderWidth: 2,
-    borderColor: '#F3F4F6',
+    borderColor: 'transparent',
   },
   saveBtn: {
-    backgroundColor: '#10B981',
-    borderRadius: 16,
-    padding: 18,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#111827',
+    borderRadius: 24,
+    padding: 20,
+    marginTop: 24,
+    marginHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   saveBtnDisabled: {
-    opacity: 0.6,
+    opacity: 0.7,
   },
   saveBtnText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '900',
-    color: '#FFFFFF',
+    color: '#13ec13',
     textTransform: 'uppercase',
-    letterSpacing: 2,
+    letterSpacing: 1,
+  },
+  spacer: {
+    height: 40,
   },
 });

@@ -29,6 +29,12 @@ export default function RootLayout() {
           <Stack.Screen name="wallet" options={{ presentation: 'card' }} />
           <Stack.Screen name="terms" options={{ presentation: 'modal' }} />
           <Stack.Screen name="privacy" options={{ presentation: 'modal' }} />
+          
+          {/* New Screens */}
+          <Stack.Screen name="notifications" options={{ presentation: 'card' }} />
+          <Stack.Screen name="rating" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="walker-home" options={{ headerShown: false }} />
+          <Stack.Screen name="walker-balance" options={{ presentation: 'card' }} />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>

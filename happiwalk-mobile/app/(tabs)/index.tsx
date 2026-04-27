@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
-import { Bell, Star, Clock, CreditCard, MapPin, ChevronRight, Dog } from '../../components/Icons';
+import { isWithinRadius } from '../../lib/distance';
+import { Bell, Star, Clock, CreditCard, MapPin, ChevronRight, Dog, Loader2 } from '../../components/Icons';
 
 interface Walker {
   id: string;
@@ -10,7 +11,9 @@ interface Walker {
   location: string;
   rating: number;
   price: number;
-  img: string;
+  service_latitude?: number;
+  service_longitude?: number;
+  service_radius_km?: number;
   user_profiles?: {
     profile_photo_url: string;
     first_name?: string;
@@ -18,7 +21,35 @@ interface Walker {
   };
 }
 
+interface Booking {
+  id: string;
+  duration: string;
+  scheduled_date: string;
+  scheduled_time: string;
+  total_price: number;
+  status: string;
+  walkers?: {
+    id: string;
+    name: string;
+    user_profiles?: {
+      first_name?: string;
+    };
+  };
+}
+
 const formatMoney = (val: number) => '$' + (val || 0).toLocaleString('es-CO');
+
+const getStatusInfo = (status: string) => {
+  const statuses: any = {
+    'pending': { label: 'Por Pagar', color: '#F59E0B', bg: '#FEF3C7', border: '#FCD34D' },
+    'confirmed': { label: 'Pagado', color: '#3B82F6', bg: '#DBEAFE', border: '#93C5FD' },
+    'accepted': { label: 'En camino', color: '#3B82F6', bg: '#DBEAFE', border: '#93C5FD' },
+    'picked_up': { label: 'Recogida', color: '#8B5CF6', bg: '#EDE9FE', border: '#C4B5FD' },
+    'in_progress': { label: 'En curso', color: '#10B981', bg: '#D1FAE5', border: '#6EE7B7' },
+    'completed': { label: 'Completado', color: '#6B7280', bg: '#F3F4F6', border: '#D1D5DB' },
+  };
+  return statuses[status] || { label: status, color: '#6B7280', bg: '#F3F4F6', border: '#D1D5DB' };
+};
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -26,13 +57,11 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const [upcomingWalk, setUpcomingWalk] = useState<any>(null);
+  const [upcomingWalk, setUpcomingWalk] = useState<Booking | null>(null);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [bookingToRate, setBookingToRate] = useState<Booking | null>(null);
   const [petCount, setPetCount] = useState(0);
   const [displayName, setDisplayName] = useState('Amigo');
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   const fetchData = async () => {
     try {
@@ -56,16 +85,38 @@ export default function HomeScreen() {
       } else if (!isInvalid(metaName)) {
         finalName = metaName.trim().split(' ')[0];
       }
-      
       setDisplayName(finalName);
 
-      const { data: defaultWalkers } = await supabase
-        .from('walkers')
-        .select('*, user_profiles(*)')
-        .eq('overall_verification_status', 'approved')
-        .limit(3);
-      
-      setWalkers(defaultWalkers || []);
+      const userLat = profile?.lat;
+      const userLng = profile?.lng;
+
+      let walkersRes: Walker[] = [];
+
+      if (userLat && userLng) {
+        const { data: allWalkers } = await supabase
+          .from('walkers')
+          .select('*, user_profiles(*)')
+          .eq('overall_verification_status', 'approved');
+
+        if (allWalkers) {
+          walkersRes = allWalkers.filter((walker: Walker) => {
+            if (!walker.service_latitude || !walker.service_longitude || !walker.service_radius_km) return false;
+            return isWithinRadius(
+              userLat, userLng,
+              walker.service_latitude, walker.service_longitude,
+              walker.service_radius_km
+            );
+          }).slice(0, 3);
+        }
+      } else {
+        const { data: defaultWalkers } = await supabase
+          .from('walkers')
+          .select('*, user_profiles(*)')
+          .eq('overall_verification_status', 'approved')
+          .limit(3);
+        walkersRes = defaultWalkers || [];
+      }
+      setWalkers(walkersRes);
 
       const { count: notificationsCount } = await supabase
         .from('notifications')
@@ -90,6 +141,22 @@ export default function HomeScreen() {
         .eq('owner_id', user.id);
       setPetCount(petsCount || 0);
 
+      const { data: pendingReview } = await supabase
+        .from('bookings')
+        .select('*, walkers(*)')
+        .eq('user_id', user.id)
+        .eq('status', 'completed')
+        .is('rating', null)
+        .limit(1)
+        .maybeSingle();
+
+      if (pendingReview) {
+        setBookingToRate(pendingReview);
+        setShowRatingModal(true);
+      } else {
+        setShowRatingModal(false);
+      }
+
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -98,59 +165,77 @@ export default function HomeScreen() {
     }
   };
 
+  useEffect(() => {
+    fetchData();
+  }, []);
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchData();
   };
 
-  const getStatusInfo = (status: string) => {
-    const statuses: any = {
-      'pending': { label: 'Por Pagar', color: '#F59E0B', bg: '#FEF3C7', border: '#FCD34D' },
-      'confirmed': { label: 'Pagado', color: '#3B82F6', bg: '#DBEAFE', border: '#93C5FD' },
-      'accepted': { label: 'En camino', color: '#3B82F6', bg: '#DBEAFE', border: '#93C5FD' },
-      'picked_up': { label: 'Recogida', color: '#8B5CF6', bg: '#EDE9FE', border: '#C4B5FD' },
-      'in_progress': { label: 'En curso', color: '#10B981', bg: '#D1FAE5', border: '#6EE7B7' },
+  const handleRate = () => {
+    if (bookingToRate) {
+      router.push({ pathname: '/rating', params: { bookingId: bookingToRate.id } });
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const info = getStatusInfo(status);
+    return (
+      <View style={[styles.statusBadge, { backgroundColor: info.bg }]}>
+        <Text style={[styles.statusText, { color: info.color }]}>{info.label}</Text>
+      </View>
+    );
+  };
+
+  const parseDate = (dateStr: string) => {
+    if (!dateStr) return { month: '', day: '' };
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return { month: '', day: '' };
+    const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    return {
+      month: date.toLocaleDateString('es-CO', { month: 'short' }).toUpperCase(),
+      day: parts[2]
     };
-    return statuses[status] || { label: status, color: '#6B7280', bg: '#F3F4F6', border: '#D1D5DB' };
   };
 
   return (
     <View style={styles.container}>
-      {/* Header - EXACTAMENTE IGUAL A LA WEB */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <View>
-            <Text style={styles.greeting}>Hola, {displayName} 👋</Text>
-            <Text style={styles.subtitle}>¿Listo para un nuevo paseo?</Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.notificationBtn}
-            onPress={() => router.push('/notifications')}
-          >
-            <Bell size={20} color="#6B7280" />
-            {unreadNotifications > 0 && <View style={styles.notificationDot} />}
-          </TouchableOpacity>
-        </View>
-      </View>
-
       <ScrollView
         style={styles.scrollView}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#10B981']} />
         }
+        showsVerticalScrollIndicator={false}
       >
+        <View style={styles.header}>
+          <View style={styles.headerContent}>
+            <View>
+              <Text style={styles.greeting}>Hola, {displayName} 👋</Text>
+              <Text style={styles.subtitle}>¿Listo para un nuevo paseo?</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.notificationBtn}
+              onPress={() => router.push('/notifications')}
+            >
+              <Bell size={22} color="#374151" />
+              {unreadNotifications > 0 && <View style={styles.notificationDot} />}
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <View style={styles.content}>
-          {/* Action Cards - EXACTAMENTE IGUAL */}
           <View style={styles.actionCards}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.bookWalkCard}
               onPress={() => router.push('/booking')}
             >
               <Dog size={24} color="#FFFFFF" />
               <Text style={styles.bookWalkText}>Reservar un Paseo</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={styles.petsCard}
               onPress={() => router.push('/pets')}
             >
@@ -162,7 +247,16 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Upcoming Walk - EXACTAMENTE IGUAL */}
+          {showRatingModal && bookingToRate && (
+            <TouchableOpacity style={styles.ratingBanner} onPress={handleRate}>
+              <View style={styles.ratingBannerContent}>
+                <Text style={styles.ratingBannerTitle}>Califica tu último paseo</Text>
+                <Text style={styles.ratingBannerSubtitle}>Tus comentarios nos ayudan a mejorar</Text>
+              </View>
+              <Text style={styles.ratingBannerArrow}>⭐</Text>
+            </TouchableOpacity>
+          )}
+
           {upcomingWalk && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Tu Paseo</Text>
@@ -170,89 +264,82 @@ export default function HomeScreen() {
                 <View style={styles.upcomingMain}>
                   <View style={[styles.dateBox, { backgroundColor: getStatusInfo(upcomingWalk.status).bg }]}>
                     {(() => {
-                      const dateParts = upcomingWalk.scheduled_date?.split('-');
-                      const month = dateParts ? new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2])).toLocaleDateString('es-CO', { month: 'short' }).toUpperCase() : '';
-                      const dayNum = dateParts ? parseInt(dateParts[2]) : '';
+                      const { month, day } = parseDate(upcomingWalk.scheduled_date);
                       return (
                         <>
                           <Text style={[styles.dateMonth, { color: getStatusInfo(upcomingWalk.status).color }]}>{month}</Text>
-                          <Text style={[styles.dateDay, { color: getStatusInfo(upcomingWalk.status).color }]}>{dayNum}</Text>
+                          <Text style={[styles.dateDay, { color: getStatusInfo(upcomingWalk.status).color }]}>{day}</Text>
                         </>
                       );
                     })()}
                   </View>
-                    <View style={styles.upcomingInfo}>
-                      <Text style={styles.upcomingDuration}>Paseo de {upcomingWalk.duration}</Text>
-                      <View style={styles.upcomingTimeRow}>
-                        <Clock size={12} color="#9CA3AF" />
-                        <Text style={styles.upcomingTime}>{upcomingWalk.scheduled_time}</Text>
-                      </View>
-                      {upcomingWalk.walkers && (
-                        <Text style={styles.upcomingWalker}>🐕 {upcomingWalk.walkers.name || 'Paseador asignado'}</Text>
-                      )}
+                  <View style={styles.upcomingInfo}>
+                    <Text style={styles.upcomingDuration}>Paseo de {upcomingWalk.duration}</Text>
+                    <View style={styles.upcomingTimeRow}>
+                      <Clock size={12} color="#9CA3AF" />
+                      <Text style={styles.upcomingTime}>{upcomingWalk.scheduled_time}</Text>
                     </View>
+                    {upcomingWalk.walkers && (
+                      <Text style={styles.upcomingWalker}>🐕 {upcomingWalk.walkers.name || 'Paseador asignado'}</Text>
+                    )}
+                  </View>
                   <View style={styles.upcomingRight}>
                     <Text style={styles.upcomingPrice}>{formatMoney(upcomingWalk.total_price)}</Text>
-                    <View style={[styles.statusBadge, { backgroundColor: getStatusInfo(upcomingWalk.status).bg }]}>
-                      <Text style={[styles.statusText, { color: getStatusInfo(upcomingWalk.status).color }]}>
-                        {getStatusInfo(upcomingWalk.status).label}
-                      </Text>
-                    </View>
+                    {getStatusBadge(upcomingWalk.status)}
                   </View>
                 </View>
 
                 {upcomingWalk.status === 'in_progress' && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.liveBtn}
                     onPress={() => router.push({ pathname: '/live-walk', params: { bookingId: upcomingWalk.id } })}
                   >
-                    <Dog size={14} color="#FFFFFF" />
+                    <Dog size={16} color="#FFFFFF" />
                     <Text style={styles.liveBtnText}>¡Mira a tu mascota en tiempo real!</Text>
                   </TouchableOpacity>
                 )}
 
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.detailsBtn, upcomingWalk.status === 'pending' && styles.payBtn]}
                   onPress={() => router.push({ pathname: '/booking-details', params: { id: upcomingWalk.id } })}
                 >
                   <Text style={[styles.detailsBtnText, upcomingWalk.status === 'pending' && styles.payBtnText]}>
-                    {upcomingWalk.status === 'pending' ? 'Completar Pago' : 'Ver detalles'} 
+                    {upcomingWalk.status === 'pending' ? 'Completar Pago' : 'Ver detalles'}
                   </Text>
-                  <ChevronRight size={14} color={upcomingWalk.status === 'pending' ? '#FFFFFF' : '#6B7280'} />
+                  <ChevronRight size={16} color={upcomingWalk.status === 'pending' ? '#FFFFFF' : '#6B7280'} />
                 </TouchableOpacity>
               </View>
             </View>
           )}
 
-          {/* Walkers List - EXACTAMENTE IGUAL */}
           <Text style={styles.sectionTitle}>Paseadores Verificados</Text>
-          
+
           {loading ? (
             <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Cargando...</Text>
+              <Loader2 size={24} color="#9CA3AF" />
             </View>
           ) : (
             <View style={styles.walkersList}>
               {walkers.map((walker) => {
                 const profile = walker.user_profiles;
-                const fullName = profile 
-                  ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() 
+                const fullName = profile
+                  ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim()
                   : (walker.name || 'Paseador');
-                
+
                 return (
-                  <TouchableOpacity 
-                    key={walker.id} 
+                  <TouchableOpacity
+                    key={walker.id}
                     style={styles.walkerCard}
                     onPress={() => router.push({ pathname: '/walker-profile', params: { walkerId: walker.id } })}
                   >
                     <View style={styles.walkerImage}>
                       {profile?.profile_photo_url ? (
-                        <Image 
+                        <Image
                           source={{ uri: profile.profile_photo_url }}
                           style={styles.walkerImg}
                         />
                       ) : (
-                        <View style={styles.walkerImgPlaceholder}>
+                        <View style={[styles.walkerImg, styles.walkerImgPlaceholder]}>
                           <Text style={styles.walkerInitial}>
                             {(fullName || 'P')[0].toUpperCase()}
                           </Text>
@@ -282,6 +369,21 @@ export default function HomeScreen() {
           )}
         </View>
       </ScrollView>
+
+      {showRatingModal && (
+        <View style={styles.ratingModalOverlay}>
+          <View style={styles.ratingModal}>
+            <Text style={styles.ratingModalTitle}>¿Cómo fue tu paseo?</Text>
+            <Text style={styles.ratingModalSubtitle}>Ayúdanos a mejorar con tu calificación</Text>
+            <TouchableOpacity style={styles.ratingModalBtn} onPress={handleRate}>
+              <Text style={styles.ratingModalBtnText}>Calificar Ahora</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowRatingModal(false)}>
+              <Text style={styles.ratingModalSkip}>Más tarde</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -291,9 +393,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  scrollView: {
+    flex: 1,
+  },
   header: {
     backgroundColor: '#FFFFFF',
-    paddingTop: 70,
+    paddingTop: 60,
     paddingHorizontal: 24,
     paddingBottom: 20,
     borderBottomLeftRadius: 30,
@@ -310,41 +415,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   greeting: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '900',
     color: '#111827',
   },
   subtitle: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#9CA3AF',
-    fontWeight: '500',
+    fontWeight: '600',
     marginTop: 4,
   },
   notificationBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
   },
-  bellIcon: {
-    fontSize: 20,
-  },
   notificationDot: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: 10,
+    right: 10,
     width: 10,
     height: 10,
     borderRadius: 5,
     backgroundColor: '#EF4444',
     borderWidth: 2,
     borderColor: '#FFFFFF',
-  },
-  scrollView: {
-    flex: 1,
   },
   content: {
     padding: 24,
@@ -357,10 +456,10 @@ const styles = StyleSheet.create({
   bookWalkCard: {
     flex: 1,
     backgroundColor: '#10B981',
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 20,
+    padding: 20,
     justifyContent: 'space-between',
-    height: 128,
+    minHeight: 130,
     shadowColor: '#10B981',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -368,17 +467,17 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   bookWalkText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '900',
     color: '#FFFFFF',
   },
   petsCard: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 20,
+    padding: 20,
     justifyContent: 'space-between',
-    height: 128,
+    minHeight: 130,
     borderWidth: 1,
     borderColor: '#F3F4F6',
     shadowColor: '#000',
@@ -391,18 +490,42 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
-  petsCardIcon: {
-    fontSize: 28,
-  },
   petsCount: {
     fontSize: 28,
     fontWeight: '900',
     color: '#3B82F6',
   },
   petsCardText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
     color: '#111827',
+  },
+  ratingBanner: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+  },
+  ratingBannerContent: {
+    flex: 1,
+  },
+  ratingBannerTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+  ratingBannerSubtitle: {
+    fontSize: 12,
+    color: '#B45309',
+    marginTop: 2,
+  },
+  ratingBannerArrow: {
+    fontSize: 24,
   },
   section: {
     marginBottom: 24,
@@ -439,7 +562,7 @@ const styles = StyleSheet.create({
   },
   dateMonth: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   dateDay: {
     fontSize: 24,
@@ -449,7 +572,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   upcomingDuration: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
     color: '#111827',
   },
@@ -458,10 +581,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 4,
     gap: 4,
-  },
-  clockIcon: {
-    fontSize: 12,
-    marginRight: 4,
   },
   upcomingTime: {
     fontSize: 12,
@@ -477,19 +596,19 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   upcomingPrice: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '900',
     color: '#111827',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     borderRadius: 12,
   },
   statusText: {
-    fontSize: 9,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '800',
     textTransform: 'uppercase',
   },
   liveBtn: {
@@ -498,18 +617,18 @@ const styles = StyleSheet.create({
     padding: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
     marginBottom: 12,
     shadowColor: '#10B981',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    flexDirection: 'row',
-    gap: 8,
   },
   liveBtnText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '800',
   },
   detailsBtn: {
     backgroundColor: '#F3F4F6',
@@ -525,18 +644,15 @@ const styles = StyleSheet.create({
   },
   detailsBtnText: {
     color: '#374151',
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '800',
   },
   payBtnText: {
     color: '#FFFFFF',
   },
   loadingContainer: {
-    padding: 20,
+    padding: 40,
     alignItems: 'center',
-  },
-  loadingText: {
-    color: '#9CA3AF',
   },
   walkersList: {
     gap: 16,
@@ -544,7 +660,7 @@ const styles = StyleSheet.create({
   walkerCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 12,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
@@ -555,18 +671,15 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   walkerImage: {
-    marginRight: 12,
     position: 'relative',
+    marginRight: 12,
   },
   walkerImg: {
     width: 64,
     height: 64,
-    borderRadius: 12,
+    borderRadius: 16,
   },
   walkerImgPlaceholder: {
-    width: 64,
-    height: 64,
-    borderRadius: 12,
     backgroundColor: '#D1FAE5',
     alignItems: 'center',
     justifyContent: 'center',
@@ -581,22 +694,19 @@ const styles = StyleSheet.create({
     bottom: -4,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 2,
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
-  },
-  ratingStar: {
-    fontSize: 8,
+    paddingVertical: 3,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
   },
   ratingText: {
-    fontSize: 8,
+    fontSize: 9,
     color: '#FFFFFF',
-    fontWeight: '700',
-    marginLeft: 2,
+    fontWeight: '800',
+    marginLeft: 3,
   },
   walkerInfo: {
     flex: 1,
@@ -607,12 +717,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   walkerName: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
     color: '#111827',
   },
   walkerPrice: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '900',
     color: '#10B981',
   },
@@ -620,13 +730,58 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 4,
-  },
-  locationIcon: {
-    fontSize: 10,
-    marginRight: 4,
+    gap: 4,
   },
   walkerLocation: {
-    fontSize: 10,
+    fontSize: 12,
     color: '#9CA3AF',
+  },
+  ratingModalOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  ratingModal: {
+    alignItems: 'center',
+  },
+  ratingModalTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#111827',
+  },
+  ratingModalSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 4,
+    marginBottom: 20,
+  },
+  ratingModalBtn: {
+    width: '100%',
+    backgroundColor: '#111827',
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  ratingModalBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  ratingModalSkip: {
+    color: '#9CA3AF',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

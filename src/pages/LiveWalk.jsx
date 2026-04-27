@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Phone, MessageSquare, Shield, Star, Loader2, CheckCircle, Navigation, ArrowLeft, MapPin } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
+import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from '../lib/mapsConfig';
 import toast from 'react-hot-toast';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
@@ -19,13 +20,10 @@ const LiveWalk = ({ setView }) => {
     const [review, setReview] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
-    const { isLoaded } = useJsApiLoader({
-        id: 'google-map-script',
-        googleMapsApiKey: GOOGLE_MAPS_API_KEY,
-        libraries: ['places'],
-        language: 'es',
-        region: 'CO'
-    });
+const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
+  });
 
     useEffect(() => {
         let subscription;

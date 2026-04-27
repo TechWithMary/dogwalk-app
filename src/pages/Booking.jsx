@@ -56,7 +56,7 @@ const Booking = ({ setView, navigate }) => {
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: GOOGLE_MAPS_API_KEY,
-    libraries: ['places'],
+    libraries: GOOGLE_MAPS_LIBRARIES,
     language: 'es',
     region: 'CO'
   });
