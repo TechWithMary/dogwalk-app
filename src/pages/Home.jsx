@@ -13,8 +13,11 @@ const Home = ({ currentUser, navigate, setView }) => {
   const onNavigate = navigate || setView;
 
 const { isLoaded } = useJsApiLoader({
+    id: 'google-map-script',
     googleMapsApiKey: GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
+    language: 'es',
+    region: 'CO'
   });
 
   const [walkers, setWalkers] = useState([]);

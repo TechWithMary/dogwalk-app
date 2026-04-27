@@ -1,8 +1,6 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
-import { useJsApiLoader } from '@react-google-maps/api';
-import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from './lib/mapsConfig';
 
 import MobileLayout from './layouts/MobileLayout';
 import { Toaster } from 'react-hot-toast';
@@ -46,14 +44,6 @@ const App = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
-    libraries: GOOGLE_MAPS_LIBRARIES,
-    language: 'es',
-    region: 'CO'
-  });
-
   const [userRole, setUserRole] = useState('owner');
   const [userName, setUserName] = useState('Usuario');
   const [agentsReady, setAgentsReady] = useState(false);
@@ -67,7 +57,7 @@ const App = () => {
           .from('walkers')
           .select('name')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
         
         if (walkerData) {
           setUserRole('walker');
