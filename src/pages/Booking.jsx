@@ -496,32 +496,40 @@ const Booking = ({ setView, navigate }) => {
           </div>
         </div>
 
-      <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-100 p-6 pb-10 z-[2000] shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
-        <div className="flex justify-between items-center mb-4">
+      <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-100 px-6 py-4 pb-10 z-[2000] shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
+        <div className="flex justify-between items-center mb-3">
           <div>
             <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Total Servicio</span>
-            <p className="text-3xl font-black text-gray-900">${totalPrice.toLocaleString('es-CO')}</p>
+            <p className="text-2xl font-black text-gray-900">${totalPrice.toLocaleString('es-CO')}</p>
             {petCount > 1 && <span className="text-xs text-gray-500">{petCount} mascotas</span>}
           </div>
         </div>
         
         {walletBalance > 0 && (
-          <div className="flex p-1 bg-gray-100 rounded-xl mb-4">
+          <div className="flex p-1 bg-gray-100 rounded-xl mb-3">
             <button 
               onClick={() => setPaymentMethod('wallet')} 
               className={`flex-1 py-2 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-2 ${paymentMethod === 'wallet' ? 'bg-emerald-500 text-white shadow-sm' : 'text-gray-500'}`}
             >
-              <Wallet size={14} />
-              Billetera (${walletBalance.toLocaleString()})
+              <Wallet size={12} />
+              Saldo ${walletBalance.toLocaleString()}
             </button>
             <button 
               onClick={() => setPaymentMethod('mercadopago')} 
               className={`flex-1 py-2 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-2 ${paymentMethod === 'mercadopago' ? 'bg-blue-500 text-white shadow-sm' : 'text-gray-500'}`}
             >
-              <CreditCard size={14} />
+              <CreditCard size={12} />
               Tarjeta
             </button>
           </div>
+        )}
+        {!walletBalance && (
+          <button 
+            onClick={() => setPaymentMethod('mercadopago')} 
+            className="w-full py-2 text-xs font-black text-gray-400 mb-3"
+          >
+            + Pagar con tarjeta
+          </button>
         )}
         
         {paymentMethod === 'wallet' && walletBalance < prices[duration] && (
