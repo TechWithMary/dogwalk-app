@@ -1,9 +1,14 @@
-import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Platform } from 'react-native';
+import { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Platform, Image, Keyboard, KeyboardAvoidingView, TouchableWithoutFeedback } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import { File } from 'expo-file-system';
 import { supabase } from '../lib/supabase';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Trash2, DogIcon, ArrowLeft, ShieldCheck } from '../components/Icons';
+import { Trash2, DogIcon, ArrowLeft, ShieldCheck, Camera } from '../components/Icons';
+import AvatarImage from '../components/AvatarImage';
+import EmptyState from '../components/EmptyState';
+import { SkeletonList } from '../components/Skeleton';
 
 interface Pet {
   id: string;
@@ -12,7 +17,7 @@ interface Pet {
   age_years: number;
   behavioral_notes: string;
   medical_conditions: string;
-  photo_url?: string;
+  photos?: string[];
 }
 
 const BREEDS = [
@@ -72,7 +77,8 @@ export default function PetManagerScreen() {
             breed: petData.breed,
             age_years: parseInt(petData.age_years) || 0,
             behavioral_notes: petData.behavioral_notes,
-            medical_conditions: petData.medical_conditions
+            medical_conditions: petData.medical_conditions,
+            photos: petData.photos
           })
           .eq('id', editingPet.id);
         error = updateError;
@@ -130,11 +136,18 @@ export default function PetManagerScreen() {
 
   if (showForm) {
     return (
-      <PetForm 
-        pet={editingPet} 
-        onSave={handleSavePet} 
-        onCancel={() => { setShowForm(false); setEditingPet(null); }} 
-      />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <PetForm
+            pet={editingPet}
+            onSave={handleSavePet}
+            onCancel={() => { setShowForm(false); setEditingPet(null); }}
+          />
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -150,22 +163,33 @@ export default function PetManagerScreen() {
 
       <ScrollView style={styles.content}>
         {loading ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Cargando...</Text>
-          </View>
+          <SkeletonList count={3} />
         ) : pets.length === 0 ? (
-          <View style={styles.emptyState}>
-            <DogIcon size={48} color="#9CA3AF" />
-            <Text style={styles.emptyText}>No tienes mascotas registradas</Text>
-          </View>
+          <EmptyState
+            icon={<DogIcon size={36} color="#0EA5E9" />}
+            title="No tienes mascotas registradas"
+            description="Añade tu primera mascota para empezar a reservar paseos."
+            actionLabel="Añadir Mascota"
+            onAction={() => { setEditingPet(null); setShowForm(true); }}
+          />
         ) : (
           <View style={styles.petsList}>
             {pets.map((pet) => (
               <View key={pet.id} style={styles.petCard}>
                 <View style={styles.petInfo}>
-                  <View style={styles.petImage}>
-                    <DogIcon size={28} color="#6B7280" />
-                  </View>
+                  {pet.photos && pet.photos.length > 0 ? (
+                    <AvatarImage
+                      photoUrl={pet.photos[0]}
+                      fallbackInitial={pet.name}
+                      size={56}
+                      style={styles.petImageRounded}
+                      bucket="pet-photos"
+                    />
+                  ) : (
+                    <View style={styles.petImage}>
+                      <DogIcon size={28} color="#6B7280" />
+                    </View>
+                  )}
                   <View>
                     <Text style={styles.petName}>{pet.name}</Text>
                     <Text style={styles.petBreed}>{(pet.breed || 'Criollo')} • {pet.age_years === 1 ? '1 año' : `${pet.age_years} años`}</Text>
@@ -208,9 +232,28 @@ function PetForm({ pet, onSave, onCancel }: { pet: Pet | null; onSave: (data: an
     breed: pet?.breed || '',
     age_years: pet?.age_years?.toString() || '',
     behavioral_notes: pet?.behavioral_notes || '',
-    medical_conditions: pet?.medical_conditions || ''
+    medical_conditions: pet?.medical_conditions || '',
+    photos: pet?.photos || []
   });
   const [showBreedPicker, setShowBreedPicker] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => setKeyboardHeight(e.endCoordinates.height)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardHeight(0)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const handleSubmit = () => {
     if (!formData.name.trim()) {
@@ -224,6 +267,68 @@ function PetForm({ pet, onSave, onCancel }: { pet: Pet | null; onSave: (data: an
     onSave(formData);
   };
 
+  const pickPetPhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permiso requerido', 'Activa el permiso de galería');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await uploadPetPhoto(result.assets[0].uri);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo seleccionar la imagen');
+    }
+  };
+
+  const uploadPetPhoto = async (uri: string) => {
+    setUploadingPhoto(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No hay usuario');
+
+      const file = new File(uri);
+      const byteArray = await file.bytes();
+
+      if (!byteArray || byteArray.length === 0) {
+        throw new Error('El archivo está vacío');
+      }
+
+      const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = `${user.id}_pet_${Date.now()}.${fileExt}`;
+
+      const { error: uploadError, data } = await supabase.storage
+        .from('pet-photos')
+        .upload(fileName, byteArray, {
+          contentType: 'image/jpeg',
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) throw uploadError;
+
+      setFormData(prev => ({
+        ...prev,
+        photos: [...(prev.photos || []), fileName]
+      }));
+
+      Alert.alert('Éxito', 'Foto de mascota subida');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'No se pudo subir la foto');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
@@ -234,7 +339,37 @@ function PetForm({ pet, onSave, onCancel }: { pet: Pet | null; onSave: (data: an
         <View style={styles.headerRight} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <View style={{ flex: 1, position: 'relative' }}>
+        <ScrollView
+          ref={scrollViewRef}
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ padding: 20, paddingBottom: keyboardHeight + 100 }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+        >
+        <View style={styles.formSection}>
+          <Text style={styles.label}>Foto de tu Mascota</Text>
+          <TouchableOpacity style={styles.photoUploadBtn} onPress={pickPetPhoto} disabled={uploadingPhoto}>
+            {uploadingPhoto ? (
+              <Text style={styles.photoUploadText}>Subiendo...</Text>
+            ) : formData.photos && formData.photos.length > 0 ? (
+              <AvatarImage
+                photoUrl={formData.photos[0]}
+                fallbackInitial={formData.name || 'M'}
+                size={120}
+                style={styles.petPhoto}
+                bucket="pet-photos"
+              />
+            ) : (
+              <>
+                <Camera size={32} color="#9CA3AF" />
+                <Text style={styles.photoUploadText}>Toca para subir foto</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.formSection}>
           <Text style={styles.label}>Información Básica</Text>
           
@@ -244,6 +379,8 @@ function PetForm({ pet, onSave, onCancel }: { pet: Pet | null; onSave: (data: an
             onChangeText={(text) => setFormData({ ...formData, name: text })}
             placeholder="Nombre de tu mascota"
             placeholderTextColor="#9CA3AF"
+            returnKeyType="done"
+            onSubmitEditing={Keyboard.dismiss}
           />
 
           <TouchableOpacity 
@@ -282,6 +419,8 @@ function PetForm({ pet, onSave, onCancel }: { pet: Pet | null; onSave: (data: an
             placeholder="Edad en años"
             keyboardType="numeric"
             placeholderTextColor="#9CA3AF"
+            returnKeyType="done"
+            onSubmitEditing={Keyboard.dismiss}
           />
         </View>
 
@@ -310,19 +449,20 @@ function PetForm({ pet, onSave, onCancel }: { pet: Pet | null; onSave: (data: an
         </View>
 
         <View style={styles.warningBox}>
-          <ShieldCheck size={20} color="#059669" />
+          <ShieldCheck size={20} color="#052e05" />
           <Text style={styles.warningText}>
             Mantenemos la información de salud privada y solo la compartimos con el paseador asignado.
           </Text>
         </View>
       </ScrollView>
 
-      <View style={styles.fixedBottom}>
+      <View style={[styles.fixedBottom, { position: 'absolute', bottom: 0, left: 0, right: 0 }]}>
         <TouchableOpacity style={styles.saveBtn} onPress={handleSubmit}>
           <Text style={styles.saveBtnText}>
             {pet ? 'Actualizar Mascota' : 'Guardar Mascota'}
           </Text>
         </TouchableOpacity>
+      </View>
       </View>
     </SafeAreaView>
   );
@@ -370,36 +510,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 100,
   },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 60,
-  },
-  loadingText: {
-    color: '#9CA3AF',
-    fontSize: 14,
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 60,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: '#E5E7EB',
-    padding: 40,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  emptyText: {
-    color: '#9CA3AF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
   petsList: {
     gap: 12,
   },
@@ -425,6 +535,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
+  },
+  petImageRounded: {
+    marginRight: 16,
+  },
+  photoUploadBtn: {
+    width: 140,
+    height: 140,
+    borderRadius: 24,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
+    marginBottom: 8,
+  },
+  photoUploadText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    marginTop: 8,
+  },
+  petPhoto: {
+    borderRadius: 24,
   },
   petName: {
     fontSize: 18,
@@ -479,7 +614,7 @@ const styles = StyleSheet.create({
   addBtnText: {
     fontSize: 14,
     fontWeight: '900',
-    color: '#059669',
+    color: '#052e05',
     textTransform: 'uppercase',
   },
   formSection: {
@@ -540,7 +675,7 @@ const styles = StyleSheet.create({
     maxHeight: 200,
     marginBottom: 12,
     borderWidth: 2,
-    borderColor: '#10B981',
+    borderColor: '#0EA5E9',
   },
   breedScroll: {
     maxHeight: 200,
@@ -576,22 +711,19 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   fixedBottom: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 20,
-    paddingBottom: 34,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 20,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
   },
   saveBtn: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#0EA5E9',
     borderRadius: 24,
     padding: 20,
     alignItems: 'center',
-    shadowColor: '#10B981',
+    shadowColor: '#0EA5E9',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,

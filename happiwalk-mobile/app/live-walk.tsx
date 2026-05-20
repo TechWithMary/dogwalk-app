@@ -13,6 +13,7 @@ interface Booking {
   duration_hours: number;
   status: string;
   walker: {
+    id: string;
     name: string;
     location: string;
   };
@@ -33,25 +34,42 @@ export default function LiveWalkScreen() {
 
   const mapRef = useRef<MapView>(null);
   const [booking, setBooking] = useState<Booking | null>(null);
+  const [walkerId, setWalkerId] = useState<string | null>(null);
   const [walkerLocation, setWalkerLocation] = useState(MEDELLIN_CENTER);
   const [route, setRoute] = useState<{ latitude: number; longitude: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [walkStartTime, setWalkStartTime] = useState<Date | null>(null);
 
   useEffect(() => {
     if (bookingId) {
       fetchBooking();
-      const interval = setInterval(() => {
-        setWalkerLocation(prev => ({
-          latitude: prev.latitude + (Math.random() - 0.5) * 0.001,
-          longitude: prev.longitude + (Math.random() - 0.5) * 0.001,
-        }));
-        setRoute(prev => [...prev, walkerLocation]);
-        setElapsedTime(prev => prev + 1);
-      }, 5000);
-      return () => clearInterval(interval);
     }
   }, [bookingId]);
+
+  useEffect(() => {
+    if (!walkerId || !bookingId) return;
+
+    fetchWalkerLocation();
+    const interval = setInterval(() => {
+      fetchWalkerLocation();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [walkerId, bookingId]);
+
+  useEffect(() => {
+    if (!walkStartTime) return;
+
+    const updateElapsed = () => {
+      const now = new Date();
+      const diff = Math.floor((now.getTime() - walkStartTime.getTime()) / 1000);
+      setElapsedTime(diff);
+    };
+
+    updateElapsed();
+    const interval = setInterval(updateElapsed, 1000);
+    return () => clearInterval(interval);
+  }, [walkStartTime]);
 
   const fetchBooking = async () => {
     try {
@@ -59,7 +77,7 @@ export default function LiveWalkScreen() {
         .from('bookings')
         .select(`
           *,
-          walker:walkers(name, location),
+          walker:walkers(id, name, location),
           pet:pets(name)
         `)
         .eq('id', bookingId)
@@ -67,10 +85,53 @@ export default function LiveWalkScreen() {
 
       if (error) throw error;
       setBooking(data);
+      if (data?.walker?.id) {
+        setWalkerId(data.walker.id);
+      }
+      if (data?.walk_start_time) {
+        setWalkStartTime(new Date(data.walk_start_time));
+      }
     } catch (error) {
       console.error('Error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchWalkerLocation = async () => {
+    if (!bookingId) return;
+    try {
+      const { data, error } = await supabase
+        .from('locations')
+        .select('latitude, longitude, timestamp')
+        .eq('booking_id', bookingId)
+        .order('timestamp', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching location:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        const points = data.map(loc => ({
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+        }));
+        const last = points[points.length - 1];
+        setRoute(points);
+        setWalkerLocation(last);
+
+        if (mapRef.current) {
+          mapRef.current.animateToRegion({
+            latitude: last.latitude,
+            longitude: last.longitude,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          }, 1000);
+        }
+      }
+    } catch (err) {
+      console.error('Location fetch error:', err);
     }
   };
 
@@ -114,7 +175,7 @@ export default function LiveWalkScreen() {
         {route.length > 1 && (
           <Polyline
             coordinates={route}
-            strokeColor="#10B981"
+            strokeColor="#0EA5E9"
             strokeWidth={4}
           />
         )}
@@ -224,7 +285,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#10B981',
+    backgroundColor: '#0EA5E9',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -232,7 +293,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   markerContainer: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#0EA5E9',
     borderRadius: 20,
     padding: 8,
     borderWidth: 3,

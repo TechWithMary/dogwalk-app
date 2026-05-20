@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Platform, Keyboard, ActivityIndicator, KeyboardAvoidingView, TouchableWithoutFeedback } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { supabase } from '../lib/supabase';
+import { searchAddressSuggestions, getPlaceDetails } from '../lib/addressSearch';
 
 const BREEDS = [
   "Criollo / Mezcla", "Labrador Retriever", "Golden Retriever", "Pastor Alemán", 
@@ -23,14 +24,42 @@ export default function OnboardingOwnerScreen() {
   });
   const [otherBreed, setOtherBreed] = useState('');
   const [address, setAddress] = useState('');
-  const [coords, setCoords] = useState({ lat: null, lng: null });
+  const [coords, setCoords] = useState<{ lat: number | null; lng: number | null }>({ lat: null, lng: null });
   const [loading, setLoading] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
   const [showBreedPicker, setShowBreedPicker] = useState(false);
+  const [addressSuggestions, setAddressSuggestions] = useState<any[]>([]);
+  const [searchingAddress, setSearchingAddress] = useState(false);
+  const [addressError, setAddressError] = useState('');
 
   useEffect(() => {
     requestLocationPermission();
   }, []);
+
+  useEffect(() => {
+    const delaySearch = setTimeout(async () => {
+      if (address.length > 2) {
+        setSearchingAddress(true);
+        setAddressError('');
+        try {
+          const results = await searchAddressSuggestions(address);
+          setAddressSuggestions(results);
+          if (results.length === 0 && address.length > 3) {
+            setAddressError('No se encontraron direcciones');
+          }
+        } catch {
+          setAddressSuggestions([]);
+          setAddressError('Error al buscar direcciones');
+        } finally {
+          setSearchingAddress(false);
+        }
+      } else {
+        setAddressSuggestions([]);
+        setAddressError('');
+      }
+    }, 300);
+    return () => clearTimeout(delaySearch);
+  }, [address]);
 
   const requestLocationPermission = async () => {
     try {
@@ -76,6 +105,20 @@ export default function OnboardingOwnerScreen() {
     } finally {
       setGettingLocation(false);
     }
+  };
+
+  const handleSelectSuggestion = async (suggestion: any) => {
+    setAddressSuggestions([]);
+    setAddressError('');
+    const details = await getPlaceDetails(suggestion.placeId);
+    if (details) {
+      setAddress(details.address);
+      setCoords({ lat: details.lat, lng: details.lng });
+    } else {
+      setAddress(suggestion.mainText || suggestion.description);
+      setAddressError('No se pudieron obtener los detalles de la dirección');
+    }
+    Keyboard.dismiss();
   };
 
   const handleCompleteProfile = async () => {
@@ -156,8 +199,12 @@ export default function OnboardingOwnerScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <View style={styles.logoCircle}>
             <Text style={styles.logoIcon}>🐕</Text>
@@ -169,22 +216,50 @@ export default function OnboardingOwnerScreen() {
         <View style={styles.form}>
           <View style={styles.formSection}>
             <Text style={styles.label}>¿Dónde vive tu mascota? *</Text>
-            <View style={styles.addressInput}>
-              <Text style={styles.mapPinIcon}>📍</Text>
-              <TextInput
-                style={styles.addressTextInput}
-                value={address}
-                onChangeText={setAddress}
-                placeholder="Escribe tu dirección..."
-                placeholderTextColor="#9CA3AF"
-              />
-              <TouchableOpacity 
-                style={styles.locationBtn}
-                onPress={handleCurrentLocation}
-                disabled={gettingLocation}
-              >
-                <Text style={styles.locationIcon}>{gettingLocation ? '⏳' : '📍'}</Text>
-              </TouchableOpacity>
+            <View style={styles.addressInputWrapper}>
+              <View style={[styles.addressInput, addressError && styles.addressInputError]}>
+                <Text style={styles.mapPinIcon}>📍</Text>
+                <TextInput
+                  style={styles.addressTextInput}
+                  value={address}
+                  onChangeText={(text) => { setAddress(text); setAddressError(''); }}
+                  placeholder="Escribe tu dirección..."
+                  placeholderTextColor="#9CA3AF"
+                  returnKeyType="done"
+                  onSubmitEditing={() => Keyboard.dismiss()}
+                />
+                {searchingAddress && <ActivityIndicator size="small" color="#13ec13" style={styles.searchingIndicator} />}
+                <TouchableOpacity 
+                  style={styles.locationBtn}
+                  onPress={handleCurrentLocation}
+                  disabled={gettingLocation}
+                >
+                  <Text style={styles.locationIcon}>{gettingLocation ? '⏳' : '📍'}</Text>
+                </TouchableOpacity>
+              </View>
+              {addressError ? (
+                <Text style={styles.addressErrorText}>{addressError}</Text>
+              ) : null}
+              {addressSuggestions.length > 0 && !addressError && (
+                <View style={styles.suggestionsBox}>
+                  {addressSuggestions.slice(0, 5).map((suggestion: any, index: number) => (
+                    <TouchableOpacity
+                      key={suggestion.placeId}
+                      style={[
+                        styles.suggestionItem,
+                        index === addressSuggestions.length - 1 && styles.suggestionItemLast,
+                      ]}
+                      onPress={() => handleSelectSuggestion(suggestion)}
+                    >
+                      <Text style={styles.suggestionIcon}>📍</Text>
+                      <View style={styles.suggestionText}>
+                        <Text style={styles.suggestionMain} numberOfLines={1}>{suggestion.mainText}</Text>
+                        <Text style={styles.suggestionSecondary} numberOfLines={1}>{suggestion.secondaryText}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
           </View>
 
@@ -302,7 +377,8 @@ export default function OnboardingOwnerScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </View>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -397,6 +473,68 @@ const styles = StyleSheet.create({
   locationIcon: {
     fontSize: 20,
   },
+  addressInputWrapper: {
+    position: 'relative',
+    zIndex: 100,
+  },
+  addressInputError: {
+    borderColor: '#FCA5A5',
+    backgroundColor: '#FEF2F2',
+  },
+  searchingIndicator: {
+    marginLeft: 4,
+  },
+  addressErrorText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#EF4444',
+    marginTop: 6,
+    marginLeft: 4,
+  },
+  suggestionsBox: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    marginTop: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 8,
+    overflow: 'hidden',
+    zIndex: 200,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  suggestionItemLast: {
+    borderBottomWidth: 0,
+  },
+  suggestionIcon: {
+    fontSize: 14,
+  },
+  suggestionText: {
+    flex: 1,
+  },
+  suggestionMain: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  suggestionSecondary: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
   divider: {
     height: 1,
     backgroundColor: '#E5E7EB',
@@ -447,7 +585,7 @@ const styles = StyleSheet.create({
     maxHeight: 200,
     marginBottom: 20,
     borderWidth: 2,
-    borderColor: '#10B981',
+    borderColor: '#13ec13',
   },
   breedScroll: {
     maxHeight: 200,
@@ -476,7 +614,7 @@ const styles = StyleSheet.create({
   },
   energyBtnActive: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#10B981',
+    borderColor: '#13ec13',
   },
   energyText: {
     fontSize: 12,
@@ -484,7 +622,7 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   energyTextActive: {
-    color: '#059669',
+    color: '#052e05',
   },
   warningBox: {
     flexDirection: 'row',
@@ -514,7 +652,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#10B981',
+    shadowColor: '#13ec13',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,

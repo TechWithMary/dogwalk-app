@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, ActionSheetIOS, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { supabase } from '../../lib/supabase';
-import { Loader2, Camera, User, ChevronRight, DogIcon } from '../../components/Icons';
+import { File } from 'expo-file-system';
+import { supabase, STORAGE_URL, getSignedAvatarUrl, getAvatarUploadPath } from '../../lib/supabase';
+import { Loader2, Camera, User, ChevronRight, DogIcon, HelpCircle, Shield, CreditCard } from '../../components/Icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SkeletonProfile } from '../../components/Skeleton';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -14,6 +16,7 @@ export default function ProfileScreen() {
   const [walkerData, setWalkerData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     isMounted.current = true;
@@ -51,7 +54,7 @@ export default function ProfileScreen() {
 
       let finalFirstName = '';
       let finalLastName = '';
-      
+
       const profileFirst = userProfile?.first_name || '';
       const walkerName = walker?.name || '';
       const metaFirst = currentUser.user_metadata?.first_name || currentUser.user_metadata?.name || currentUser.user_metadata?.full_name || '';
@@ -71,27 +74,86 @@ export default function ProfileScreen() {
       }
 
       if (!isMounted.current) return;
+
+      const photoPath = userProfile?.profile_photo_url || null;
+      const resolvedAvatarUrl = await getSignedAvatarUrl(photoPath);
+      if (resolvedAvatarUrl) {
+        setAvatarUrl(resolvedAvatarUrl);
+      }
+
       setProfile({
           ...userProfile,
           first_name: finalFirstName,
           last_name: finalLastName,
           email: currentUser.email,
           role: isWalker ? 'walker' : (userProfile?.role || 'owner'),
-          profile_photo_url: userProfile?.profile_photo_url || null,
-          verification_status: walker?.overall_verification_status || 'pending' 
+          profile_photo_url: photoPath,
+          verification_status: walker?.overall_verification_status || 'pending'
       });
     } catch (error) {
       console.error('Error:', error);
+      Alert.alert('Error', 'No se pudo cargar tu perfil. Intenta de nuevo.');
     } finally {
       if (isMounted.current) setLoading(false);
     }
   };
 
   const pickImage = async () => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancelar', 'Tomar Foto', 'Elegir de Galería'],
+          cancelButtonIndex: 0,
+        },
+        async (buttonIndex) => {
+          if (buttonIndex === 1) {
+            await takePhoto();
+          } else if (buttonIndex === 2) {
+            await pickFromGallery();
+          }
+        }
+      );
+    } else {
+      Alert.alert(
+        'Seleccionar Foto',
+        'Elige una opción',
+        [
+          { text: 'Tomar Foto', onPress: () => takePhoto() },
+          { text: 'Elegir de Galería', onPress: () => pickFromGallery() },
+          { text: 'Cancelar', style: 'cancel' },
+        ]
+      );
+    }
+  };
+
+  const takePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permiso requerido', 'Activa el permiso de cámara para tomar fotos');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await uploadPhoto(result.assets[0].uri);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo tomar la foto');
+    }
+  };
+
+  const pickFromGallery = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permiso requerido', 'Activa el permiso de cámara para subir fotos');
+        Alert.alert('Permiso requerido', 'Activa el permiso de galería para subir fotos');
         return;
       }
 
@@ -117,42 +179,64 @@ export default function ProfileScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No hay usuario');
 
-      const fileExt = uri.split('.').pop() || 'jpg';
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-      const filePath = `avatars/${fileName}`;
+      
 
-      const blob = await new Promise<Blob>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.onload = () => resolve(xhr.response);
-        xhr.onerror = () => reject(new Error('Error reading file'));
-        xhr.open('GET', uri);
-        xhr.responseType = 'blob';
-        xhr.send();
-      });
+      const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = getAvatarUploadPath(user.id, fileExt);
 
-      const { error: uploadError } = await supabase.storage
+      
+
+      const file = new File(uri);
+      const byteArray = await file.bytes();
+
+      if (!byteArray || byteArray.length === 0) {
+        throw new Error('El archivo está vacío');
+      }
+
+      
+
+      
+      const { error: uploadError, data } = await supabase.storage
         .from('avatars')
-        .upload(filePath, blob);
+        .upload(fileName, byteArray, {
+          contentType: 'image/jpeg',
+          cacheControl: '3600',
+          upsert: false
+        });
 
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
+      if (uploadError) {
+        console.error('Error upload Supabase:', uploadError.message);
+        throw new Error('Error al subir: ' + uploadError.message);
+      }
 
       const { error: updateError } = await supabase
         .from('user_profiles')
-        .update({ profile_photo_url: publicUrl })
+        .update({ profile_photo_url: fileName })
         .eq('user_id', user.id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Error update profile:', updateError);
+        throw updateError;
+      }
+
+      const signedUrl = await getSignedAvatarUrl(fileName);
 
       if (isMounted.current) {
-        setProfile((prev: any) => ({ ...prev, profile_photo_url: publicUrl }));
+        setProfile((prev: any) => ({ ...prev, profile_photo_url: fileName }));
+        if (signedUrl) setAvatarUrl(signedUrl);
         Alert.alert('Exito', 'Foto actualizada');
       }
     } catch (error: any) {
-      if (isMounted.current) Alert.alert('Error', error.message || 'Error al subir la foto');
+      const errorMsg = error.message || 'Error al subir la foto';
+      console.error('Error completo:', error);
+
+      if (errorMsg.includes('bucket') || errorMsg.includes('storage')) {
+        Alert.alert('Configuración necesaria', 'El almacenamiento no está configurado. Contacta al administrador.');
+      } else if (errorMsg.includes('.empty') || errorMsg.includes('vacío')) {
+        Alert.alert('Error', 'El archivo está vacío. Intenta con otra foto.');
+      } else {
+        Alert.alert('Error', errorMsg);
+      }
     } finally {
       if (isMounted.current) setUploading(false);
     }
@@ -164,12 +248,17 @@ export default function ProfileScreen() {
       'Estas seguro de que quieres cerrar sesion?',
       [
         { text: 'Cancelar', style: 'cancel' },
-        { 
-          text: 'Cerrar', 
+        {
+          text: 'Cerrar',
           style: 'destructive',
           onPress: async () => {
-            await supabase.auth.signOut();
-            router.replace('/(auth)/login');
+            try {
+              await supabase.auth.signOut();
+              router.replace('/(auth)/login');
+            } catch (error) {
+              console.error('Error signing out:', error);
+              Alert.alert('Error', 'No se pudo cerrar sesión. Intenta de nuevo.');
+            }
           }
         }
       ]
@@ -196,18 +285,27 @@ export default function ProfileScreen() {
   };
 
 if (loading) {
-    return <SafeAreaView style={styles.loadingContainer}><Loader2 size={32} color="#10B981" /></SafeAreaView>;
+    return <SafeAreaView style={styles.container}><SkeletonProfile /></SafeAreaView>;
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 8 }]}>
         <View style={styles.profileSection}>
           <TouchableOpacity style={styles.avatarContainer} onPress={pickImage} disabled={uploading}>
             {uploading ? (
-              <View style={styles.avatarPlaceholder}><Loader2 size={24} color="#10B981" /></View>
-            ) : profile?.profile_photo_url ? (
-              <Image source={{ uri: profile.profile_photo_url }} style={styles.avatarImg} />
+              <View style={styles.avatarPlaceholder}><Loader2 size={24} color="#0EA5E9" /></View>
+            ) : avatarUrl ? (
+              <Image
+                source={{ uri: avatarUrl }}
+                style={styles.avatarImg}
+                resizeMode="cover"
+                onLoadEnd={() => {}}
+                onError={(err) => {
+                  console.error('Error cargando avatar:', err.nativeEvent);
+                  setAvatarUrl(null);
+                }}
+              />
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <Text style={styles.avatarInitial}>{(displayName || 'U')[0].toUpperCase()}</Text>
@@ -245,13 +343,39 @@ if (loading) {
             <Text style={styles.menuLabel}>{isWalker ? 'Mis Ganancias' : 'Mi Billetera'}</Text>
             <ChevronRight size={20} color="#9CA3AF" />
           </TouchableOpacity>
+
+          <Text style={styles.menuHeader}>Soporte</Text>
+          <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/support')}>
+            <View style={styles.menuIconBg}><HelpCircle size={20} color="#6B7280" /></View>
+            <Text style={styles.menuLabel}>Centro de Ayuda</Text>
+            <ChevronRight size={20} color="#9CA3AF" />
+          </TouchableOpacity>
         </View>
 
-<TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        {profile?.role === 'admin' && (
+          <View style={styles.menuSection}>
+            <Text style={styles.menuHeader}>Administración</Text>
+            <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/admin/verifications')}>
+              <View style={styles.menuIconBg}><Shield size={20} color="#0EA5E9" /></View>
+              <Text style={styles.menuLabel}>Verificar Paseadores</Text>
+              <ChevronRight size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/admin/payouts')}>
+              <View style={styles.menuIconBg}><CreditCard size={20} color="#0EA5E9" /></View>
+              <Text style={styles.menuLabel}>Gestionar Pagos</Text>
+              <ChevronRight size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutText}>Cerrar Sesión</Text>
         </TouchableOpacity>
 
-        <Text style={styles.version}>Versión 1.0.0</Text>
+        <View style={styles.footer}>
+          <Text style={styles.version}>Versión 1.0.0</Text>
+          <Text style={styles.footerText}>Hecho con ❤️ en Medellín</Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -259,45 +383,42 @@ if (loading) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB' },
   content: { flex: 1, padding: 24 },
-  scrollContent: { paddingBottom: 40 },
-  profileSection: { alignItems: 'center', marginBottom: 30, marginTop: 40 },
+  scrollContent: { minHeight: '100%' },
+  profileSection: { alignItems: 'center', marginBottom: 16, marginTop: 8 },
   avatarContainer: { position: 'relative', marginBottom: 16 },
-  avatarImg: { width: 96, height: 96, borderRadius: 48 },
-  avatarPlaceholder: { width: 96, height: 96, borderRadius: 48, backgroundColor: '#D1FAE5', alignItems: 'center', justifyContent: 'center' },
-  avatarInitial: { fontSize: 36, fontWeight: '900', color: '#10B981' },
-  cameraOverlay: { position: 'absolute', bottom: 0, right: 0, width: 32, height: 32, borderRadius: 16, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#FFFFFF' },
-  profileName: { fontSize: 24, fontWeight: '800', color: '#111827', marginBottom: 4 },
-  profileEmail: { fontSize: 14, color: '#6B7280', marginBottom: 12 },
+  avatarImg: { width: 76, height: 76, borderRadius: 38 },
+  avatarPlaceholder: { width: 76, height: 76, borderRadius: 38, backgroundColor: '#D1FAE5', alignItems: 'center', justifyContent: 'center' },
+  avatarInitial: { fontSize: 28, fontWeight: '900', color: '#0EA5E9' },
+  cameraOverlay: { position: 'absolute', bottom: 0, right: 0, width: 26, height: 26, borderRadius: 13, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFFFFF' },
+  profileName: { fontSize: 20, fontWeight: '800', color: '#111827', marginBottom: 2 },
+  profileEmail: { fontSize: 13, color: '#6B7280', marginBottom: 6 },
   verificationBadge: { backgroundColor: '#D1FAE5', paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: '#A7F3D0' },
   pendingBadge: { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' },
   rejectedBadge: { backgroundColor: '#FEE2E2', borderColor: '#FECACA' },
-  verificationText: { color: '#059669', fontWeight: '600', fontSize: 12 },
+  verificationText: { color: '#052e05', fontWeight: '600', fontSize: 12 },
   pendingText: { color: '#D97706' },
   rejectedText: { color: '#DC2626' },
-  menuSection: { marginBottom: 20 },
-  menuHeader: { fontSize: 12, fontWeight: '800', color: '#9CA3AF', marginBottom: 8, marginLeft: 4, textTransform: 'uppercase' },
+  menuSection: { marginBottom: 12 },
+  menuHeader: { fontSize: 11, fontWeight: '800', color: '#9CA3AF', marginBottom: 6, marginLeft: 4, textTransform: 'uppercase' },
   menuItem: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     backgroundColor: '#FFFFFF', 
-    padding: 16, 
-    borderRadius: 16, 
-    marginBottom: 8, 
+    padding: 13, 
+    borderRadius: 13, 
+    marginBottom: 6, 
     borderWidth: 1, 
     borderColor: '#F3F4F6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
   },
-  menuIconBg: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  menuIconBg: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   menuIcon: { fontSize: 20 },
   menuLabel: { flex: 1, fontSize: 15, fontWeight: '700', color: '#111827' },
   menuArrow: { fontSize: 20, color: '#9CA3AF' },
-  logoutButton: { backgroundColor: '#FEE2E2', padding: 16, borderRadius: 16, alignItems: 'center', marginTop: 10 },
+  logoutButton: { backgroundColor: '#FEE2E2', paddingVertical: 14, borderRadius: 14, alignItems: 'center', marginTop: 14 },
   logoutText: { color: '#EF4444', fontSize: 15, fontWeight: '800' },
-  version: { textAlign: 'center', color: '#9CA3AF', fontSize: 12, marginTop: 20, marginBottom: 40 },
+  footer: { alignItems: 'center', marginTop: 14, marginBottom: 2 },
+  version: { textAlign: 'center', color: '#9CA3AF', fontSize: 11, marginBottom: 2 },
+  footerText: { textAlign: 'center', color: '#D1D5DB', fontSize: 10 },
+  urlDebug: { fontSize: 8, color: '#FF0000', marginTop: 4, textAlign: 'center' },
 });

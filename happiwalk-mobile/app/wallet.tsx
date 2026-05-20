@@ -1,55 +1,82 @@
-import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Plus, CreditCard, ArrowUpRight, ChevronLeft } from '../components/Icons';
+import EmptyState from '../components/EmptyState';
+import { SkeletonList } from '../components/Skeleton';
 
 const formatMoney = (val: number) => '$' + (val || 0).toLocaleString('es-CO');
+const PAGE_SIZE = 20;
 
 export default function WalletScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [profile, setProfile] = useState<any>(null);
-  const [walletData, setWalletData] = useState({ balance: 0, transactions: [] });
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [balance, setBalance] = useState(0);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
 
-  useEffect(() => {
-    fetchWalletData();
-  }, []);
-
-  const fetchWalletData = async () => {
+  const fetchWalletData = useCallback(async (pageNum: number, append: boolean = false) => {
+    if (append) setLoadingMore(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setLoading(false);
+        setLoadingMore(false);
         return;
       }
 
-      const { data: userProfile } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-         
-      setProfile(userProfile);
+      if (!append) {
+        const { data: userProfile } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        setProfile(userProfile);
+        setBalance(userProfile?.balance || 0);
+      }
+
+      const from = pageNum * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
 
       const { data: history } = await supabase
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(10);
+        .range(from, to);
 
-      setWalletData({
-        balance: userProfile?.balance || 0,
-        transactions: history || []
-      });
+      const newTransactions = history || [];
+      setHasMore(newTransactions.length === PAGE_SIZE);
+
+      if (append) {
+        setTransactions(prev => [...prev, ...newTransactions]);
+      } else {
+        setTransactions(newTransactions);
+      }
     } catch (error) {
       console.error(error);
+      Alert.alert('Error', 'No se pudieron cargar los datos de la billetera. Intenta de nuevo.');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
+  }, []);
+
+  useEffect(() => {
+    fetchWalletData(0);
+  }, [fetchWalletData]);
+
+  const handleLoadMore = () => {
+    if (loadingMore || !hasMore) return;
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchWalletData(nextPage, true);
   };
 
   return (
@@ -66,19 +93,19 @@ export default function WalletScreen() {
         <View style={styles.balanceCard}>
           <View style={styles.balanceContent}>
             <Text style={styles.balanceLabel}>Saldo Disponible</Text>
-            <Text style={styles.balanceAmount}>{formatMoney(walletData.balance)}</Text>
+            <Text style={styles.balanceAmount}>{formatMoney(balance)}</Text>
             <Text style={styles.balanceName}>Titular: {profile?.first_name || 'Usuario'}</Text>
           </View>
         </View>
 
         <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.actionBtn}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => router.push('/top-up')}>
             <View style={[styles.actionIconBg, { backgroundColor: '#D1FAE5' }]}>
-              <Plus size={20} color="#059669" />
+              <Plus size={20} color="#052e05" />
             </View>
             <Text style={styles.actionLabel}>Recargar</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => router.push('/manage-cards')}>
             <View style={[styles.actionIconBg, { backgroundColor: '#DBEAFE' }]}>
               <CreditCard size={20} color="#2563EB" />
             </View>
@@ -89,9 +116,11 @@ export default function WalletScreen() {
         <Text style={styles.sectionTitle}>Historial de Movimientos</Text>
 
         <View style={styles.transactionsList}>
-          {walletData.transactions.length > 0 ? (
-            walletData.transactions.map((t: any, i: number) => (
-              <View key={i} style={styles.transactionItem}>
+          {loading ? (
+            <SkeletonList count={4} />
+          ) : transactions.length > 0 ? (
+            transactions.map((t: any, i: number) => (
+              <View key={t.id || i} style={styles.transactionItem}>
                 <View style={styles.transactionLeft}>
                   <View style={[styles.transactionIcon, { backgroundColor: '#FED7AA' }]}>
                     <ArrowUpRight size={20} color="#EA580C" />
@@ -110,12 +139,29 @@ export default function WalletScreen() {
                 </Text>
               </View>
             ))
-          ) : (
-            <View style={styles.emptyTransactions}>
-              <Text style={styles.emptyText}>No hay movimientos</Text>
-            </View>
-          )}
+          ) : !loading ? (
+            <EmptyState
+              icon={<CreditCard size={36} color="#0EA5E9" />}
+              title="No hay movimientos"
+              description="Tus transacciones aparecerán aquí cuando realices pagos o recargas."
+            />
+          ) : null}
         </View>
+
+        {hasMore && transactions.length > 0 && (
+          <TouchableOpacity
+            style={styles.loadMoreBtn}
+            onPress={handleLoadMore}
+            disabled={loadingMore}
+            activeOpacity={0.7}
+          >
+            {loadingMore ? (
+              <ActivityIndicator size="small" color="#052e05" />
+            ) : (
+              <Text style={styles.loadMoreText}>Cargar más</Text>
+            )}
+          </TouchableOpacity>
+        )}
 
         <View style={styles.spacer} />
       </ScrollView>
@@ -266,20 +312,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '900',
   },
-  emptyTransactions: {
-    alignItems: 'center',
-    padding: 40,
+  loadMoreBtn: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#F3F4F6',
+    marginTop: 12,
   },
-  emptyText: {
+  loadMoreText: {
     fontSize: 14,
-    color: '#9CA3AF',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    fontWeight: '700',
+    color: '#052e05',
   },
   spacer: {
     height: 40,

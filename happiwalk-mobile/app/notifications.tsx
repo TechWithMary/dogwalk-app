@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
-import { Bell, ChevronLeft, Loader2 } from '../components/Icons';
+import { Bell, ChevronLeft } from '../components/Icons';
+import EmptyState from '../components/EmptyState';
+import { SkeletonList } from '../components/Skeleton';
 
 interface Notification {
   id: string;
@@ -35,6 +37,7 @@ export default function NotificationsScreen() {
       setNotifications(data || []);
     } catch (error) {
       console.error('Error:', error);
+      Alert.alert('Error', 'No se pudieron cargar las notificaciones. Desliza para reintentar.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -97,7 +100,7 @@ export default function NotificationsScreen() {
       activeOpacity={0.7}
     >
       <View style={[styles.iconContainer, !item.is_read && styles.iconContainerUnread]}>
-        <Bell size={18} color={item.is_read ? '#9CA3AF' : '#059669'} />
+        <Bell size={18} color={item.is_read ? '#9CA3AF' : '#052e05'} />
       </View>
       <View style={styles.content}>
         <Text style={[styles.title, !item.is_read && styles.titleUnread]}>{item.title}</Text>
@@ -119,15 +122,15 @@ export default function NotificationsScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <Loader2 size={24} color="#9CA3AF" />
+        <View style={styles.skeletonContainer}>
+          <SkeletonList count={6} />
         </View>
       ) : notifications.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Bell size={48} color="#E5E7EB" />
-          <Text style={styles.emptyTitle}>Sin notificaciones</Text>
-          <Text style={styles.emptySubtitle}>Aquí aparecerán tus avisos importantes</Text>
-        </View>
+        <EmptyState
+          icon={<Bell size={36} color="#0EA5E9" />}
+          title="Sin notificaciones"
+          description="Aquí aparecerán tus avisos importantes"
+        />
       ) : (
         <FlatList
           data={notifications}
@@ -175,28 +178,10 @@ const styles = StyleSheet.create({
   headerRight: {
     width: 36,
   },
-  loadingContainer: {
+  skeletonContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#374151',
-    marginTop: 16,
-    marginBottom: 4,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    textAlign: 'center',
+    padding: 16,
+    paddingTop: 24,
   },
   list: {
     padding: 16,
@@ -255,7 +240,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#10B981',
+    backgroundColor: '#0EA5E9',
     marginLeft: 8,
   },
 });

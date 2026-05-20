@@ -102,8 +102,9 @@ export default function BookingDetailsScreen() {
       'pending': { label: 'Por Pagar', emoji: '⏳', color: '#F59E0B', bg: '#FEF3C7', border: '#FCD34D' },
       'confirmed': { label: 'Pagado', emoji: '✓', color: '#3B82F6', bg: '#DBEAFE', border: '#93C5FD' },
       'accepted': { label: 'En Camino', emoji: '🐕', color: '#3B82F6', bg: '#DBEAFE', border: '#93C5FD' },
+      'pickup_requested': { label: 'Esperando Confirmación', emoji: '⏳', color: '#F59E0B', bg: '#FEF3C7', border: '#FCD34D' },
       'picked_up': { label: 'Recogida', emoji: '🐕', color: '#8B5CF6', bg: '#EDE9FE', border: '#C4B5FD' },
-      'in_progress': { label: 'En Curso', emoji: '🚶', color: '#10B981', bg: '#D1FAE5', border: '#6EE7B7' },
+      'in_progress': { label: 'En Curso', emoji: '🚶', color: '#0EA5E9', bg: '#D1FAE5', border: '#6EE7B7' },
       'completed': { label: 'Completado', emoji: '✅', color: '#6B7280', bg: '#F3F4F6', border: '#D1D5DB' },
       'cancelled': { label: 'Cancelado', emoji: '✕', color: '#EF4444', bg: '#FEE2E2', border: '#FCA5A5' }
     };
@@ -121,12 +122,71 @@ export default function BookingDetailsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              const { data: transaction } = await supabase
+                .from('transactions')
+                .select('*')
+                .eq('booking_id', bookingId)
+                .maybeSingle();
+
+              if (transaction) {
+                if (transaction.payment_method === 'wallet' && transaction.status === 'completed') {
+                  const { data: profile } = await supabase
+                    .from('user_profiles')
+                    .select('balance')
+                    .eq('user_id', user.id)
+                    .single();
+
+                  await supabase
+                    .from('user_profiles')
+                    .update({ balance: (profile?.balance || 0) + transaction.amount })
+                    .eq('user_id', user.id);
+
+                  await supabase.from('transactions').insert({
+                    user_id: user.id,
+                    booking_id: bookingId,
+                    transaction_type: 'refund',
+                    amount: transaction.amount,
+                    payment_method: 'wallet',
+                    status: 'completed',
+                    description: 'Reembolso automático por cancelación de reserva',
+                  });
+                } else if (transaction.payment_method === 'mercadopago') {
+                  await supabase.from('transactions').insert({
+                    user_id: user.id,
+                    booking_id: bookingId,
+                    transaction_type: 'refund',
+                    amount: transaction.amount,
+                    payment_method: 'mercadopago',
+                    status: 'pending',
+                    description: 'Reembolso pendiente - requiere procesamiento manual en MercadoPago',
+                  });
+                }
+              }
+
+              const { data: bookingData } = await supabase
+                .from('bookings')
+                .select('walker_id, walkers(user_id, name)')
+                .eq('id', bookingId)
+                .single();
+
+              const walkerUserId = (bookingData as any)?.walkers?.user_id;
+              if (walkerUserId) {
+                await supabase.from('notifications').insert({
+                  user_id: walkerUserId,
+                  title: '❌ Reserva Cancelada',
+                  body: `El dueño ha cancelado la reserva.`,
+                  link_to: '/walker-home',
+                });
+              }
+
               await supabase
                 .from('bookings')
                 .update({ status: 'cancelled' })
                 .eq('id', bookingId);
+
               router.back();
             } catch (error) {
+              console.error('Cancel error:', error);
               Alert.alert('Error', 'No se pudo cancelar la reserva');
             }
           },
@@ -145,6 +205,46 @@ export default function BookingDetailsScreen() {
     if (walkerProfile?.phone) {
       const phone = walkerProfile.phone.replace(/\D/g, '');
       Linking.openURL(`https://wa.me/57${phone}`);
+    }
+  };
+
+  const handleConfirmPickup = async () => {
+    try {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ status: 'picked_up' })
+        .eq('id', bookingId)
+        .eq('status', 'pickup_requested');
+
+      if (error) throw error;
+
+      const { data: bookingData } = await supabase
+        .from('bookings')
+        .select('walker_id')
+        .eq('id', bookingId)
+        .single();
+
+      if (bookingData?.walker_id) {
+        const { data: walker } = await supabase
+          .from('walkers')
+          .select('user_id')
+          .eq('id', bookingData.walker_id)
+          .single();
+
+        if (walker?.user_id) {
+          await supabase.from('notifications').insert({
+            user_id: walker.user_id,
+            title: '✅ Recogida Confirmada',
+            body: 'El dueño confirmó la entrega. Puedes iniciar el paseo.',
+            link_to: '/walker-home',
+          });
+        }
+      }
+
+      Alert.alert('Éxito', 'Recogida confirmada. El paseador puede iniciar el paseo.');
+      fetchBooking();
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'No se pudo confirmar');
     }
   };
 
@@ -268,6 +368,18 @@ export default function BookingDetailsScreen() {
           </View>
         )}
 
+        {booking.status === 'pickup_requested' && (
+          <>
+            <View style={[styles.infoBanner, { backgroundColor: statusInfo.bg, borderColor: statusInfo.border }]}>
+              <Text style={styles.infoIcon}>⏳</Text>
+              <Text style={styles.infoText}>El paseador ha llegado. Confirma que entregaste tu mascota.</Text>
+            </View>
+            <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirmPickup}>
+              <Text style={styles.confirmBtnText}>✅ Confirmar Recogida</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
         {booking.status === 'picked_up' && (
           <View style={[styles.infoBanner, { backgroundColor: '#EDE9FE', borderColor: '#C4B5FD' }]}>
             <Text style={styles.infoIcon}>🐕</Text>
@@ -290,7 +402,7 @@ export default function BookingDetailsScreen() {
           </TouchableOpacity>
         )}
 
-        {booking.status === 'pending' && (
+        {(booking.status === 'pending' || booking.status === 'confirmed') && (
           <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
             <Text style={styles.cancelBtnText}>Cancelar Reserva</Text>
           </TouchableOpacity>
@@ -395,7 +507,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   priceValue: {
-    color: '#10B981',
+    color: '#0EA5E9',
   },
   card: {
     backgroundColor: '#FFFFFF',
@@ -427,7 +539,7 @@ const styles = StyleSheet.create({
   petBadgeText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#059669',
+    color: '#052e05',
   },
   walkerRow: {
     flexDirection: 'row',
@@ -449,7 +561,7 @@ const styles = StyleSheet.create({
   walkerInitial: {
     fontSize: 20,
     fontWeight: '900',
-    color: '#10B981',
+    color: '#0EA5E9',
   },
   walkerInfo: {
     flex: 1,
@@ -502,11 +614,11 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#059669',
+    color: '#052e05',
     flex: 1,
   },
   liveBtn: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#0EA5E9',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
@@ -540,5 +652,17 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     fontSize: 14,
     fontWeight: '600',
+  },
+  confirmBtn: {
+    backgroundColor: '#0EA5E9',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  confirmBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

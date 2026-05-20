@@ -2,8 +2,11 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
+import * as Haptics from 'expo-haptics';
 import { supabase } from '../lib/supabase';
-import { Dog, MapPin, Clock, ChevronRight, Loader2, Star, TrendingUp, Award, Bell } from '../components/Icons';
+import { Dog, MapPin, ChevronRight, Loader2, Star, TrendingUp, Power, Wallet, House, MessageSquare, User, Calendar, MapPin as MapPinIcon, Settings } from '../components/Icons';
+import EmptyState from '../components/EmptyState';
+import { SkeletonCard } from '../components/Skeleton';
 
 interface Booking {
   id: string;
@@ -23,6 +26,7 @@ const getStatusLabel = (status: string) => {
   const labels: any = {
     'pending': 'Por Aceptar',
     'accepted': 'Aceptado',
+    'pickup_requested': 'Esperando Confirmación',
     'picked_up': 'Recogida',
     'in_progress': 'En Curso',
   };
@@ -33,8 +37,9 @@ const getStatusStyles = (status: string) => {
   const styles: any = {
     'pending': { bg: '#FEF3C7', border: '#FCD34D', color: '#92400E' },
     'accepted': { bg: '#DBEAFE', border: '#93C5FD', color: '#1D4ED8' },
+    'pickup_requested': { bg: '#FEF3C7', border: '#FCD34D', color: '#92400E' },
     'picked_up': { bg: '#EDE9FE', border: '#C4B5FD', color: '#6D28D9' },
-    'in_progress': { bg: '#D1FAE5', border: '#6EE7B7', color: '#059669' },
+    'in_progress': { bg: '#D1FAE5', border: '#6EE7B7', color: '#052e05' },
   };
   return styles[status] || { bg: '#F3F4F6', border: '#D1D5DB', color: '#374151' };
 };
@@ -51,10 +56,14 @@ export default function WalkerHomeScreen() {
   const [activeWalks, setActiveWalks] = useState<Booking[]>([]);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState('Paseador');
+
+  const [activeNav, setActiveNav] = useState('home');
 
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const walkerIdRef = useRef<string | null>(null);
+  const locationErrorShownRef = useRef(false);
 
   const fetchWalkerData = useCallback(async () => {
     try {
@@ -91,7 +100,7 @@ export default function WalkerHomeScreen() {
         .from('bookings')
         .select('*')
         .eq('walker_id', walkerData.id)
-        .in('status', ['accepted', 'picked_up', 'in_progress']);
+        .in('status', ['accepted', 'pickup_requested', 'picked_up', 'in_progress']);
 
       const { data: availableBookings } = await supabase
         .from('bookings')
@@ -102,7 +111,7 @@ export default function WalkerHomeScreen() {
       const allBookings = [...(myBookings || []), ...(availableBookings || [])];
 
       setNewRequests(allBookings.filter(b => b.status === 'pending' || b.status === 'confirmed') || []);
-      setActiveWalks(allBookings.filter(b => b.status === 'accepted' || b.status === 'picked_up' || b.status === 'in_progress') || []);
+      setActiveWalks(allBookings.filter(b => b.status === 'accepted' || b.status === 'pickup_requested' || b.status === 'picked_up' || b.status === 'in_progress') || []);
 
       const { data: completedBookings } = await supabase
         .from('bookings')
@@ -118,8 +127,9 @@ export default function WalkerHomeScreen() {
         monthlyEarnings: totalEarned,
       });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error:', error);
+      Alert.alert('Error', 'No se pudieron cargar los datos. Desliza hacia abajo para reintentar.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -156,12 +166,17 @@ export default function WalkerHomeScreen() {
       });
     } catch (err) {
       console.error('Location error:', err);
+      if (!locationErrorShownRef.current) {
+        locationErrorShownRef.current = true;
+        Alert.alert('Error de ubicación', 'No se pudo enviar tu ubicación en tiempo real. Verifica que el GPS esté activo.');
+      }
     }
   };
 
   const startGPSTracking = (bookingId: string) => {
     if (locationIntervalRef.current) return;
 
+    locationErrorShownRef.current = false;
     sendLocation(bookingId);
     locationIntervalRef.current = setInterval(() => {
       sendLocation(bookingId);
@@ -204,6 +219,20 @@ export default function WalkerHomeScreen() {
           body: `${walkerData?.name || 'El paseador'} ha aceptado tu reserva. Pronto irá a buscar tu mascota.`,
           link_to: '/home',
         });
+
+        const { data: existingConv } = await supabase
+          .from('conversations')
+          .select('id')
+          .eq('booking_id', bookingId)
+          .maybeSingle();
+
+        if (!existingConv) {
+          await supabase.from('conversations').insert({
+            participant_one_id: booking.user_id,
+            participant_two_id: walkerIdRef.current,
+            booking_id: bookingId,
+          });
+        }
       }
 
       Alert.alert('Éxito', 'Paseo aceptado');
@@ -219,13 +248,11 @@ export default function WalkerHomeScreen() {
   const confirmPickup = async (bookingId: string) => {
     setProcessingId(bookingId);
     try {
-      const { error } = await supabase
-        .from('bookings')
-        .update({ status: 'picked_up' })
-        .eq('id', bookingId)
-        .eq('status', 'accepted');
-
-      if (error) throw error;
+      const { data: walkerData } = await supabase
+        .from('walkers')
+        .select('name')
+        .eq('id', walkerIdRef.current)
+        .single();
 
       const { data: booking } = await supabase
         .from('bookings')
@@ -233,16 +260,24 @@ export default function WalkerHomeScreen() {
         .eq('id', bookingId)
         .single();
 
+      const { error } = await supabase
+        .from('bookings')
+        .update({ status: 'pickup_requested' })
+        .eq('id', bookingId)
+        .eq('status', 'accepted');
+
+      if (error) throw error;
+
       if (booking?.user_id) {
         await supabase.from('notifications').insert({
           user_id: booking.user_id,
-          title: '🐕 Mascota Recogida',
-          body: 'El paseador ha recogido a tu mascota. ¡El paseo está por comenzar!',
+          title: '🐕 Paseador en el Punto',
+          body: `${walkerData?.name || 'El paseador'} ha llegado. Por favor confirma que entregaste tu mascota.`,
           link_to: '/home',
         });
       }
 
-      Alert.alert('Éxito', 'Mascota recogida');
+      Alert.alert('Éxito', 'Notificación enviada al dueño. Espera confirmación para iniciar el paseo.');
       fetchWalkerData();
     } catch (error: any) {
       Alert.alert('Error', error.message);
@@ -316,7 +351,9 @@ export default function WalkerHomeScreen() {
 
               const walkerUserId = (booking as any)?.walkers?.user_id;
               const price = booking?.total_price || 0;
-              const netEarning = price * 0.8;
+              const platformFee = price * 0.2;
+              const gatewayFee = price * 0.04;
+              const netEarning = price - platformFee - gatewayFee; // 76% of total
 
               if (walkerUserId) {
                 await supabase
@@ -337,7 +374,8 @@ export default function WalkerHomeScreen() {
                   transaction_type: 'payment',
                   amount: price,
                   net_earning: netEarning,
-                  platform_fee: price * 0.2,
+                  platform_fee: platformFee,
+                  gateway_fee: gatewayFee,
                   payment_method: 'wallet',
                   status: 'completed',
                   description: `Paseo completado`,
@@ -367,10 +405,116 @@ export default function WalkerHomeScreen() {
     );
   };
 
+  const cancelBooking = async (bookingId: string) => {
+    Alert.alert(
+      'Cancelar Paseo',
+      '¿Estás seguro de que quieres cancelar este paseo? Se notificará al dueño y se procesará el reembolso correspondiente.',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Sí, cancelar',
+          style: 'destructive',
+          onPress: async () => {
+            setCancellingId(bookingId);
+            try {
+              const { data: booking } = await supabase
+                .from('bookings')
+                .select('user_id, total_price')
+                .eq('id', bookingId)
+                .single();
+
+              if (!booking) {
+                Alert.alert('Error', 'No se encontró la reserva');
+                return;
+              }
+
+              const { data: transaction } = await supabase
+                .from('transactions')
+                .select('*')
+                .eq('booking_id', bookingId)
+                .maybeSingle();
+
+              if (transaction) {
+                if (transaction.payment_method === 'wallet' && transaction.status === 'completed') {
+                  const { data: profile } = await supabase
+                    .from('user_profiles')
+                    .select('balance')
+                    .eq('user_id', booking.user_id)
+                    .single();
+
+                  await supabase
+                    .from('user_profiles')
+                    .update({ balance: (profile?.balance || 0) + transaction.amount })
+                    .eq('user_id', booking.user_id);
+
+                  await supabase.from('transactions').insert({
+                    user_id: booking.user_id,
+                    booking_id: bookingId,
+                    transaction_type: 'refund',
+                    amount: transaction.amount,
+                    payment_method: 'wallet',
+                    status: 'completed',
+                    description: 'Reembolso automático por cancelación del paseador',
+                  });
+                } else if (transaction.payment_method === 'mercadopago') {
+                  await supabase.from('transactions').insert({
+                    user_id: booking.user_id,
+                    booking_id: bookingId,
+                    transaction_type: 'refund',
+                    amount: transaction.amount,
+                    payment_method: 'mercadopago',
+                    status: 'pending',
+                    description: 'Reembolso pendiente - requiere procesamiento manual en MercadoPago',
+                  });
+                }
+              }
+
+              if (booking.user_id) {
+                await supabase.from('notifications').insert({
+                  user_id: booking.user_id,
+                  title: '❌ Paseo Cancelado',
+                  body: 'El paseador ha cancelado el paseo. Se ha procesado el reembolso correspondiente.',
+                  link_to: '/home',
+                });
+              }
+
+              await supabase
+                .from('bookings')
+                .update({ status: 'cancelled' })
+                .eq('id', bookingId);
+
+              Alert.alert('Cancelado', 'El paseo ha sido cancelado y se notificó al dueño.');
+              fetchWalkerData();
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'No se pudo cancelar el paseo');
+            } finally {
+              setCancellingId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <Loader2 size={32} color="#10B981" />
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerContent}>
+            <View style={styles.headerLeft}>
+              <View style={styles.headerIcon}>
+                <Dog size={24} color="#000000" />
+              </View>
+              <View>
+                <Text style={styles.panelLabel}>Panel Control</Text>
+                <Text style={styles.greeting}>Hola, Paseador!</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+        <View style={styles.content}>
+          <SkeletonCard count={3} />
+        </View>
       </View>
     );
   }
@@ -380,24 +524,38 @@ export default function WalkerHomeScreen() {
       <ScrollView
         style={styles.scrollView}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#10B981']} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0EA5E9']} />
         }
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
           <View style={styles.headerContent}>
-            <View style={styles.walkerInfo}>
-              <Text style={styles.panelLabel}>PANEL CONTROL</Text>
-              <Text style={styles.greeting}>Hola, {displayName}! 🐕</Text>
+            <View style={styles.headerLeft}>
+              <View style={styles.headerIcon}>
+                <Dog size={24} color="#000000" />
+              </View>
+              <View>
+                <Text style={styles.panelLabel}>Panel Control</Text>
+                <Text style={styles.greeting}>Hola, {displayName}!</Text>
+              </View>
             </View>
-            <TouchableOpacity
-              style={[styles.onlineBtn, isOnline && styles.onlineBtnActive]}
-              onPress={() => setIsOnline(!isOnline)}
-            >
-              <Text style={[styles.onlineText, isOnline && styles.onlineTextActive]}>
-                {isOnline ? 'ONLINE' : 'OFFLINE'}
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={styles.settingsBtn}
+                onPress={() => router.push('/walker-settings')}
+              >
+                <Settings size={20} color="#9CA3AF" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.onlineBtn, isOnline && styles.onlineBtnActive]}
+                onPress={() => setIsOnline(!isOnline)}
+              >
+                <Power size={14} color={isOnline ? '#0EA5E9' : '#6B7280'} />
+                <Text style={[styles.onlineText, isOnline && styles.onlineTextActive]}>
+                  {isOnline ? 'ONLINE' : 'OFFLINE'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -405,27 +563,31 @@ export default function WalkerHomeScreen() {
           <TouchableOpacity
             style={styles.balanceCard}
             onPress={() => router.push('/walker-balance')}
+            activeOpacity={0.7}
           >
             <View>
-              <Text style={styles.balanceLabel}>Saldo para retiro</Text>
+              <View style={styles.balanceLabelRow}>
+                <Wallet size={16} color="#0EA5E9" />
+                <Text style={styles.balanceLabel}>Saldo para retirar</Text>
+              </View>
               <Text style={styles.balanceAmount}>{formatMoney(balance)}</Text>
             </View>
-            <ChevronRight size={24} color="#9CA3AF" />
+            <ChevronRight size={24} color="#D1D5DB" />
           </TouchableOpacity>
 
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
-              <View style={styles.statIcon}>
+              <View style={[styles.statIcon, { backgroundColor: '#EFF6FF' }]}>
                 <TrendingUp size={20} color="#3B82F6" />
               </View>
-              <Text style={styles.statLabel}>Completed</Text>
+              <Text style={styles.statLabel}>Completados</Text>
               <Text style={styles.statValue}>{stats.completedWalks}</Text>
             </View>
             <View style={styles.statCard}>
-              <View style={[styles.statIcon, styles.statIconYellow]}>
+              <View style={[styles.statIcon, { backgroundColor: '#FFFBEB' }]}>
                 <Star size={20} color="#F59E0B" />
               </View>
-              <Text style={styles.statLabel}>Rating</Text>
+              <Text style={styles.statLabel}>Calificación</Text>
               <Text style={styles.statValue}>{stats.rating.toFixed(1)}</Text>
             </View>
           </View>
@@ -477,7 +639,10 @@ export default function WalkerHomeScreen() {
                       </View>
                       <TouchableOpacity
                         style={[styles.acceptBtn, acceptingId === booking.id && styles.acceptBtnDisabled]}
-                        onPress={() => acceptBooking(booking.id)}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          acceptBooking(booking.id);
+                        }}
                         disabled={acceptingId === booking.id}
                       >
                         {acceptingId === booking.id ? (
@@ -491,11 +656,11 @@ export default function WalkerHomeScreen() {
                 })}
               </View>
             ) : (
-              <View style={styles.emptyState}>
-                <Loader2 size={32} color="#E5E7EB" />
-                <Text style={styles.emptyTitle}>Buscando paseos cerca...</Text>
-                <Text style={styles.emptySubtitle}>Activa tu ubicación para recibir solicitudes</Text>
-              </View>
+              <EmptyState
+                icon={<Dog size={36} color="#0EA5E9" />}
+                title="Buscando paseos cerca..."
+                description="Aparecerán solicitudes de paseo cuando haya dueños cerca de tu zona."
+              />
             )
           ) : (
             activeWalks.length > 0 ? (
@@ -530,28 +695,53 @@ export default function WalkerHomeScreen() {
                       </View>
 
                       {booking.status === 'accepted' && (
-                        <TouchableOpacity
-                          style={[styles.actionBtn, styles.pickupBtn, processingId === booking.id && styles.actionBtnDisabled]}
-                          onPress={() => confirmPickup(booking.id)}
-                          disabled={processingId === booking.id}
-                        >
-                          {processingId === booking.id ? (
-                            <Loader2 size={18} color="#FFFFFF" />
-                          ) : (
-                            <>
-                              <Dog size={18} color="#FFFFFF" />
-                              <Text style={styles.actionBtnText}>Ya recogí la mascota</Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
+                        <>
+                          <TouchableOpacity
+                            style={[styles.actionBtn, styles.pickupBtn, processingId === booking.id && styles.actionBtnDisabled]}
+                            onPress={() => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                              confirmPickup(booking.id);
+                            }}
+                            disabled={processingId === booking.id}
+                          >
+                            {processingId === booking.id ? (
+                              <Loader2 size={18} color="#FFFFFF" />
+                            ) : (
+                              <>
+                                <Dog size={18} color="#FFFFFF" />
+                                <Text style={styles.actionBtnText}>Ya recogí la mascota</Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.actionBtn, styles.cancelBtn, cancellingId === booking.id && styles.actionBtnDisabled]}
+                            onPress={() => cancelBooking(booking.id)}
+                            disabled={cancellingId === booking.id}
+                          >
+                            {cancellingId === booking.id ? (
+                              <Loader2 size={18} color="#EF4444" />
+                            ) : (
+                              <Text style={styles.cancelBtnText}>Cancelar Paseo</Text>
+                            )}
+                          </TouchableOpacity>
+                        </>
+                      )}
+
+                      {booking.status === 'pickup_requested' && (
+                        <View style={[styles.actionBtn, styles.waitingBtn]}>
+                          <Text style={styles.actionBtnText}>Esperando confirmación del dueño</Text>
+                        </View>
                       )}
 
                       {booking.status === 'picked_up' && (
-                        <TouchableOpacity
-                          style={[styles.actionBtn, styles.startBtn, processingId === booking.id && styles.actionBtnDisabled]}
-                          onPress={() => startWalk(booking.id)}
-                          disabled={processingId === booking.id}
-                        >
+                          <TouchableOpacity
+                            style={[styles.actionBtn, styles.startBtn, processingId === booking.id && styles.actionBtnDisabled]}
+                            onPress={() => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                              startWalk(booking.id);
+                            }}
+                            disabled={processingId === booking.id}
+                          >
                           {processingId === booking.id ? (
                             <Loader2 size={18} color="#FFFFFF" />
                           ) : (
@@ -570,7 +760,10 @@ export default function WalkerHomeScreen() {
                           </View>
                           <TouchableOpacity
                             style={[styles.actionBtn, styles.finishBtn, processingId === booking.id && styles.actionBtnDisabled]}
-                            onPress={() => finishWalk(booking.id)}
+                            onPress={() => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                              finishWalk(booking.id);
+                            }}
                             disabled={processingId === booking.id}
                           >
                             {processingId === booking.id ? (
@@ -589,14 +782,47 @@ export default function WalkerHomeScreen() {
                 })}
               </View>
             ) : (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>No tienes paseos activos</Text>
-                <Text style={styles.emptySubtitle}>Acepta una solicitud para comenzar</Text>
-              </View>
+              <EmptyState
+                icon={<Dog size={36} color="#0EA5E9" />}
+                title="No tienes paseos activos"
+                description="Acepta una solicitud para comenzar a pasear."
+              />
             )
           )}
+
         </View>
       </ScrollView>
+
+      <View style={styles.bottomNav}>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => setActiveNav('home')}
+        >
+          <View style={[styles.navIconContainer, activeNav === 'home' && styles.navIconActive]}>
+            <House size={24} color={activeNav === 'home' ? '#111827' : '#9CA3AF'} />
+          </View>
+          {activeNav === 'home' && <Text style={styles.navLabel}>Inicio</Text>}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => { setActiveNav('messages'); router.push('/messages'); }}
+        >
+          <View style={[styles.navIconContainer, activeNav === 'messages' && styles.navIconActive]}>
+            <MessageSquare size={24} color={activeNav === 'messages' ? '#111827' : '#9CA3AF'} />
+          </View>
+          {activeNav === 'messages' && <Text style={styles.navLabel}>Mensajes</Text>}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => { setActiveNav('profile'); router.push('/profile'); }}
+        >
+          <View style={[styles.navIconContainer, activeNav === 'profile' && styles.navIconActive]}>
+            <User size={24} color={activeNav === 'profile' ? '#111827' : '#9CA3AF'} />
+          </View>
+          {activeNav === 'profile' && <Text style={styles.navLabel}>Perfil</Text>}
+        </TouchableOpacity>
+      </View>
+
     </View>
   );
 }
@@ -604,46 +830,65 @@ export default function WalkerHomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
-  },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: '#111827',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: '#F3F4F6',
   },
   scrollView: {
     flex: 1,
   },
   header: {
-    backgroundColor: '#1F2937',
+    backgroundColor: '#111827',
     paddingTop: 60,
     paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingBottom: 48,
     borderBottomLeftRadius: 40,
     borderBottomRightRadius: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  walkerInfo: {},
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#0EA5E9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0EA5E9',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
   panelLabel: {
     fontSize: 10,
-    fontWeight: '800',
-    color: '#6B7280',
+    fontWeight: '900',
+    color: '#9CA3AF',
     letterSpacing: 2,
-    marginBottom: 4,
+    textTransform: 'uppercase',
+    marginBottom: 2,
   },
   greeting: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '900',
     color: '#FFFFFF',
   },
   onlineBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#374151',
@@ -654,112 +899,146 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(16, 185, 129, 0.3)',
   },
   onlineText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
     color: '#6B7280',
     letterSpacing: 1,
   },
   onlineTextActive: {
-    color: '#10B981',
+    color: '#0EA5E9',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  settingsBtn: {
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   content: {
-    padding: 24,
+    paddingHorizontal: 24,
+    marginTop: -24,
     paddingBottom: 100,
   },
   balanceCard: {
-    backgroundColor: '#1F2937',
-    borderRadius: 24,
-    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 32,
+    padding: 24,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#F3F4F6',
+  },
+  balanceLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
   },
   balanceLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#9CA3AF',
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#6B7280',
     textTransform: 'uppercase',
     letterSpacing: 1,
-    marginBottom: 4,
   },
   balanceAmount: {
     fontSize: 32,
     fontWeight: '900',
-    color: '#FFFFFF',
+    color: '#111827',
   },
   statsRow: {
     flexDirection: 'row',
     gap: 16,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#1F2937',
-    borderRadius: 20,
-    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 30,
+    padding: 20,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#F3F4F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
   },
   statIcon: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     borderRadius: 12,
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
   },
-  statIconYellow: {
-    backgroundColor: 'rgba(245, 158, 11, 0.2)',
-  },
   statLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#6B7280',
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#9CA3AF',
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
     marginBottom: 4,
   },
   statValue: {
     fontSize: 24,
     fontWeight: '900',
-    color: '#FFFFFF',
+    color: '#111827',
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#1F2937',
+    backgroundColor: '#E5E7EB',
     borderRadius: 16,
-    padding: 4,
+    padding: 6,
     marginBottom: 20,
   },
   tab: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
   },
   tabActive: {
-    backgroundColor: '#374151',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
   },
   tabText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
     color: '#6B7280',
+    letterSpacing: 0.5,
   },
   tabTextActive: {
-    color: '#FFFFFF',
+    color: '#065F46',
   },
   bookingsList: {
     gap: 16,
   },
   bookingCard: {
-    backgroundColor: '#1F2937',
+    backgroundColor: '#FFFFFF',
     borderRadius: 24,
-    padding: 16,
+    padding: 20,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#F3F4F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
   },
   bookingHeader: {
     flexDirection: 'row',
@@ -770,7 +1049,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: '#374151',
+    backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -781,7 +1060,7 @@ const styles = StyleSheet.create({
   bookingDuration: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: '#111827',
     marginBottom: 4,
   },
   bookingLocation: {
@@ -792,6 +1071,7 @@ const styles = StyleSheet.create({
   bookingAddress: {
     fontSize: 12,
     color: '#9CA3AF',
+    flex: 1,
   },
   statusBadge: {
     marginTop: 6,
@@ -810,13 +1090,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 12,
     borderWidth: 1,
+    marginLeft: 8,
   },
   priceText: {
     fontSize: 14,
     fontWeight: '900',
   },
   acceptBtn: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#0EA5E9',
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',
@@ -825,7 +1106,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   acceptBtnText: {
-    color: '#000000',
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
     letterSpacing: 1,
@@ -848,23 +1129,36 @@ const styles = StyleSheet.create({
     backgroundColor: '#3B82F6',
   },
   finishBtn: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#0EA5E9',
+  },
+  cancelBtn: {
+    backgroundColor: '#FEE2E2',
+    marginTop: 8,
+  },
+  cancelBtnText: {
+    color: '#EF4444',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  waitingBtn: {
+    backgroundColor: '#F59E0B',
   },
   actionBtnText: {
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
   gpsActive: {
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    backgroundColor: '#D1FAE5',
     borderRadius: 12,
     padding: 12,
     marginBottom: 12,
     alignItems: 'center',
   },
   gpsActiveText: {
-    color: '#10B981',
+    color: '#052e05',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -873,24 +1167,39 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '900',
   },
-  emptyState: {
-    backgroundColor: '#1F2937',
-    borderRadius: 24,
-    padding: 40,
+  bottomNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#374151',
-    borderStyle: 'dashed',
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    paddingBottom: 24,
   },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#9CA3AF',
-    marginTop: 16,
+  navItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  emptySubtitle: {
-    fontSize: 13,
-    color: '#6B7280',
+  navIconContainer: {
+    padding: 12,
+    borderRadius: 24,
+    backgroundColor: 'transparent',
+  },
+  navIconActive: {
+    backgroundColor: '#F3F4F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+    transform: [{ scale: 1.1 }],
+  },
+  navLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#111827',
     marginTop: 4,
   },
 });

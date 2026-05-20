@@ -1,59 +1,102 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import AvatarImage from '../../components/AvatarImage';
+import EmptyState from '../../components/EmptyState';
+import { MessageSquare } from '../../components/Icons';
+import { SkeletonList } from '../../components/Skeleton';
 
-interface Booking {
+interface Conversation {
   id: string;
-  scheduled_date: string;
-  scheduled_time: string;
-  duration_hours: number;
-  status: string;
-  total_price: number;
-  walker: {
-    name: string;
-    user_profiles: {
-      profile_photo_url: string;
-    };
-  };
-  pet: {
-    name: string;
-    photo_url: string;
-  };
+  otherUserId: string;
+  name: string;
+  profile_photo_url: string | null;
+  lastMsg: string;
+  time: string;
+  unread: number;
 }
 
-export default function BookingsScreen() {
+export default function MessagesScreen() {
   const router = useRouter();
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchBookings();
+    fetchCurrentUser();
   }, []);
 
-  const fetchBookings = async () => {
+  useEffect(() => {
+    if (currentUser) {
+      fetchConversations();
+    }
+  }, [currentUser]);
+
+  const fetchCurrentUser = async () => {
     try {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      setUser(currentUser);
-
-      if (currentUser) {
-        const { data, error } = await supabase
-          .from('bookings')
-          .select(`
-            *,
-            walker:walkers(name, user_profiles(profile_photo_url)),
-            pet:pets(name, photo_url)
-          `)
-          .or(`owner_id.eq.${currentUser.id},walker_id.eq.${currentUser.id}`)
-          .order('created_at', { ascending: false });
-
-        if (error) throw error;
-        setBookings(data || []);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUser(user);
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        setUserRole(profile?.role || null);
       }
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error fetching user:', error);
+    }
+  };
+
+  const fetchConversations = async () => {
+    if (!currentUser) return;
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('conversations')
+        .select('*')
+        .or(`participant_one_id.eq.${currentUser.id},participant_two_id.eq.${currentUser.id}`)
+        .order('updated_at', { ascending: false });
+
+      if (error) throw error;
+
+      const formatted = await Promise.all((data || []).map(async (conv) => {
+        const isP1 = conv.participant_one_id === currentUser.id;
+        const otherUserId = isP1 ? conv.participant_two_id : conv.participant_one_id;
+
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('first_name, last_name, profile_photo_url')
+          .eq('user_id', otherUserId)
+          .maybeSingle();
+
+        const { data: lastMsg } = await supabase
+          .from('messages')
+          .select('message_text, created_at')
+          .eq('conversation_id', conv.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        return {
+          id: conv.id,
+          otherUserId,
+          name: profile ? `${profile.first_name} ${profile.last_name}`.trim() : 'Usuario',
+          profile_photo_url: profile?.profile_photo_url || null,
+          lastMsg: lastMsg?.message_text || 'Inicia la conversación',
+          time: lastMsg ? new Date(lastMsg.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : '',
+          unread: isP1 ? (conv.participant_one_unread_count || 0) : (conv.participant_two_unread_count || 0),
+        };
+      }));
+
+      setConversations(formatted);
+    } catch (error) {
+      console.error('Error fetching conversations:', error);
+      Alert.alert('Error', 'No se pudieron cargar las conversaciones. Desliza para reintentar.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -62,112 +105,97 @@ export default function BookingsScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchBookings();
+    fetchConversations();
   };
 
-  const formatPrice = (price: number) => {
-    return '$' + (price || 0).toLocaleString('es-CO');
-  };
+  useEffect(() => {
+    if (!currentUser) return;
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return '#F59E0B';
-      case 'confirmed': return '#10B981';
-      case 'in_progress': return '#3B82F6';
-      case 'completed': return '#6B7280';
-      case 'cancelled': return '#EF4444';
-      default: return '#9CA3AF';
-    }
-  };
+    const channel = supabase
+      .channel('conversations-list')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'conversations',
+      }, (payload) => {
+        const conv = payload.new as any;
+        if (
+          conv.participant_one_id === currentUser.id ||
+          conv.participant_two_id === currentUser.id
+        ) {
+          fetchConversations();
+        }
+      })
+      .subscribe();
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'pending': return 'Pendiente';
-      case 'confirmed': return 'Confirmado';
-      case 'in_progress': return 'En Progreso';
-      case 'completed': return 'Completado';
-      case 'cancelled': return 'Cancelado';
-      default: return status;
-    }
-  };
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser]);
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Mis Reservas</Text>
-        <Text style={styles.subtitle}>Gestiona tus paseos</Text>
+        <Text style={styles.title}>Mensajes</Text>
+        <Text style={styles.subtitle}>Tus conversaciones</Text>
       </View>
 
       <ScrollView
         style={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#10B981']} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0EA5E9']} />
         }
       >
         {loading ? (
-          <Text style={styles.loadingText}>Cargando...</Text>
-        ) : bookings.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📅</Text>
-            <Text style={styles.emptyText}>No tienes reservas aún</Text>
-            <Text style={styles.emptySubtext}>¡Reserva tu primer paseo!</Text>
-          </View>
+          <SkeletonList count={5} />
+        ) : conversations.length === 0 ? (
+          userRole === 'walker' ? (
+            <EmptyState
+              icon={<MessageSquare size={36} color="#0EA5E9" />}
+              title="No tienes conversaciones"
+              description="Completa tu perfil y espera a que un dueño te contacte para empezar a pasear."
+              actionLabel="Configurar Perfil"
+              onAction={() => router.push('/walker-settings')}
+            />
+          ) : (
+            <EmptyState
+              icon={<MessageSquare size={36} color="#0EA5E9" />}
+              title="No tienes conversaciones"
+              description="Las conversaciones aparecerán cuando reserves un paseo. ¡Reserva tu primer paseo para empezar!"
+              actionLabel="Reservar un Paseo"
+              onAction={() => router.push('/booking')}
+            />
+          )
         ) : (
-          bookings.map((booking) => (
+          conversations.map((chat) => (
             <TouchableOpacity
-              key={booking.id}
-              style={styles.bookingCard}
-              onPress={() => router.push({ pathname: '/booking-details', params: { id: booking.id } })}
+              key={chat.id}
+              style={styles.chatItem}
+              onPress={() => router.push({ pathname: '/chat', params: { conversationId: chat.id } })}
             >
-              <View style={styles.bookingHeader}>
-                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(booking.status) + '20' }]}>
-                  <Text style={[styles.statusText, { color: getStatusColor(booking.status) }]}>
-                    {getStatusText(booking.status)}
-                  </Text>
+              <AvatarImage
+                photoUrl={chat.profile_photo_url}
+                fallbackInitial={chat.name}
+                size={56}
+                style={styles.avatar}
+              />
+              <View style={styles.chatInfo}>
+                <View style={styles.chatHeader}>
+                  <Text style={styles.chatName} numberOfLines={1}>{chat.name}</Text>
+                  <Text style={styles.chatTime}>{chat.time}</Text>
                 </View>
-                <Text style={styles.bookingId}>#{booking.id.slice(0, 8).toUpperCase()}</Text>
+                <Text
+                  style={[styles.chatLastMsg, chat.unread > 0 && styles.chatLastMsgUnread]}
+                  numberOfLines={1}
+                >
+                  {chat.lastMsg}
+                </Text>
               </View>
-
-              <View style={styles.bookingContent}>
-                <View style={styles.walkerSection}>
-                  {booking.walker?.user_profiles?.profile_photo_url ? (
-                    <Image
-                      source={{ uri: booking.walker.user_profiles.profile_photo_url }}
-                      style={styles.walkerImg}
-                    />
-                  ) : (
-                    <View style={[styles.walkerImg, styles.walkerImgPlaceholder]}>
-                      <Text style={styles.walkerInitial}>
-                        {(booking.walker?.name || 'P')[0].toUpperCase()}
-                      </Text>
-                    </View>
-                  )}
-                  <View>
-                    <Text style={styles.walkerName}>{booking.walker?.name || 'Paseador'}</Text>
-                    <Text style={styles.petName}>🐕 {booking.pet?.name}</Text>
-                  </View>
+              {chat.unread > 0 && (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadText}>{chat.unread}</Text>
                 </View>
-
-                <View style={styles.bookingDetails}>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>📅</Text>
-                    <Text style={styles.detailValue}>{booking.scheduled_date}</Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>🕐</Text>
-                    <Text style={styles.detailValue}>{booking.scheduled_time}</Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>⏱️</Text>
-                    <Text style={styles.detailValue}>{booking.duration_hours}h</Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.bookingFooter}>
-                <Text style={styles.totalLabel}>Total</Text>
-                <Text style={styles.totalPrice}>{formatPrice(booking.total_price)}</Text>
-              </View>
+              )}
             </TouchableOpacity>
           ))
         )}
@@ -177,153 +205,41 @@ export default function BookingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
   header: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#0EA5E9',
     paddingTop: 60,
     paddingHorizontal: 20,
     paddingBottom: 20,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 4,
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-  },
-  loadingText: {
-    textAlign: 'center',
-    color: '#9CA3AF',
-    padding: 40,
-  },
-  emptyState: {
-    flex: 1,
+  title: { fontSize: 28, fontWeight: '800', color: '#FFFFFF' },
+  subtitle: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginTop: 4 },
+  content: { flex: 1, padding: 20 },
+  chatItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 60,
-  },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#374151',
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    marginTop: 8,
-  },
-  bookingCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  bookingHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 12,
   },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  avatar: { marginRight: 12 },
+  chatInfo: { flex: 1 },
+  chatHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  chatName: { fontSize: 15, fontWeight: '800', color: '#111827', flex: 1, marginRight: 8 },
+  chatTime: { fontSize: 12, color: '#9CA3AF' },
+  chatLastMsg: { fontSize: 14, color: '#6B7280' },
+  chatLastMsgUnread: { color: '#111827', fontWeight: '700' },
+  unreadBadge: {
+    backgroundColor: '#0EA5E9',
     borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  bookingId: {
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-  bookingContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  walkerSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  walkerImg: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    marginRight: 12,
-  },
-  walkerImgPlaceholder: {
-    backgroundColor: '#D1FAE5',
+    minWidth: 24,
+    height: 24,
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: 8,
   },
-  walkerInitial: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#10B981',
-  },
-  walkerName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  petName: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  bookingDetails: {
-    alignItems: 'flex-end',
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  detailLabel: {
-    fontSize: 12,
-    marginRight: 4,
-  },
-  detailValue: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  bookingFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  totalLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  totalPrice: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#10B981',
-  },
+  unreadText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
 });

@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, 
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { ChevronLeft, Loader2, Clock, ArrowUpCircle, ArrowDownCircle, X } from '../components/Icons';
+import EmptyState from '../components/EmptyState';
+import { SkeletonProfile } from '../components/Skeleton';
 
 const formatMoney = (val: number) => '$' + (val || 0).toLocaleString('es-CO');
 const MIN_WITHDRAWAL = 50000;
@@ -73,6 +75,7 @@ export default function WalkerBalanceScreen() {
       }
     } catch (error) {
       console.error('Error:', error);
+      Alert.alert('Error', 'No se pudieron cargar los datos de ganancias. Intenta de nuevo.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -159,7 +162,7 @@ export default function WalkerBalanceScreen() {
   const getPayoutStatusBadge = (status: string) => {
     const styles: any = {
       pending: { bg: '#FEF3C7', color: '#92400E' },
-      completed: { bg: '#D1FAE5', color: '#059669' },
+      completed: { bg: '#D1FAE5', color: '#052e05' },
       rejected: { bg: '#FEE2E2', color: '#DC2626' },
     };
     const s = styles[status] || styles.pending;
@@ -174,8 +177,19 @@ export default function WalkerBalanceScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <Loader2 size={32} color="#10B981" />
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <ChevronLeft size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Mis Ganancias</Text>
+          <View style={styles.headerRight} />
+        </View>
+        <View style={styles.scrollView}>
+          <View style={styles.skeletonPadding}>
+            <SkeletonProfile />
+          </View>
+        </View>
       </View>
     );
   }
@@ -213,9 +227,12 @@ export default function WalkerBalanceScreen() {
           </View>
 
           {payouts.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>No hay retiros solicitados</Text>
-            </View>
+            <EmptyState
+              icon={<ArrowUpCircle size={36} color="#0EA5E9" />}
+              title="No hay retiros solicitados"
+              description="Tus retiros aparecerán aquí cuando los solicites."
+              variant="dark"
+            />
           ) : (
             <View style={styles.list}>
               {payouts.map((payout) => (
@@ -243,9 +260,12 @@ export default function WalkerBalanceScreen() {
           </View>
 
           {transactions.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>Aún no tienes ganancias</Text>
-            </View>
+            <EmptyState
+              icon={<Clock size={36} color="#0EA5E9" />}
+              title="Aún no tienes ganancias"
+              description="Tus ganancias por paseos completados aparecerán aquí."
+              variant="dark"
+            />
           ) : (
             <View style={styles.list}>
               {transactions.map((txn) => (
@@ -339,11 +359,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#111827',
   },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: '#111827',
-    alignItems: 'center',
-    justifyContent: 'center',
+  skeletonPadding: {
+    padding: 24,
   },
   header: {
     flexDirection: 'row',
@@ -353,6 +370,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 16,
     backgroundColor: '#1F2937',
+  },
+  scrollView: {
+    flex: 1,
+    padding: 24,
   },
   backBtn: {
     width: 36,
@@ -369,10 +390,6 @@ const styles = StyleSheet.create({
   },
   headerRight: {
     width: 36,
-  },
-  scrollView: {
-    flex: 1,
-    padding: 24,
   },
   balanceCard: {
     backgroundColor: '#1F2937',
@@ -394,11 +411,11 @@ const styles = StyleSheet.create({
   balanceAmount: {
     fontSize: 48,
     fontWeight: '900',
-    color: '#10B981',
+    color: '#0EA5E9',
     marginBottom: 20,
   },
   withdrawBtn: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#0EA5E9',
     borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 32,
@@ -461,7 +478,7 @@ const styles = StyleSheet.create({
   itemAmountPositive: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#10B981',
+    color: '#0EA5E9',
     marginBottom: 4,
   },
   badge: {
@@ -478,19 +495,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#D1FAE5',
   },
   earnedBadgeText: {
-    color: '#059669',
-  },
-  emptyCard: {
-    backgroundColor: '#1F2937',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#374151',
-  },
-  emptyText: {
-    color: '#6B7280',
-    fontSize: 14,
+    color: '#052e05',
   },
   modalOverlay: {
     flex: 1,
@@ -542,7 +547,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   quickAmountAll: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#0EA5E9',
   },
   quickAmountText: {
     fontSize: 12,
@@ -573,7 +578,7 @@ const styles = StyleSheet.create({
   },
   confirmBtn: {
     flex: 1,
-    backgroundColor: '#10B981',
+    backgroundColor: '#0EA5E9',
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',

@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Platform, ActivityIndicator, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Platform, ActivityIndicator, KeyboardAvoidingView, Keyboard } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Haptics from 'expo-haptics';
 import { supabase } from '../lib/supabase';
-import { isWithinRadius } from '../lib/distance';
+import { isWithinRadius, calculateDistance } from '../lib/distance';
+import { searchAddressSuggestions, getPlaceDetails } from '../lib/addressSearch';
+import { createPaymentWithBooking } from '../lib/paymentService';
 import { Dog, MapPin, Clock, ChevronLeft, Loader2, Check, Wallet, CreditCard, ArrowLeft } from '../components/Icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -69,14 +72,41 @@ export default function BookingScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [region, setRegion] = useState({ ...CENTER_MEDELLIN, latitudeDelta: 0.015, longitudeDelta: 0.015 });
+  const [addressSuggestions, setAddressSuggestions] = useState<any[]>([]);
+  const [searchingAddress, setSearchingAddress] = useState(false);
+  const [addressError, setAddressError] = useState('');
+  const [addressConfirmed, setAddressConfirmed] = useState(false);
+  const paymentPanelAnim = useRef(null);
 
   const basePrice = PRICES[duration];
   const petCount = selectedPets.length;
   const totalPrice = basePrice + (petCount > 1 ? (petCount - 1) * ADDITIONAL_PET_PRICE : 0);
+  const isReadyForPayment = selectedPets.length > 0 && addressConfirmed && address.trim().length > 0 && (bookingType === 'now' || (date && time));
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    const delaySearch = setTimeout(async () => {
+      if (address.length > 2) {
+        setSearchingAddress(true);
+        setAddressError('');
+        try {
+          const results = await searchAddressSuggestions(address);
+          setAddressSuggestions(results);
+          if (results.length === 0 && address.length > 3) {
+            setAddressError('No se encontraron direcciones');
+          }
+        } catch {
+          setAddressSuggestions([]);
+          setAddressError('Error al buscar direcciones');
+        } finally {
+          setSearchingAddress(false);
+        }
+      } else {
+        setAddressSuggestions([]);
+        setAddressError('');
+      }
+    }, 300);
+    return () => clearTimeout(delaySearch);
+  }, [address]);
 
   useEffect(() => {
     if (bookingType === 'schedule' || bookingType === 'now') {
@@ -84,36 +114,62 @@ export default function BookingScreen() {
     }
   }, [date, time, bookingType, markerPosition, bookingType]);
 
+  const handleSelectSuggestion = async (suggestion: any) => {
+    setAddressSuggestions([]);
+    setAddress(suggestion.mainText || suggestion.description);
+    setAddressConfirmed(false);
+    setAddressError('');
+    const details = await getPlaceDetails(suggestion.placeId);
+    if (details) {
+      const pos = { latitude: details.lat, longitude: details.lng };
+      setMarkerPosition(pos);
+      mapRef.current?.animateToRegion({ ...pos, latitudeDelta: 0.015, longitudeDelta: 0.015 }, 500);
+    } else {
+      setAddressError('No se pudieron obtener los detalles de la dirección');
+    }
+    Keyboard.dismiss();
+  };
+
   const fetchData = async () => {
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
-    setUser(currentUser);
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      setUser(currentUser);
 
-    if (currentUser) {
-      const { data: petsData } = await supabase
-        .from('pets')
-        .select('*')
-        .eq('owner_id', currentUser.id)
-        .eq('is_active', true);
-      setPets(petsData || []);
-      if (petsData && petsData.length > 0) {
-        setSelectedPets([petsData[0].id]);
+      if (currentUser) {
+        const { data: petsData } = await supabase
+          .from('pets')
+          .select('*')
+          .eq('owner_id', currentUser.id)
+          .eq('is_active', true);
+        setPets(petsData || []);
+
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('balance')
+          .eq('user_id', currentUser.id)
+          .single();
+        setWalletBalance(parseFloat(profile?.balance || 0));
       }
-
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('balance')
-        .eq('user_id', currentUser.id)
-        .single();
-      setWalletBalance(parseFloat(profile?.balance || 0));
+    } catch (error: any) {
+      console.error('Error cargando datos:', error);
+      Alert.alert('Error', 'No se pudieron cargar tus datos. Intenta de nuevo.');
     }
   };
 
-  const checkAvailability = async () => {
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+const checkAvailability = async () => {
     setCheckingAvailability(true);
     try {
       const dateObj = new Date(date);
       const dayOfWeek = dateObj.getDay();
-      const timeStr = time.toTimeString().slice(0, 5);
+      
+      const timeParts = time.toTimeString().slice(0, 5).split(':');
+      const hours = parseInt(timeParts[0]);
+      const minutes = parseInt(timeParts[1]);
+      const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
 
       const { data: availability, error } = await supabase
         .from('walker_availability')
@@ -121,8 +177,6 @@ export default function BookingScreen() {
         .eq('day_of_week', dayOfWeek)
         .lte('start_time', timeStr)
         .gte('end_time', timeStr);
-
-      if (error) throw error;
 
       const walkerIds = availability?.map(a => a.walker_id) || [];
 
@@ -133,7 +187,12 @@ export default function BookingScreen() {
           .eq('overall_verification_status', 'approved')
           .in('id', walkerIds);
 
+        
+        
         if (verifiedWalkers && markerPosition) {
+          
+          
+          
           const nearby = verifiedWalkers.filter((walker: any) => {
             if (!walker.service_latitude || !walker.service_longitude || !walker.service_radius_km) return false;
             return isWithinRadius(
@@ -189,6 +248,7 @@ export default function BookingScreen() {
       setMarkerPosition(pos);
       setRegion({ ...pos, latitudeDelta: 0.015, longitudeDelta: 0.015 });
       mapRef.current?.animateToRegion({ ...pos, latitudeDelta: 0.015, longitudeDelta: 0.015 }, 500);
+      setAddressConfirmed(true);
 
       const geocode = await Location.reverseGeocodeAsync(pos);
       if (geocode[0]) {
@@ -223,17 +283,19 @@ export default function BookingScreen() {
       address: address,
       duration: duration,
       total_price: totalPrice,
-      status: statusOverride || (selectedWalker ? 'accepted' : 'pending'),
+      status: statusOverride || (selectedWalker ? 'accepted' : 'confirmed'),
       walker_id: selectedWalker?.id || null,
       scheduled_date: finalDate,
       scheduled_time: finalTime,
       lat: markerPosition.latitude,
       lng: markerPosition.longitude,
       pet_ids: selectedPets,
+      pet_count: selectedPets.length,
     };
   };
 
   const handlePaymentWithWallet = async () => {
+    Keyboard.dismiss();
     if (selectedPets.length === 0) {
       Alert.alert('Error', 'Selecciona al menos una mascota');
       return;
@@ -267,6 +329,12 @@ export default function BookingScreen() {
           body: `Nueva reserva programada para ${bookingData.scheduled_date} a las ${bookingData.scheduled_time}`,
           link_to: '/walker-home',
         });
+
+        await supabase.from('conversations').insert({
+          participant_one_id: user.id,
+          participant_two_id: selectedWalker.user_id,
+          booking_id: newBooking.id,
+        });
       } else if (nearbyWalkers.length > 0) {
         for (const walker of nearbyWalkers) {
           if (walker.user_id) {
@@ -296,6 +364,7 @@ export default function BookingScreen() {
         description: `Paseo ${duration} - Pago con saldo de billetera`,
       });
 
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Éxito', `¡Reserva confirmada! Saldo descontado: $${totalPrice.toLocaleString()}`, [
         { text: 'OK', onPress: () => router.replace('/(tabs)') },
       ]);
@@ -307,59 +376,74 @@ export default function BookingScreen() {
   };
 
   const handlePaymentSuccess = async () => {
+    Keyboard.dismiss();
     setLoading(true);
     try {
-      const bookingData = createBooking('confirmed');
+      if (!user) {
+        Alert.alert('Error', 'No hay usuario conectado');
+        return;
+      }
 
-      const { error } = await supabase.from('bookings').insert(bookingData);
-      if (error) throw error;
+      const scheduledDate = bookingType === 'schedule' 
+        ? date.toISOString().split('T')[0] 
+        : new Date().toISOString().split('T')[0];
+      
+      const scheduledTime = bookingType === 'schedule'
+        ? time.toTimeString().slice(0, 5)
+        : `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
 
-      const { data: newBooking } = await supabase
-        .from('bookings')
-        .select('id')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (!newBooking) throw new Error('No se pudo crear la reserva');
-
-      await supabase.from('transactions').insert({
+      const bookingData = {
         user_id: user.id,
-        booking_id: newBooking.id,
-        transaction_type: 'payment',
-        amount: Number(totalPrice),
-        net_amount: Number(totalPrice),
-        payment_method: 'credit_card',
-        status: 'completed',
-        description: `Paseo ${duration} - Pago con tarjeta`,
-      });
+        pet_ids: selectedPets,
+        duration: duration,
+        address: address,
+        lat: markerPosition.latitude,
+        lng: markerPosition.longitude,
+        scheduled_date: scheduledDate,
+        scheduled_time: scheduledTime,
+        total_price: totalPrice,
+        booking_type: bookingType
+      };
 
-      Alert.alert('Éxito', '¡Reserva y pago confirmados!', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)') },
-      ]);
+      await createPaymentWithBooking(
+        totalPrice,
+        `Paseo HappiWalk - ${selectedPets.length} Mascota(s)`,
+        bookingData
+      );
+
+      Alert.alert(
+        'Pago en proceso',
+        'Serás redirigido a Mercado Pago para completar el pago. Te notificaremos cuando tu reserva sea confirmada.',
+        [{ text: 'OK' }]
+      );
+
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Error al registrar la reserva');
+      console.error('Error en handlePaymentSuccess:', error);
+      Alert.alert('Error', error.message || 'No se pudo iniciar el pago');
     } finally {
       setLoading(false);
     }
   };
 
-  const isReadyForPayment = selectedPets.length > 0 && address.length > 0;
-
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={[styles.mapContainer, { paddingTop: insets.top + 8 }]}>
+        <View style={styles.mapContainer}>
           <MapView
             ref={mapRef}
             style={styles.map}
+            provider="google"
             region={{
               ...markerPosition,
               latitudeDelta: 0.015,
               longitudeDelta: 0.015,
             }}
-            onRegionChangeComplete={(r) => setMarkerPosition({ latitude: r.latitude, longitude: r.longitude })}
+            onRegionChangeComplete={(r) => {
+              if (address.trim().length > 0) {
+                setMarkerPosition({ latitude: r.latitude, longitude: r.longitude });
+                setAddressConfirmed(true);
+              }
+            }}
           >
             <Marker
               coordinate={markerPosition}
@@ -367,24 +451,31 @@ export default function BookingScreen() {
               onDragEnd={(e) => {
                 const pos = e.nativeEvent.coordinate;
                 setMarkerPosition(pos);
+                if (address.trim().length > 0) {
+                  setAddressConfirmed(true);
+                }
               }}
             />
           </MapView>
 
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-            <ArrowLeft size={24} color="#111827" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.gpsFloatingBtn} onPress={handleCurrentLocation}>
-            {gettingLocation ? (
-              <ActivityIndicator size="small" color="#10B981" />
-            ) : (
-              <MapPin size={24} color="#10B981" />
-            )}
-          </TouchableOpacity>
+          <View style={styles.mapHeader}>
+            <TouchableOpacity style={styles.backBtnCompact} onPress={() => router.back()}>
+              <ArrowLeft size={22} color="#111827" />
+            </TouchableOpacity>
+            <View style={styles.gpsWrapper}>
+              <TouchableOpacity style={styles.gpsBtn} onPress={handleCurrentLocation}>
+                {gettingLocation ? (
+                  <ActivityIndicator size="small" color="#0EA5E9" />
+                ) : (
+                  <MapPin size={20} color="#0EA5E9" />
+                )}
+              </TouchableOpacity>
+              <Text style={styles.gpsLabel}>Mi ubicación</Text>
+            </View>
+          </View>
         </View>
 
-        <ScrollView ref={scrollRef} style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <ScrollView ref={scrollRef} style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <Text style={styles.label}>¿Quiénes van al paseo?</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.petsScroll}>
             {pets.map((pet) => (
@@ -396,29 +487,17 @@ export default function BookingScreen() {
                 ]}
                 onPress={() => handleSelectPet(pet.id)}
               >
-                <Dog size={16} color={selectedPets.includes(pet.id) ? '#059669' : '#9CA3AF'} />
+                <Dog size={16} color={selectedPets.includes(pet.id) ? '#052e05' : '#9CA3AF'} />
                 <Text style={[styles.petName, selectedPets.includes(pet.id) && styles.petNameSelected]}>
                   {pet.name}
                 </Text>
-                {selectedPets.includes(pet.id) && <Check size={14} color="#059669" />}
+                {selectedPets.includes(pet.id) && <Check size={14} color="#052e05" />}
               </TouchableOpacity>
             ))}
             <TouchableOpacity style={styles.addPetButton} onPress={() => router.push('/pets')}>
               <Text style={styles.addPetText}>+ Nueva</Text>
             </TouchableOpacity>
           </ScrollView>
-
-          <Text style={styles.label}>Punto de encuentro</Text>
-          <View style={styles.addressInput}>
-            <MapPin size={20} color="#10B981" />
-            <TextInput
-              style={styles.addressText}
-              value={address}
-              onChangeText={setAddress}
-              placeholder="Busca tu dirección..."
-              placeholderTextColor="#9CA3AF"
-            />
-          </View>
 
           <View style={styles.bookingTypeToggle}>
             <TouchableOpacity
@@ -459,22 +538,21 @@ export default function BookingScreen() {
 
               {checkingAvailability ? (
                 <View style={styles.availabilityLoading}>
-                  <ActivityIndicator size="small" color="#10B981" />
+                  <ActivityIndicator size="small" color="#0EA5E9" />
                   <Text style={styles.availabilityText}>Verificando disponibilidad...</Text>
                 </View>
+              ) : availableWalkers > 0 ? (
+                <View style={[styles.availabilityBox, styles.availabilityYes]}>
+                  <Text style={styles.availabilityYesText}>✓</Text>
+                  <Text style={styles.availabilityYesLabel}>{availableWalkers} paseador(es) disponible(s) en tu zona</Text>
+                </View>
               ) : (
-                <View style={[styles.availabilityBox, availableWalkers > 0 ? styles.availabilityYes : styles.availabilityNo]}>
-                  {availableWalkers > 0 ? (
-                    <>
-                      <Text style={styles.availabilityYesText}>✓</Text>
-                      <Text style={styles.availabilityYesLabel}>{availableWalkers} paseador(es) disponible(s) en este horario</Text>
-                    </>
-                  ) : (
-                    <>
-                      <Text style={styles.availabilityNoText}>✕</Text>
-                      <Text style={styles.availabilityNoLabel}>No hay paseadores disponibles en este horario. Intenta otra hora.</Text>
-                    </>
-                  )}
+                <View style={styles.noWalkersBox}>
+                  <Text style={styles.noWalkersIcon}>🐕</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.noWalkersTitle}>No hay paseadores en tu zona</Text>
+                    <Text style={styles.noWalkersSubtitle}>Intenta en otro lugar o más tarde</Text>
+                  </View>
                 </View>
               )}
 
@@ -515,6 +593,47 @@ export default function BookingScreen() {
             </>
           )}
 
+          <Text style={styles.label}>Punto de encuentro</Text>
+          <View style={styles.addressInputWrapper}>
+            <View style={[styles.addressInput, addressError && styles.addressInputError]}>
+              <MapPin size={18} color={addressError ? '#EF4444' : '#0EA5E9'} />
+              <TextInput
+                style={styles.addressText}
+                value={address}
+                onChangeText={(text) => { setAddress(text); setAddressError(''); }}
+                placeholder="Busca tu dirección..."
+                placeholderTextColor="#9CA3AF"
+                returnKeyType="done"
+                blurOnSubmit
+                onSubmitEditing={() => Keyboard.dismiss()}
+              />
+              {searchingAddress && <ActivityIndicator size="small" color="#0EA5E9" style={styles.searchingIndicator} />}
+            </View>
+            {addressError ? (
+              <Text style={styles.addressErrorText}>{addressError}</Text>
+            ) : null}
+            {addressSuggestions.length > 0 && !addressError && (
+              <View style={styles.suggestionsBox}>
+                {addressSuggestions.slice(0, 5).map((suggestion: any, index: number) => (
+                  <TouchableOpacity
+                    key={suggestion.placeId}
+                    style={[
+                      styles.suggestionItem,
+                      index === addressSuggestions.length - 1 && styles.suggestionItemLast,
+                    ]}
+                    onPress={() => handleSelectSuggestion(suggestion)}
+                  >
+                    <MapPin size={14} color="#9CA3AF" />
+                    <View style={styles.suggestionText}>
+                      <Text style={styles.suggestionMain} numberOfLines={1}>{suggestion.mainText}</Text>
+                      <Text style={styles.suggestionSecondary} numberOfLines={1}>{suggestion.secondaryText}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
           <Text style={styles.durationLabel}>Duración del Paseo</Text>
           <View style={styles.durationRow}>
             {Object.entries(PRICES).map(([key, price]) => (
@@ -531,11 +650,22 @@ export default function BookingScreen() {
 
           {petCount > 1 && <Text style={styles.petCountText}>{petCount} mascotas</Text>}
 
-          <View style={styles.spacer} />
+          {!isReadyForPayment && (
+            <View style={styles.progressHint}>
+              <Text style={styles.progressHintText}>
+                {selectedPets.length === 0 ? '① Selecciona una mascota' :
+                 !address ? '② Ingresa la dirección' :
+                 bookingType === 'schedule' && (!date || !time) ? '③ Elige fecha y hora' : ''}
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.bottomPadding} />
         </ScrollView>
 
+        {isReadyForPayment && (
         <View style={styles.fixedBottom}>
-          <View style={styles.totalSection}>
+          <View style={styles.priceContainer}>
             <Text style={styles.totalLabel}>Total Servicio</Text>
             <Text style={styles.totalPrice}>${totalPrice.toLocaleString('es-CO')}</Text>
             {petCount > 1 && <Text style={styles.petCountSubtext}>{petCount} mascotas</Text>}
@@ -547,22 +677,30 @@ export default function BookingScreen() {
                 style={[styles.paymentBtn, paymentMethod === 'wallet' && styles.paymentBtnActive]}
                 onPress={() => setPaymentMethod('wallet')}
               >
+                <Wallet size={12} color={paymentMethod === 'wallet' ? '#fff' : '#9CA3AF'} />
                 <Text style={[styles.paymentText, paymentMethod === 'wallet' && styles.paymentTextActive]}>
-                  <Wallet size={14} /> Billetera (${walletBalance.toLocaleString()})
+                  Saldo ${walletBalance.toLocaleString()}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.paymentBtn, paymentMethod === 'mercadopago' && styles.paymentBtnMP]}
                 onPress={() => setPaymentMethod('mercadopago')}
               >
+                <CreditCard size={12} color={paymentMethod === 'mercadopago' ? '#fff' : '#9CA3AF'} />
                 <Text style={[styles.paymentText, paymentMethod === 'mercadopago' && styles.paymentTextActive]}>
-                  <CreditCard size={14} /> Tarjeta
+                  Tarjeta
                 </Text>
               </TouchableOpacity>
             </View>
           )}
 
-          {paymentMethod === 'wallet' && walletBalance < totalPrice && (
+          {!walletBalance && (
+            <TouchableOpacity onPress={() => setPaymentMethod('mercadopago')} style={styles.addCardLink}>
+              <Text style={styles.addCardText}>+ Pagar con tarjeta</Text>
+            </TouchableOpacity>
+          )}
+
+          {paymentMethod === 'wallet' && walletBalance > 0 && walletBalance < totalPrice && (
             <View style={styles.insufficientBalance}>
               <Text style={styles.insufficientText}>
                 Saldo insuficiente (${walletBalance.toLocaleString()}).{' '}
@@ -573,64 +711,74 @@ export default function BookingScreen() {
             </View>
           )}
 
-          {isReadyForPayment ? (
-            paymentMethod === 'wallet' && walletBalance >= totalPrice ? (
-              <TouchableOpacity
-                style={[styles.confirmBtn, loading && styles.confirmBtnDisabled]}
-                onPress={handlePaymentWithWallet}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#000" />
-                ) : (
-                  <Text style={styles.confirmBtnText}>Pagar con Billetera</Text>
-                )}
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={[styles.confirmBtn, loading && styles.confirmBtnDisabled]}
-                onPress={handlePaymentSuccess}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#000" />
-                ) : (
-                  <Text style={styles.confirmBtnText}>Pagar con Tarjeta</Text>
-                )}
-              </TouchableOpacity>
-            )
-          ) : (
-            <TouchableOpacity style={[styles.confirmBtn, styles.confirmBtnDisabled]} disabled>
-              <Text style={styles.confirmBtnTextDisabled}>
-                {selectedPets.length === 0 ? 'Selecciona mascota' : 'Completa datos'}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {Platform.OS === 'ios' && showDatePicker && (
-          <DateTimePicker
-            value={date}
-            mode="date"
-            display="spinner"
-            onChange={(event, selectedDate) => {
-              setShowDatePicker(false);
-              if (selectedDate) setDate(selectedDate);
+          <TouchableOpacity
+            style={[styles.confirmBtnFull, (loading || !isReadyForPayment) && styles.confirmBtnDisabled]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              paymentMethod === 'wallet' && walletBalance >= totalPrice ? handlePaymentWithWallet : handlePaymentSuccess;
             }}
-            minimumDate={new Date()}
-          />
+            disabled={!isReadyForPayment || loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#000" />
+            ) : (
+              <Text style={[styles.confirmBtnText, !isReadyForPayment && styles.confirmBtnTextDisabled]}>
+                {paymentMethod === 'wallet' && walletBalance >= totalPrice
+                  ? 'Pagar con Billetera'
+                  : 'Reservar'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
         )}
 
-        {Platform.OS === 'ios' && showTimePicker && (
-          <DateTimePicker
-            value={time}
-            mode="time"
-            display="spinner"
-            onChange={(event, selectedTime) => {
-              setShowTimePicker(false);
-              if (selectedTime) setTime(selectedTime);
-            }}
-          />
+        {showDatePicker && (
+          <View style={styles.pickerOverlay}>
+            <View style={styles.pickerContainer}>
+              <View style={styles.pickerHeader}>
+                <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                  <Text style={styles.pickerCancel}>Cancelar</Text>
+                </TouchableOpacity>
+                <Text style={styles.pickerTitle}>Fecha</Text>
+                <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                  <Text style={styles.pickerDone}>Listo</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                value={date}
+                mode="date"
+                display="spinner"
+                onChange={(event, selectedDate) => {
+                  if (selectedDate) setDate(selectedDate);
+                }}
+                minimumDate={new Date()}
+              />
+            </View>
+          </View>
+        )}
+
+        {showTimePicker && (
+          <View style={styles.pickerOverlay}>
+            <View style={styles.pickerContainer}>
+              <View style={styles.pickerHeader}>
+                <TouchableOpacity onPress={() => setShowTimePicker(false)}>
+                  <Text style={styles.pickerCancel}>Cancelar</Text>
+                </TouchableOpacity>
+                <Text style={styles.pickerTitle}>Hora</Text>
+                <TouchableOpacity onPress={() => setShowTimePicker(false)}>
+                  <Text style={styles.pickerDone}>Listo</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                value={time}
+                mode="time"
+                display="spinner"
+                onChange={(event, selectedTime) => {
+                  if (selectedTime) setTime(selectedTime);
+                }}
+              />
+            </View>
+          </View>
         )}
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -646,21 +794,28 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mapContainer: {
-    height: '35%',
-    minHeight: 280,
+    height: '30%',
+    minHeight: 240,
     width: '100%',
     position: 'relative',
   },
   map: {
     flex: 1,
   },
-  backBtn: {
+  mapHeader: {
     position: 'absolute',
-    top: 60,
-    left: 16,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    top: 12,
+    left: 12,
+    right: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  backBtnCompact: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -670,37 +825,47 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  gpsFloatingBtn: {
-    position: 'absolute',
-    bottom: 20,
-    right: 16,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+  gpsBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  gpsWrapper: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  gpsLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#374151',
+    backgroundColor: '#fff',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
   content: {
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
   scrollContent: {
-    padding: 20,
-    paddingBottom: 280,
+    padding: 16,
+    paddingBottom: 200,
   },
   label: {
     fontSize: 10,
     fontWeight: '900',
     color: '#9CA3AF',
     textTransform: 'uppercase',
-    marginBottom: 12,
-    marginTop: 16,
+    marginBottom: 8,
+    marginTop: 12,
   },
   labelSmall: {
     fontSize: 10,
@@ -710,22 +875,22 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   petsScroll: {
-    marginBottom: 8,
+    marginBottom: 4,
   },
   petButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 2,
     borderColor: '#F3F4F6',
-    marginRight: 12,
+    marginRight: 10,
   },
   petButtonSelected: {
-    borderColor: '#10B981',
+    borderColor: '#0EA5E9',
     backgroundColor: '#ECFDF5',
   },
   petName: {
@@ -734,7 +899,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   petNameSelected: {
-    color: '#059669',
+    color: '#052e05',
   },
   addPetButton: {
     paddingVertical: 12,
@@ -752,12 +917,30 @@ const styles = StyleSheet.create({
   addressInput: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: 14,
     backgroundColor: '#F9FAFB',
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#F3F4F6',
-    gap: 12,
+    gap: 10,
+  },
+  addressInputError: {
+    borderColor: '#FCA5A5',
+    backgroundColor: '#FEF2F2',
+  },
+  searchingIndicator: {
+    marginLeft: 'auto',
+  },
+  addressErrorText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#EF4444',
+    marginTop: 6,
+    marginLeft: 4,
+  },
+  addressInputWrapper: {
+    position: 'relative',
+    zIndex: 100,
   },
   addressText: {
     flex: 1,
@@ -765,12 +948,52 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
   },
+  suggestionsBox: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    marginTop: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 8,
+    overflow: 'hidden',
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  suggestionItemLast: {
+    borderBottomWidth: 0,
+  },
+  suggestionText: {
+    flex: 1,
+  },
+  suggestionMain: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  suggestionSecondary: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
   bookingTypeToggle: {
     flexDirection: 'row',
     backgroundColor: '#F3F4F6',
     borderRadius: 16,
     padding: 4,
-    marginTop: 16,
+    marginTop: 6,
   },
   toggleBtn: {
     flex: 1,
@@ -791,19 +1014,19 @@ const styles = StyleSheet.create({
   },
   dateTimeRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 16,
+    gap: 10,
+    marginTop: 8,
   },
   dateInput: {
     flex: 1,
-    padding: 16,
+    padding: 12,
     backgroundColor: '#F9FAFB',
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#F3F4F6',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   dateInputContent: {
     flex: 1,
@@ -839,18 +1062,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderRadius: 12,
-    marginTop: 16,
-    gap: 8,
+    marginTop: 12,
+    gap: 10,
   },
   availabilityYes: {
     backgroundColor: '#ECFDF5',
     borderWidth: 1,
     borderColor: '#A7F3D0',
-  },
-  availabilityNo: {
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
   },
   availabilityYesText: {
     fontSize: 16,
@@ -858,20 +1076,37 @@ const styles = StyleSheet.create({
   availabilityYesLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#059669',
+    color: '#052e05',
     flex: 1,
   },
   availabilityNoText: {
     fontSize: 16,
   },
-  availabilityNoLabel: {
-    fontSize: 12,
+  noWalkersBox: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  noWalkersIcon: {
+    fontSize: 24,
+  },
+  noWalkersTitle: {
+    fontSize: 13,
     fontWeight: '700',
-    color: '#DC2626',
+    color: '#92400E',
+  },
+  noWalkersSubtitle: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#B45309',
     flex: 1,
   },
   walkerSelection: {
-    marginTop: 16,
+    marginTop: 8,
   },
   nearbyWalkerBtn: {
     flexDirection: 'row',
@@ -885,7 +1120,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   nearbyWalkerSelected: {
-    borderColor: '#10B981',
+    borderColor: '#0EA5E9',
     backgroundColor: '#ECFDF5',
   },
   walkerPlaceholder: {
@@ -902,7 +1137,7 @@ const styles = StyleSheet.create({
   walkerInitial: {
     fontSize: 16,
     fontWeight: '900',
-    color: '#059669',
+    color: '#052e05',
   },
   questionMark: {
     fontSize: 18,
@@ -925,7 +1160,7 @@ const styles = StyleSheet.create({
   checkMark: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#10B981',
+    color: '#0EA5E9',
   },
   durationLabel: {
     fontSize: 10,
@@ -937,18 +1172,18 @@ const styles = StyleSheet.create({
   },
   durationRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
   },
   durationBtn: {
     flex: 1,
-    padding: 16,
-    borderRadius: 16,
+    padding: 14,
+    borderRadius: 14,
     borderWidth: 2,
     borderColor: '#F3F4F6',
     alignItems: 'center',
   },
   durationBtnActive: {
-    borderColor: '#10B981',
+    borderColor: '#0EA5E9',
     backgroundColor: '#ECFDF5',
   },
   durationText: {
@@ -957,7 +1192,7 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   durationTextActive: {
-    color: '#059669',
+    color: '#052e05',
   },
   durationPrice: {
     fontSize: 10,
@@ -966,18 +1201,32 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   durationPriceActive: {
-    color: '#059669',
+    color: '#052e05',
   },
   petCountText: {
     fontSize: 12,
     color: '#6B7280',
     marginTop: 8,
   },
-  spacer: {
-    height: 40,
+bottomPadding: {
+    height: 20,
   },
-  totalSection: {
-    alignItems: 'center',
+  progressHint: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 10,
+  },
+  progressHintText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#166534',
+    textAlign: 'center',
+  },
+  priceContainer: {
+    marginBottom: 12,
   },
   totalLabel: {
     fontSize: 10,
@@ -986,7 +1235,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   totalPrice: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: '900',
     color: '#111827',
   },
@@ -994,21 +1243,50 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
   },
+  confirmBtnFull: {
+    backgroundColor: '#0EA5E9',
+    height: 56,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    shadowColor: '#0EA5E9',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  confirmBtnDisabled: {
+    backgroundColor: '#E5E7EB',
+  },
+  confirmBtnText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#000',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  confirmBtnTextDisabled: {
+    color: '#9CA3AF',
+  },
   paymentToggle: {
     flexDirection: 'row',
     backgroundColor: '#F3F4F6',
     borderRadius: 12,
     padding: 4,
-    marginTop: 16,
+    marginTop: 12,
   },
   paymentBtn: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
   paymentBtnActive: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#0EA5E9',
   },
   paymentBtnMP: {
     backgroundColor: '#3B82F6',
@@ -1038,29 +1316,14 @@ const styles = StyleSheet.create({
   linkText: {
     textDecorationLine: 'underline',
   },
-  confirmBtn: {
-    marginTop: 16,
-    padding: 16,
-    backgroundColor: '#10B981',
-    borderRadius: 16,
+  addCardLink: {
+    marginTop: 8,
     alignItems: 'center',
   },
-  confirmBtnDisabled: {
-    backgroundColor: '#E5E7EB',
-  },
-  confirmBtnText: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#000000',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  confirmBtnTextDisabled: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#9CA3AF',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+  addCardText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0EA5E9',
   },
   fixedBottom: {
     position: 'absolute',
@@ -1077,5 +1340,51 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 8,
+  },
+  fixedBottomCollapsed: {
+    paddingVertical: 0,
+    padding: 16,
+    paddingBottom: 34,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  pickerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+    zIndex: 9999,
+  },
+  pickerContainer: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 40,
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  pickerTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#111827',
+  },
+  pickerCancel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#9CA3AF',
+  },
+  pickerDone: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#0EA5E9',
   },
 });

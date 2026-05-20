@@ -4,7 +4,7 @@ import { corsHeaders } from '../_shared/cors.ts';
 const MERCADOPAGO_API_URL = 'https://api.mercadopago.com/checkout/preferences';
 
 serve(async (req) => {
- 
+  
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -16,12 +16,37 @@ serve(async (req) => {
       throw new Error("Error de configuración del servidor.");
     }
 
-    const { amount, title, email } = await req.json();
+    const body = await req.json();
+    const { amount, title, email, bookingData } = body;
+    
     if (!amount || !title || !email) {
       throw new Error("Se requiere monto, título y email.");
     }
 
     const isWalletRecharge = title && title.includes('Recarga HappiWalk');
+    
+    // Construir external_reference
+    let externalReference;
+    if (isWalletRecharge) {
+      externalReference = 'wallet_recharge';
+    } else if (bookingData) {
+      // Es un booking - guardar todos los datos necesarios para el webhook
+      externalReference = JSON.stringify({
+        type: 'booking',
+        user_id: bookingData.user_id,
+        pet_ids: bookingData.pet_ids,
+        duration: bookingData.duration,
+        address: bookingData.address,
+        lat: bookingData.lat,
+        lng: bookingData.lng,
+        scheduled_date: bookingData.scheduled_date,
+        scheduled_time: bookingData.scheduled_time,
+        total_price: bookingData.total_price,
+        booking_type: bookingData.booking_type || 'now'
+      });
+    } else {
+      externalReference = 'booking_payment';
+    }
     
     const preferencePayload = {
       items: [{
@@ -35,12 +60,13 @@ serve(async (req) => {
         email: email,
       },
       back_urls: {
-        success: "https://www.happiwalk.com/wallet?success=true",
-        failure: "https://www.happiwalk.com/wallet?failed=true",
-        pending: "https://www.happiwalk.com/wallet?pending=true"
+        success: "happiwalk://payment/success",
+        failure: "happiwalk://payment/failure",
+        pending: "happiwalk://payment/pending"
       },
       auto_return: "approved",
-      external_reference: isWalletRecharge ? 'wallet_recharge' : 'booking_payment',
+      notification_url: "https://trmleuxyneucveymqmod.supabase.co/functions/v1/payment-webhook",
+      external_reference: externalReference,
     };
 
     const response = await fetch(MERCADOPAGO_API_URL, {

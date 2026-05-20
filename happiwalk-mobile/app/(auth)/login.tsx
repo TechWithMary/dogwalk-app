@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Dimensions, Alert, Platform } from 'react-native';
+import { useState, useEffect, useRef } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Dimensions, Alert, Platform, Keyboard, TouchableWithoutFeedback, ScrollView, KeyboardAvoidingView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
@@ -19,99 +19,213 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const isNavigating = useRef(false);
+  const hasProcessedOAuth = useRef(false);
+  const deepLinkUrl = Linking.useLinkingURL();
+  const [activeUser, setActiveUser] = useState<any>(null);
+
+  WebBrowser.maybeCompleteAuthSession();
+
+  useEffect(() => {
+    if (deepLinkUrl) {
+      console.log('[DEEP LINK] Received URL:', deepLinkUrl);
+      if (deepLinkUrl.startsWith('happiwalk://login')) {
+        WebBrowser.dismissAuthSession();
+        processOAuthUrl(deepLinkUrl);
+      }
+    }
+  }, [deepLinkUrl]);
+
+  useEffect(() => {
+    if (activeUser && !isNavigating.current) {
+      console.log('[EFFECT] Active user detected, starting navigation...');
+      navigateAfterLogin(activeUser);
+    }
+  }, [activeUser]);
 
   useEffect(() => {
     let authSubscription: any;
-    let linkSubscription: any;
 
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        await handleSuccessfulLogin(session.user);
-        return;
+        console.log('[INIT] Session found, setting active user...');
+        setActiveUser(session.user);
       }
 
-      authSubscription = supabase.auth.onAuthStateChange(async (event, session) => {
+      authSubscription = supabase.auth.onAuthStateChange((event, session) => {
+        console.log('[AUTH EVENT]', event, session ? 'user=' + session.user.id : 'no session');
         if (event === 'SIGNED_IN' && session?.user) {
-          await handleSuccessfulLogin(session.user);
+          console.log('[AUTH EVENT] SIGNED_IN detected, setting active user...');
+          setActiveUser(session.user);
+        } else if (event === 'SIGNED_OUT') {
+          setActiveUser(null);
         }
       }).data.subscription;
-
-      const handleDeepLink = async (event: { url: string }) => {
-        const url = event.url;
-        if (url && (url.includes('access_token') || url.includes('#'))) {
-          const urlObj = new URL(url);
-          
-          const hashParams = new URLSearchParams(urlObj.hash.substring(1));
-          const searchParams = new URLSearchParams(urlObj.search);
-          
-          const accessToken = hashParams.get('access_token') || searchParams.get('access_token');
-          const refreshToken = hashParams.get('refresh_token') || searchParams.get('refresh_token');
-          
-          if (accessToken) {
-            await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken || '',
-            });
-            
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-              await handleSuccessfulLogin(user);
-            }
-          }
-        }
-      };
-
-      linkSubscription = Linking.addEventListener('url', handleDeepLink);
     };
 
     init();
 
     return () => {
       if (authSubscription) authSubscription.unsubscribe();
-      if (linkSubscription) linkSubscription.remove();
     };
   }, []);
 
-  const handleSuccessfulLogin = async (user: any) => {
+  const navigateAfterLogin = async (user: any) => {
+    console.log('[NAVIGATE] Starting for user:', user.id);
+    if (isNavigating.current) {
+      console.log('[NAVIGATE] Already navigating, skipping');
+      return;
+    }
+    isNavigating.current = true;
     setLoading(true);
+
     try {
-      let { data: profile } = await supabase
+      await AsyncStorage.removeItem('oauth_role');
+
+      console.log('[NAVIGATE] Querying profile...');
+      const { data: profile, error } = await supabase
         .from('user_profiles')
-        .select('role, first_name, is_profile_complete')
+        .select('role, is_profile_complete')
         .eq('user_id', user.id)
         .maybeSingle();
 
-      if (!profile) {
-        const pendingRole = await AsyncStorage.getItem('oauth_role') || user.user_metadata?.role || 'owner';
-        await AsyncStorage.removeItem('oauth_role');
-        
-        const metaName = user.user_metadata?.full_name || user.user_metadata?.name || 'Usuario';
-        const nameParts = metaName.trim().split(' ');
-        const fName = nameParts[0] || 'Usuario';
-        const lName = nameParts.slice(1).join(' ') || '';
-        
-        await supabase.from('user_profiles').insert({
-          user_id: user.id,
-          first_name: fName,
-          last_name: lName,
-          role: pendingRole,
-          is_profile_complete: false,
-          profile_photo_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null
-        });
-        
-        router.replace(pendingRole === 'walker' ? '/onboarding-walker' : '/onboarding-owner');
-      } else {
-        if (!profile.is_profile_complete) {
-          router.replace(profile.role === 'walker' ? '/onboarding-walker' : '/onboarding-owner');
-        } else {
-          router.replace('/(tabs)');
-        }
+      if (error) {
+        console.error('[NAVIGATE] Profile query error:', error.message);
       }
-    } catch (error) {
-      console.error(error);
-      router.replace('/(tabs)');
-    } finally {
+
+      let route: string;
+      
+      if (profile) {
+        await AsyncStorage.setItem('cached_profile_role', profile.role);
+        await AsyncStorage.setItem('cached_profile_complete', String(profile.is_profile_complete));
+        route = profile.is_profile_complete
+          ? (profile.role === 'walker' ? '/walker-home' : '/(tabs)')
+          : (profile.role === 'walker' ? '/onboarding-walker' : '/onboarding-owner');
+        console.log('[NAVIGATE] Existing profile, to:', route);
+      } else {
+        const cachedRole = await AsyncStorage.getItem('cached_profile_role');
+        const cachedComplete = await AsyncStorage.getItem('cached_profile_complete') === 'true';
+        if (cachedRole) {
+          console.log('[NAVIGATE] Using cached profile role:', cachedRole);
+          route = cachedComplete
+            ? (cachedRole === 'walker' ? '/walker-home' : '/(tabs)')
+            : (cachedRole === 'walker' ? '/onboarding-walker' : '/onboarding-owner');
+        } else {
+          console.log('[NAVIGATE] No profile found, using default route');
+          route = '/onboarding-owner';
+        }
+        console.log('[NAVIGATE] Default route:', route);
+      }
+      
+      console.log('[NAVIGATE] Navigating to:', route);
+      setLoading(false);
+      
+      setTimeout(() => {
+        router.replace(route);
+        isNavigating.current = false;
+        console.log('[NAVIGATE] Finished');
+      }, 50);
+    } catch (e: any) {
+      console.error('[NAVIGATE ERROR]', e.message);
+      isNavigating.current = false;
+      setLoading(false);
+    }
+  };
+
+  const processOAuthUrl = async (urlString: string) => {
+    if (hasProcessedOAuth.current) {
+      console.log('[OAUTH] Already processed, skipping duplicate');
+      return;
+    }
+    hasProcessedOAuth.current = true;
+
+    console.log('[OAUTH] Processing URL:', urlString.substring(0, 120));
+    try {
+      // Safe string parsing for custom scheme URLs to avoid Hermes 'new URL' issues
+      let code: string | null = null;
+      let accessToken: string | null = null;
+      let refreshToken: string | null = null;
+
+      // Parse query params (e.g. ?code=...)
+      const queryIndex = urlString.indexOf('?');
+      if (queryIndex !== -1) {
+        const queryString = urlString.substring(queryIndex + 1).split('#')[0];
+        const searchParams = new URLSearchParams(queryString);
+        code = searchParams.get('code');
+      }
+
+      // Parse hash params (e.g. #access_token=...)
+      const hashIndex = urlString.indexOf('#');
+      if (hashIndex !== -1) {
+        const hashString = urlString.substring(hashIndex + 1);
+        const hashParams = new URLSearchParams(hashString);
+        accessToken = hashParams.get('access_token');
+        refreshToken = hashParams.get('refresh_token');
+      }
+
+      console.log('[OAUTH] Parsed: code=' + (code ? 'yes' : 'no') + ', token=' + (accessToken ? 'yes' : 'no'));
+
+      if (code) {
+        console.log('[OAUTH] PKCE code found, exchanging...');
+        const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+        if (exchangeError) {
+          console.error('[OAUTH] Exchange error:', exchangeError);
+          Alert.alert('Error', exchangeError.message);
+          setLoading(false);
+        } else if (exchangeData?.session?.user) {
+          console.log('[OAUTH] Exchange success, navigating...');
+          await navigateAfterLogin(exchangeData.session.user);
+        }
+      } else if (accessToken) {
+        console.log('[OAUTH] Access token in hash, setting session...');
+        
+        let sessionUser: any = null;
+        try {
+          const setSessionPromise = supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken || '',
+          });
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('setSession timeout')), 8000);
+          });
+          const { data: sessionData, error: sessionError } = await Promise.race([setSessionPromise, timeoutPromise]) as any;
+          
+          if (sessionError) {
+            console.error('[OAUTH] Set session error:', sessionError);
+          } else if (sessionData?.session?.user) {
+            sessionUser = sessionData.session.user;
+          }
+        } catch (e: any) {
+          console.log('[OAUTH] setSession timed out, decoding JWT...');
+        }
+
+        if (!sessionUser) {
+          try {
+            const payload = JSON.parse(atob(accessToken.split('.')[1]));
+            console.log('[OAUTH] JWT decoded, sub:', payload.sub);
+            sessionUser = { id: payload.sub, user_metadata: payload.user_metadata || {} };
+          } catch (decodeErr) {
+            console.error('[OAUTH] JWT decode failed');
+          }
+        }
+
+        if (sessionUser) {
+          console.log('[OAUTH] Navigating with user:', sessionUser.id);
+          await navigateAfterLogin(sessionUser);
+        } else {
+          Alert.alert('Error', 'No se pudo establecer la sesión');
+          setLoading(false);
+        }
+      } else {
+        console.log('[OAUTH] No code or token in URL');
+        Alert.alert('Error', 'No se recibieron datos de autenticación');
+        setLoading(false);
+      }
+    } catch (e: any) {
+      console.error('[OAUTH] URL processing error:', e.message);
+      Alert.alert('Error', e.message);
       setLoading(false);
     }
   };
@@ -119,10 +233,12 @@ export default function LoginScreen() {
   const handleOAuthLogin = async () => {
     try {
       setLoading(true);
+      hasProcessedOAuth.current = false;
       await AsyncStorage.setItem('oauth_role', roleMode);
-      
-      const redirectUrl = Linking.createURL('login');
-      
+
+      const redirectUrl = 'happiwalk://login';
+      console.log('[OAUTH] Starting with redirect:', redirectUrl);
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -130,46 +246,44 @@ export default function LoginScreen() {
           skipBrowserRedirect: true,
         }
       });
-      
+
       if (error) {
-        Alert.alert('Error', error.message);
+        console.error('[OAUTH] signInWithOAuth error:', error);
+        Alert.alert('Error de Configuración', error.message || 'No se pudo iniciar sesión con Google. Verifica que el provider esté configurado en Supabase.');
         setLoading(false);
         return;
       }
-      
-      if (data?.url) {
-        const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
-        
-        if (result.type === 'success' && result.url) {
-          const url = result.url;
-          const hashIndex = url.indexOf('#');
-          
-          if (hashIndex > 0) {
-            const hash = url.substring(hashIndex + 1);
-            const params = new URLSearchParams(hash);
-            const accessToken = params.get('access_token');
-            const refreshToken = params.get('refresh_token');
-            
-            if (accessToken) {
-              const { error: sessionError } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken || '',
-              });
-              
-              if (!sessionError) {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (user) {
-                  await handleSuccessfulLogin(user);
-                }
-              }
-            }
-          }
+
+      if (!data?.url) {
+        console.error('[OAUTH] No URL returned from signInWithOAuth');
+        Alert.alert('Error', 'No se pudo obtener la URL de autenticación de Google. Revisa la consola para más detalles.');
+        setLoading(false);
+        return;
+      }
+
+      console.log('[OAUTH] Opening auth session... URL:', data.url.substring(0, 100) + '...');
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+      console.log('[OAUTH] Result:', result.type, result.type === 'success' ? result.url?.substring(0, 100) : 'no url');
+
+      if (result.type === 'success' && result.url) {
+        await processOAuthUrl(result.url);
+      } else if (result.type === 'cancel' || result.type === 'dismiss') {
+        console.log('[OAUTH] User cancelled or dismissed');
+        if (!hasProcessedOAuth.current) {
+          setLoading(false);
+        }
+      } else {
+        console.log('[OAUTH] Not success:', result.type);
+        if (!hasProcessedOAuth.current) {
+          setLoading(false);
         }
       }
     } catch (e: any) {
-      console.error('OAuth Error:', e.message);
-    } finally {
-      setLoading(false);
+      console.error('[OAUTH] Error:', e.message);
+      Alert.alert('Error', e.message);
+      if (!hasProcessedOAuth.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -232,152 +346,189 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.headerBg, authMode === 'register' ? { height: height * 0.18 } : { height: height * 0.25 }]}>
-        <Image 
-          source={require('../../assets/login-bg.png')}
-          style={styles.headerImage}
-          resizeMode="cover"
-        />
-      </View>
-
-      <View style={styles.formContainer}>
-        <View style={styles.logoSection}>
-          <View style={styles.logoCircle}>
-            <Dog size={24} color="#000000" />
-          </View>
-          <Text style={styles.title}>HappiWalk</Text>
-        </View>
-
-        {authMode === 'register' && (
-          <View style={styles.roleSelector}>
-            <TouchableOpacity 
-              style={[styles.roleBtn, roleMode === 'owner' && styles.roleBtnActive]}
-              onPress={() => setRoleMode('owner')}
-            >
-              <Text style={[styles.roleBtnText, roleMode === 'owner' && styles.roleBtnTextActive]}>
-                SOY DUEÑO
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.roleBtn, roleMode === 'walker' && styles.roleBtnActive]}
-              onPress={() => setRoleMode('walker')}
-            >
-              <Text style={[styles.roleBtnText, roleMode === 'walker' && styles.roleBtnTextActive]}>
-                SOY PASEADOR
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <View style={styles.form}>
-          {authMode === 'register' && (
-            <View style={styles.inputWrapper}>
-              <View style={styles.inputIconContainer}>
-                <User size={16} color="#9CA3AF" />
-              </View>
-              <TextInput
-                style={styles.input}
-                value={name}
-                onChangeText={setName}
-                placeholder="Nombre Completo"
-                placeholderTextColor="#9CA3AF"
-              />
-            </View>
-          )}
-
-          <View style={styles.inputWrapper}>
-            <View style={styles.inputIconContainer}>
-              <Mail size={16} color="#9CA3AF" />
-            </View>
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="correo@ejemplo.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              placeholderTextColor="#9CA3AF"
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={styles.innerContainer}>
+          <View style={[styles.headerBg, { height: height * 0.28 }]}>
+            <Image
+              source={require('../../assets/login-bg.png')}
+              style={styles.headerImage}
+              resizeMode="cover"
             />
           </View>
 
-          <View style={styles.inputWrapper}>
-            <View style={styles.inputIconContainer}>
-              <Key size={16} color="#9CA3AF" />
-            </View>
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Contraseña"
-              secureTextEntry={!showPass}
-              placeholderTextColor="#9CA3AF"
-            />
-            <TouchableOpacity 
-              style={styles.eyeBtn}
-              onPress={() => setShowPass(!showPass)}
-            >
-              {showPass ? (
-                <EyeOff size={16} color="#9CA3AF" />
-              ) : (
-                <Eye size={16} color="#9CA3AF" />
-              )}
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
-            onPress={handleAuth}
-            disabled={loading}
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.formContainer}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
           >
-            {loading ? (
-              <Loader2 size={16} color="#000000" />
-            ) : (
-              <Text style={styles.submitBtnText}>
-                {authMode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}
-              </Text>
+            <View style={styles.logoSection}>
+              <View style={styles.logoCircle}>
+                <Dog size={24} color="#000000" />
+              </View>
+              <Text style={styles.title}>HappiWalk</Text>
+            </View>
+
+            {authMode === 'register' && (
+              <View style={styles.roleSelector}>
+                <TouchableOpacity
+                  style={[styles.roleBtn, roleMode === 'owner' && styles.roleBtnActive]}
+                  onPress={() => setRoleMode('owner')}
+                >
+                  <Text style={[styles.roleBtnText, roleMode === 'owner' && styles.roleBtnTextActive]}>
+                    SOY DUEÑO
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.roleBtn, roleMode === 'walker' && styles.roleBtnActive]}
+                  onPress={() => setRoleMode('walker')}
+                >
+                  <Text style={[styles.roleBtnText, roleMode === 'walker' && styles.roleBtnTextActive]}>
+                    SOY PASEADOR
+                  </Text>
+                </TouchableOpacity>
+              </View>
             )}
-          </TouchableOpacity>
-        </View>
 
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>O continuar con</Text>
-          <View style={styles.dividerLine} />
-        </View>
+            <View style={styles.form}>
+              {authMode === 'register' && (
+                <View style={styles.inputWrapper}>
+                  <View style={styles.inputIconContainer}>
+                    <User size={16} color="#9CA3AF" />
+                  </View>
+                  <TextInput
+                    style={styles.input}
+                    value={name}
+                    onChangeText={setName}
+                    placeholder="Nombre Completo"
+                    placeholderTextColor="#9CA3AF"
+                    returnKeyType="next"
+                    onFocus={() => scrollViewRef.current?.scrollTo({ y: 100, animated: true })}
+                  />
+                </View>
+              )}
 
-        <TouchableOpacity style={styles.socialBtn} onPress={handleOAuthLogin}>
-          <View style={styles.socialBtnInner}>
-            <GoogleIcon />
-          </View>
-        </TouchableOpacity>
+              <View style={styles.inputWrapper}>
+                <View style={styles.inputIconContainer}>
+                  <Mail size={16} color="#9CA3AF" />
+                </View>
+                <TextInput
+                  style={styles.input}
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="correo@ejemplo.com"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholderTextColor="#9CA3AF"
+                  returnKeyType="next"
+                  onFocus={() => scrollViewRef.current?.scrollTo({ y: 150, animated: true })}
+                />
+              </View>
 
-        <View style={styles.switchMode}>
-          <Text style={styles.switchModeText}>
-            {authMode === 'login' ? '¿Eres nuevo en HappiWalk? ' : '¿Ya eres parte de la familia? '}
-            <Text 
-              style={styles.switchModeLink}
-              onPress={() => {
-                setAuthMode(authMode === 'login' ? 'register' : 'login');
-                setName('');
-              }}
-            >
-              {authMode === 'login' ? 'Regístrate aquí' : 'Inicia Sesión'}
-            </Text>
-          </Text>
-        </View>
+              <View style={styles.inputWrapper}>
+                <View style={styles.inputIconContainer}>
+                  <Key size={16} color="#9CA3AF" />
+                </View>
+                <TextInput
+                  style={styles.input}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Contraseña"
+                  secureTextEntry={!showPass}
+                  placeholderTextColor="#9CA3AF"
+                  returnKeyType="done"
+                  onFocus={() => scrollViewRef.current?.scrollTo({ y: 200, animated: true })}
+                />
+                <TouchableOpacity
+                  style={styles.eyeBtn}
+                  onPress={() => setShowPass(!showPass)}
+                >
+                  {showPass ? (
+                    <EyeOff size={16} color="#9CA3AF" />
+                  ) : (
+                    <Eye size={16} color="#9CA3AF" />
+                  )}
+                </TouchableOpacity>
+              </View>
 
-        <View style={styles.terms}>
-          <Text style={styles.termsText}>
-            Al registrarte aceptas nuestros{' '}
-            <Text style={styles.termsLink} onPress={() => router.push('/terms')}>Términos</Text>
-            {' '}y{' '}
-            <Text style={styles.termsLink} onPress={() => router.push('/privacy')}>Política de Privacidad</Text>
-          </Text>
+              {authMode === 'login' && (
+                <TouchableOpacity onPress={() => router.push('/(auth)/forgot-password')}>
+                  <Text style={styles.forgotPasswordText}>¿Olvidaste tu contraseña?</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
+                onPress={handleAuth}
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 size={16} color="#000000" />
+                ) : (
+                  <Text style={styles.submitBtnText}>
+                    {authMode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>O continuar con</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <TouchableOpacity style={styles.socialBtn} onPress={handleOAuthLogin}>
+              <View style={styles.socialBtnInner}>
+                <GoogleIcon />
+              </View>
+            </TouchableOpacity>
+
+            <View style={styles.switchMode}>
+              <Text style={styles.switchModeText}>
+                {authMode === 'login' ? '¿Eres nuevo en HappiWalk? ' : '¿Ya eres parte de la familia? '}
+                <Text
+                  style={styles.switchModeLink}
+                  onPress={() => {
+                    setAuthMode(authMode === 'login' ? 'register' : 'login');
+                    setName('');
+                  }}
+                >
+                  {authMode === 'login' ? 'Regístrate aquí' : 'Inicia Sesión'}
+                </Text>
+              </Text>
+            </View>
+
+            {authMode === 'register' && (
+              <View style={[styles.terms, { marginTop: -8 }]}>
+                <Text style={styles.termsText}>
+                  Al registrarte aceptas nuestros{' '}
+                  <Text style={styles.termsLink} onPress={() => router.push('/terms')}>Términos</Text>
+                  {' '}y{' '}
+                  <Text style={styles.termsLink} onPress={() => router.push('/privacy')}>Política de Privacidad</Text>
+                </Text>
+              </View>
+            )}
+            
+            {authMode === 'login' && (
+              <View style={styles.copyright}>
+                <Text style={styles.copyrightText}>
+                  © 2025 HappiWalk. Todos los derechos reservados.
+                </Text>
+              </View>
+            )}
+          </ScrollView>
         </View>
-      </View>
-    </View>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -406,6 +557,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  innerContainer: {
+    flex: 1,
+  },
   headerBg: {
     width: '100%',
     backgroundColor: '#111827',
@@ -417,41 +571,37 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   formContainer: {
-    flex: 1,
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     marginTop: -24,
     paddingHorizontal: 24,
-    paddingTop: 20,
+    paddingTop: 32,
+    paddingBottom: 40,
+  },
+  scrollContent: {
     paddingBottom: 20,
-    zIndex: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 10,
   },
   logoSection: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 24,
   },
   logoCircle: {
     backgroundColor: '#13EC13',
-    padding: 8,
-    borderRadius: 12,
+    padding: 12,
+    borderRadius: 16,
     transform: [{ rotate: '3deg' }],
-    marginBottom: 8,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '900',
     color: '#111827',
-    letterSpacing: 0.5,
+    letterSpacing: 1,
     textTransform: 'uppercase',
   },
   roleSelector: {
@@ -484,16 +634,16 @@ const styles = StyleSheet.create({
     color: '#065F46',
   },
   form: {
-    gap: 12,
+    gap: 16,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F9FAFB',
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#F3F4F6',
-    height: 44,
+    height: 52,
     position: 'relative',
   },
   inputIconContainer: {
@@ -514,10 +664,17 @@ const styles = StyleSheet.create({
     right: 12,
     top: 14,
   },
+  forgotPasswordText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#052e05',
+    textAlign: 'right',
+    marginBottom: 16,
+  },
   submitBtn: {
     backgroundColor: '#13EC13',
-    borderRadius: 12,
-    height: 44,
+    borderRadius: 14,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -539,8 +696,8 @@ const styles = StyleSheet.create({
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 24,
-    marginBottom: 16,
+    marginTop: 16,
+    marginBottom: 12,
     gap: 16,
   },
   dividerLine: {
@@ -557,7 +714,7 @@ const styles = StyleSheet.create({
   },
   socialBtn: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   socialBtnInner: {
     width: 40,
@@ -575,8 +732,9 @@ const styles = StyleSheet.create({
   },
   switchMode: {
     alignItems: 'center',
-    marginBottom: 12,
-    paddingBottom: 12,
+    marginBottom: 8,
+    paddingBottom: 8,
+    marginTop: 12,
   },
   switchModeText: {
     fontSize: 12,
@@ -584,13 +742,13 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   switchModeLink: {
-    color: '#059669',
+    color: '#052e05',
     fontWeight: '900',
   },
   terms: {
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
-    paddingTop: 12,
+    paddingTop: 8,
     marginTop: 8,
   },
   termsText: {
@@ -600,8 +758,19 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   termsLink: {
-    color: '#059669',
+    color: '#052e05',
     fontWeight: 'bold',
     textDecorationLine: 'underline',
+  },
+  copyright: {
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    paddingTop: 16,
+    marginTop: 16,
+  },
+  copyrightText: {
+    fontSize: 10,
+    color: '#9CA3AF',
+    textAlign: 'center',
   },
 });

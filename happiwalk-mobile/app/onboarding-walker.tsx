@@ -1,23 +1,152 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Platform } from 'react-native';
+import { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Image, Switch, Platform, Keyboard } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
-import { supabase } from '../lib/supabase';
+import * as ImagePicker from 'expo-image-picker';
+import { File } from 'expo-file-system';
+import { supabase, STORAGE_URL } from '../lib/supabase';
+
+const TOTAL_STEPS = 7;
+
+const DAYS_OF_WEEK = [
+  { id: 1, name: 'Lunes' },
+  { id: 2, name: 'Martes' },
+  { id: 3, name: 'Miércoles' },
+  { id: 4, name: 'Jueves' },
+  { id: 5, name: 'Viernes' },
+  { id: 6, name: 'Sábado' },
+  { id: 0, name: 'Domingo' },
+];
 
 export default function OnboardingWalkerScreen() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [walkerId, setWalkerId] = useState<string | null>(null);
+  const [gettingLocation, setGettingLocation] = useState(false);
+
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
-    bio: '',
+    id_number: '',
+    date_of_birth: '',
     address: '',
+    bio: '',
+    experience_years: '',
+    has_own_dogs: false,
+    price: '30000',
     serviceRadius: '3',
-    price: '30000'
+    bank_account_type: 'nequi',
+    bank_account_number: '',
+    id_document_front: null as string | null,
+    id_document_back: null as string | null,
+    criminal_record_cert: null as string | null,
+    selfie_with_id: null as string | null,
   });
-  const [coords, setCoords] = useState({ lat: null, lng: null });
-  const [gettingLocation, setGettingLocation] = useState(false);
+
+  const [coords, setCoords] = useState({ lat: null as number | null, lng: null as number | null });
+  const [availability, setAvailability] = useState<any[]>([]);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => setKeyboardHeight(e.endCoordinates.height)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardHeight(0)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+  const [newSlot, setNewSlot] = useState({ day_of_week: '1', start_time: '08:00', end_time: '17:00' });
+
+  useEffect(() => {
+    const initData = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: walker } = await supabase.from('walkers').select('*').eq('user_id', user.id).maybeSingle();
+        if (walker) {
+          setWalkerId(walker.id);
+          setFormData(prev => ({
+            ...prev,
+            bio: walker.bio || '',
+            price: String(walker.price || 30000),
+            id_document_front: walker.id_document_front || null,
+            id_document_back: walker.id_document_back || null,
+            criminal_record_cert: walker.criminal_record_cert || null,
+            selfie_with_id: walker.selfie_with_id || null,
+          }));
+          if (walker.service_latitude && walker.service_longitude) {
+            setCoords({ lat: walker.service_latitude, lng: walker.service_longitude });
+          }
+          if (walker.service_radius_km) {
+            setFormData(prev => ({ ...prev, serviceRadius: String(walker.service_radius_km) }));
+          }
+        }
+
+        const { data: profile } = await supabase.from('user_profiles').select('*').eq('user_id', user.id).maybeSingle();
+        if (profile) {
+          setFormData(prev => ({
+            ...prev,
+            name: profile.first_name || '',
+            phone: profile.phone || '',
+            id_number: profile.id_number || '',
+            date_of_birth: profile.date_of_birth || '',
+            address: profile.address || '',
+            experience_years: profile.experience_years ? String(profile.experience_years) : '',
+            has_own_dogs: profile.has_own_dogs || false,
+            bank_account_type: profile.bank_account_type || 'nequi',
+            bank_account_number: profile.bank_account_number || '',
+          }));
+          if (profile.lat && profile.lng && !coords.lat) {
+            setCoords({ lat: profile.lat, lng: profile.lng });
+          }
+        }
+      } catch (error) {
+        console.error('Error cargando datos', error);
+        Alert.alert('Error', 'No se pudieron cargar tus datos. Intenta de nuevo.');
+      }
+    };
+    initData();
+  }, []);
+
+  useEffect(() => {
+    if (walkerId) {
+      fetchAvailability();
+    }
+  }, [walkerId]);
+
+  const fetchAvailability = async () => {
+    if (!walkerId) return;
+    try {
+      const { data, error } = await supabase
+        .from('walker_availability')
+        .select('*')
+        .eq('walker_id', walkerId)
+        .order('day_of_week', { ascending: true })
+        .order('start_time', { ascending: true });
+      if (error) throw error;
+      setAvailability(data || []);
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'No se pudo cargar la disponibilidad. Intenta de nuevo.');
+    }
+  };
+
+  const calculateAge = (birthday: string) => {
+    if (!birthday) return null;
+    const ageDifMs = Date.now() - new Date(birthday).getTime();
+    const ageDate = new Date(ageDifMs);
+    return Math.abs(ageDate.getUTCFullYear() - 1970);
+  };
 
   const handleCurrentLocation = async () => {
     try {
@@ -27,25 +156,15 @@ export default function OnboardingWalkerScreen() {
         Alert.alert('Permiso denegado', 'Activa el GPS');
         return;
       }
-
       const position = await Location.getCurrentPositionAsync({});
       const { latitude, longitude } = position.coords;
-      
       setCoords({ lat: latitude, lng: longitude });
-      
-      const [addressResult] = await Location.reverseGeocodeAsync({
-        latitude,
-        longitude
-      });
-      
+      const [addressResult] = await Location.reverseGeocodeAsync({ latitude, longitude });
       if (addressResult) {
         const fullAddress = [
-          addressResult.street,
-          addressResult.streetNumber,
-          addressResult.district,
-          addressResult.city
+          addressResult.street, addressResult.streetNumber, addressResult.district, addressResult.city
         ].filter(Boolean).join(', ');
-        setFormData({ ...formData, address: fullAddress });
+        setFormData(prev => ({ ...prev, address: fullAddress }));
       }
     } catch (error) {
       Alert.alert('Error', 'No se pudo obtener la ubicación');
@@ -54,22 +173,59 @@ export default function OnboardingWalkerScreen() {
     }
   };
 
-  const handleComplete = async () => {
-    if (!formData.name.trim()) {
-      Alert.alert('Error', 'Ingresa tu nombre');
-      return;
+  const pickDocument = async (field: 'id_document_front' | 'id_document_back' | 'selfie_with_id' | 'criminal_record_cert', cameraType: 'camera' | 'gallery') => {
+    try {
+      let result;
+      if (cameraType === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') { Alert.alert('Permiso requerido', 'Activa la cámara'); return; }
+        result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.8 });
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') { Alert.alert('Permiso requerido', 'Activa la galería'); return; }
+        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.8 });
+      }
+      if (!result.canceled && result.assets[0]) {
+        await uploadDocument(result.assets[0].uri, field);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo seleccionar la imagen');
     }
-    if (!formData.phone.trim()) {
-      Alert.alert('Error', 'Ingresa tu número de teléfono');
-      return;
-    }
-    if (!coords.lat || !coords.lng) {
-      Alert.alert('Error', 'Selecciona tu ubicación');
-      return;
-    }
+  };
 
+  const uploadDocument = async (uri: string, field: string) => {
     setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No hay usuario');
 
+      const file = new File(uri);
+      const byteArray = await file.bytes();
+
+      if (!byteArray || byteArray.length === 0) {
+        throw new Error('El archivo está vacío');
+      }
+
+      const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = `${user.id}_${field}_${Date.now()}.${fileExt}`;
+
+      const { error: uploadError, data } = await supabase.storage
+        .from('walker_documents')
+        .upload(fileName, byteArray, { contentType: 'image/jpeg', cacheControl: '3600' });
+
+      if (uploadError) throw uploadError;
+
+      setFormData(prev => ({ ...prev, [field]: data.path }));
+      Alert.alert('Éxito', 'Documento subido');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'No se pudo subir el documento');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveStep = async () => {
+    setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuario no encontrado');
@@ -78,39 +234,98 @@ export default function OnboardingWalkerScreen() {
       const firstName = nameParts[0] || '';
       const lastName = nameParts.slice(1).join(' ') || '';
 
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .update({
-          first_name: firstName,
-          last_name: lastName,
-          phone: formData.phone,
-          address: formData.address,
-          lat: coords.lat,
-          lng: coords.lng,
-          is_profile_complete: true
-        })
-        .eq('user_id', user.id);
+      const profileData: any = {
+        user_id: user.id,
+        first_name: firstName,
+        last_name: lastName,
+        phone: formData.phone,
+        id_number: formData.id_number,
+        date_of_birth: formData.date_of_birth,
+        address: formData.address,
+        lat: coords.lat,
+        lng: coords.lng,
+        experience_years: formData.experience_years ? parseInt(formData.experience_years) : 0,
+        has_own_dogs: formData.has_own_dogs,
+        bank_account_type: formData.bank_account_type,
+        bank_account_number: formData.bank_account_number,
+        role: 'walker',
+      };
 
+      const cleanProfileData = Object.fromEntries(Object.entries(profileData).filter(([_, v]) => v !== '' && v !== null && v !== undefined));
+      const { error: profileError } = await supabase.from('user_profiles').upsert(cleanProfileData, { onConflict: 'user_id' });
       if (profileError) throw profileError;
 
-      const { error: walkerError } = await supabase
+      const walkerData: any = {
+        user_id: user.id,
+        name: formData.name || 'Paseador',
+        bio: formData.bio,
+        price: parseInt(formData.price || '30000'),
+        service_latitude: coords.lat,
+        service_longitude: coords.lng,
+        service_radius_km: parseInt(formData.serviceRadius || '3'),
+        id_document_front: formData.id_document_front,
+        id_document_back: formData.id_document_back,
+        criminal_record_cert: formData.criminal_record_cert,
+        selfie_with_id: formData.selfie_with_id,
+      };
+
+      const { data: updatedWalker, error: walkerError } = await supabase
         .from('walkers')
-        .insert({
-          user_id: user.id,
-          name: formData.name,
-          bio: formData.bio,
-          service_latitude: coords.lat,
-          service_longitude: coords.lng,
-          service_radius_km: parseInt(formData.serviceRadius),
-          price: parseInt(formData.price),
-          overall_verification_status: 'pending'
-        });
+        .upsert(walkerData, { onConflict: 'user_id' })
+        .select()
+        .single();
 
       if (walkerError) throw walkerError;
+      setWalkerId(updatedWalker.id);
+      setStep(prev => prev + 1);
+    } catch (error: any) {
+      Alert.alert('Error al guardar', error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      Alert.alert('Éxito', '¡Tu perfil de paseador ha sido creado!正在审核中。');
-      router.replace('/(tabs)');
+  const handleAddSlot = async () => {
+    if (!walkerId) return;
+    if (newSlot.start_time >= newSlot.end_time) {
+      Alert.alert('Error', 'La hora de fin debe ser después del inicio');
+      return;
+    }
+    try {
+      const { error } = await supabase.from('walker_availability').insert([{
+        walker_id: walkerId,
+        day_of_week: parseInt(newSlot.day_of_week),
+        start_time: newSlot.start_time,
+        end_time: newSlot.end_time,
+      }]);
+      if (error) {
+        if (error.code === '23505') { Alert.alert('Error', 'Este horario ya existe'); return; }
+        throw error;
+      }
+      Alert.alert('Éxito', 'Horario agregado');
+      await fetchAvailability();
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'No se pudo agregar');
+    }
+  };
 
+  const handleDeleteSlot = async (slotId: string) => {
+    try {
+      const { error } = await supabase.from('walker_availability').delete().eq('id', slotId);
+      if (error) throw error;
+      await fetchAvailability();
+    } catch (err) {
+      Alert.alert('Error', 'No se pudo eliminar');
+    }
+  };
+
+  const handleComplete = async () => {
+    setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from('user_profiles').update({ is_profile_complete: true }).eq('user_id', user?.id);
+      Alert.alert('¡Todo Listo!', 'Tu perfil entrará en revisión. Te notificaremos cuando puedas empezar.');
+      router.replace('/walker-home');
     } catch (error: any) {
       Alert.alert('Error', error.message);
     } finally {
@@ -118,314 +333,395 @@ export default function OnboardingWalkerScreen() {
     }
   };
 
-  return (
-    <View style={styles.container}>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <View style={styles.logoCircle}>
-            <Text style={styles.logoIcon}>🚶</Text>
-          </View>
-          <Text style={styles.title}>¡Conviértete en Paseador!</Text>
-          <Text style={styles.subtitle}>Completa tu perfil para comenzar</Text>
+  const ProgressBar = () => (
+    <View style={styles.progressContainer}>
+      <View style={styles.progressHeader}>
+        <Text style={styles.progressText}>Paso {step} de {TOTAL_STEPS}</Text>
+        <Text style={styles.progressText}>{Math.round((step / TOTAL_STEPS) * 100)}%</Text>
+      </View>
+      <View style={styles.progressBarBg}>
+        <View style={[styles.progressBarFill, { width: `${(step / TOTAL_STEPS) * 100}%` }]} />
+      </View>
+    </View>
+  );
+
+  const DocumentCard = ({ label, value, onCamera, onGallery }: { label: string; value: string | null; onCamera: () => void; onGallery: () => void }) => (
+    <View style={styles.docCard}>
+      <View style={styles.docHeader}>
+        <Text style={styles.docLabel}>{label}</Text>
+        {value && <Text style={styles.docCheck}>✓</Text>}
+      </View>
+      {value ? (
+        <View style={styles.docPreview}>
+          <Image source={{ uri: `${STORAGE_URL}walker_documents/${value}` }} style={styles.docImage} resizeMode="cover" />
+          <TouchableOpacity style={styles.docRetake} onPress={onCamera}>
+            <Text style={styles.docRetakeText}>📷 Re-tomar</Text>
+          </TouchableOpacity>
         </View>
+      ) : (
+        <View style={styles.docButtons}>
+          <TouchableOpacity style={styles.docBtn} onPress={onCamera}>
+            <Text style={styles.docBtnText}>📷 Cámara</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.docBtn} onPress={onGallery}>
+            <Text style={styles.docBtnText}>🖼️ Galería</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
 
-        <View style={styles.form}>
-          <View style={styles.formSection}>
-            <Text style={styles.label}>Nombre completo *</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.name}
-              onChangeText={(text) => setFormData({ ...formData, name: text })}
-              placeholder="Tu nombre"
-              placeholderTextColor="#9CA3AF"
-            />
-          </View>
+  const canProceed = () => {
+    switch (step) {
+      case 1: return formData.name.trim() && formData.phone.trim() && formData.id_number.trim() && formData.date_of_birth && formData.address.trim() && coords.lat && coords.lng;
+      case 2: return formData.id_document_front !== null;
+      case 3: return formData.bio.trim();
+      case 4: return formData.bank_account_number.trim();
+      case 5: return true;
+      case 6: return true;
+      default: return true;
+    }
+  };
 
-          <View style={styles.formSection}>
-            <Text style={styles.label}>Teléfono *</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.phone}
-              onChangeText={(text) => setFormData({ ...formData, phone: text })}
-              placeholder="300 123 4567"
-              keyboardType="phone-pad"
-              placeholderTextColor="#9CA3AF"
-            />
-          </View>
+  return (
+    <SafeAreaView style={styles.container}>
+      <ProgressBar />
+      <ScrollView
+        ref={scrollViewRef}
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        contentContainerStyle={{ padding: 20, paddingBottom: keyboardHeight + 100 }}
+      >
 
-          <View style={styles.formSection}>
-            <Text style={styles.label}>Tu zona de servicio *</Text>
-            <View style={styles.addressInput}>
-              <Text style={styles.mapPinIcon}>📍</Text>
-              <TextInput
-                style={styles.addressTextInput}
-                value={formData.address}
-                onChangeText={(text) => setFormData({ ...formData, address: text })}
-                placeholder="Tu dirección"
-                placeholderTextColor="#9CA3AF"
-              />
-              <TouchableOpacity 
-                style={styles.locationBtn}
-                onPress={handleCurrentLocation}
-                disabled={gettingLocation}
-              >
-                <Text style={styles.locationIcon}>{gettingLocation ? '⏳' : '📍'}</Text>
+        {step === 1 && (
+          <View style={styles.stepContainer}>
+            <View style={styles.stepHeader}>
+              <Text style={styles.stepEmoji}>👤</Text>
+              <Text style={styles.stepTitle}>Datos Personales</Text>
+              <Text style={styles.stepSubtitle}>Queremos conocerte mejor</Text>
+            </View>
+
+            <View style={styles.formCard}>
+              <Text style={styles.label}>Nombre completo *</Text>
+              <TextInput style={styles.input} value={formData.name} onChangeText={t => setFormData(p => ({ ...p, name: t }))} placeholder="Tu nombre" placeholderTextColor="#9CA3AF" />
+
+              <Text style={styles.label}>Teléfono *</Text>
+              <TextInput style={styles.input} value={formData.phone} onChangeText={t => setFormData(p => ({ ...p, phone: t }))} placeholder="300 123 4567" keyboardType="phone-pad" placeholderTextColor="#9CA3AF" />
+
+              <Text style={styles.label}>Cédula de Ciudadanía *</Text>
+              <TextInput style={styles.input} value={formData.id_number} onChangeText={t => setFormData(p => ({ ...p, id_number: t }))} placeholder="Número de documento" keyboardType="number-pad" placeholderTextColor="#9CA3AF" />
+
+              <Text style={styles.label}>Fecha de Nacimiento *</Text>
+              <TextInput style={styles.input} value={formData.date_of_birth} onChangeText={t => setFormData(p => ({ ...p, date_of_birth: t }))} placeholder="YYYY-MM-DD" placeholderTextColor="#9CA3AF" />
+
+              <Text style={styles.label}>Dirección (Usa el GPS) *</Text>
+              <View style={styles.addressInput}>
+                <TextInput style={styles.addressTextInput} value={formData.address} onChangeText={t => setFormData(p => ({ ...p, address: t }))} placeholder="Tu dirección" placeholderTextColor="#9CA3AF" />
+                <TouchableOpacity onPress={handleCurrentLocation} disabled={gettingLocation}>
+                  <Text style={styles.locationIcon}>{gettingLocation ? '⏳' : '📍'}</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity style={[styles.primaryBtn, !canProceed() && styles.btnDisabled]} onPress={handleSaveStep} disabled={!canProceed() || loading}>
+                <Text style={styles.primaryBtnText}>{loading ? 'Guardando...' : 'Continuar →'}</Text>
               </TouchableOpacity>
             </View>
           </View>
+        )}
 
-          <View style={styles.formSection}>
-            <Text style={styles.label}>Radio de servicio (km)</Text>
-            <View style={styles.radiusOptions}>
-              {['2', '3', '5', '10'].map((r) => (
-                <TouchableOpacity 
-                  key={r}
-                  style={[styles.radiusBtn, formData.serviceRadius === r && styles.radiusBtnActive]}
-                  onPress={() => setFormData({ ...formData, serviceRadius: r })}
-                >
-                  <Text style={[styles.radiusText, formData.serviceRadius === r && styles.radiusTextActive]}>
-                    {r} km
-                  </Text>
+        {step === 2 && (
+          <View style={styles.stepContainer}>
+            <View style={styles.stepHeader}>
+              <Text style={styles.stepEmoji}>🛡️</Text>
+              <Text style={styles.stepTitle}>Verificación</Text>
+              <Text style={styles.stepSubtitle}>Sube tus documentos</Text>
+            </View>
+
+            <View style={styles.formCard}>
+              <DocumentCard label="Cédula (Frente)" value={formData.id_document_front} onCamera={() => pickDocument('id_document_front', 'camera')} onGallery={() => pickDocument('id_document_front', 'gallery')} />
+              <DocumentCard label="Cédula (Reverso)" value={formData.id_document_back} onCamera={() => pickDocument('id_document_back', 'camera')} onGallery={() => pickDocument('id_document_back', 'gallery')} />
+              <DocumentCard label="Selfie con Cédula" value={formData.selfie_with_id} onCamera={() => pickDocument('selfie_with_id', 'camera')} onGallery={() => pickDocument('selfie_with_id', 'gallery')} />
+              <DocumentCard label="Antecedentes Judiciales" value={formData.criminal_record_cert} onCamera={() => pickDocument('criminal_record_cert', 'camera')} onGallery={() => pickDocument('criminal_record_cert', 'gallery')} />
+
+              <View style={styles.navButtons}>
+                <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(1)}>
+                  <Text style={styles.secondaryBtnText}>Atrás</Text>
                 </TouchableOpacity>
-              ))}
+                <TouchableOpacity style={[styles.primaryBtn, !canProceed() && styles.btnDisabled]} onPress={handleSaveStep} disabled={!canProceed() || loading}>
+                  <Text style={styles.primaryBtnText}>{loading ? 'Guardando...' : 'Continuar'}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
+        )}
 
-          <View style={styles.formSection}>
-            <Text style={styles.label}>Precio por hora</Text>
-            <View style={styles.priceOptions}>
-              {['25000', '30000', '35000', '40000'].map((p) => (
-                <TouchableOpacity 
-                  key={p}
-                  style={[styles.priceBtn, formData.price === p && styles.priceBtnActive]}
-                  onPress={() => setFormData({ ...formData, price: p })}
-                >
-                  <Text style={[styles.priceText, formData.price === p && styles.priceTextActive]}>
-                    ${parseInt(p).toLocaleString('es-CO')}
-                  </Text>
+        {step === 3 && (
+          <View style={styles.stepContainer}>
+            <View style={styles.stepHeader}>
+              <Text style={styles.stepEmoji}>💼</Text>
+              <Text style={styles.stepTitle}>Tu Experiencia</Text>
+              <Text style={styles.stepSubtitle}>Cuéntanos sobre ti</Text>
+            </View>
+
+            <View style={styles.formCard}>
+              <Text style={styles.label}>Sobre ti / Biografía *</Text>
+              <TextInput style={[styles.input, styles.textArea]} value={formData.bio} onChangeText={t => setFormData(p => ({ ...p, bio: t }))} placeholder="Cuéntanos por qué eres el mejor paseador..." multiline numberOfLines={4} placeholderTextColor="#9CA3AF" />
+
+              <View style={styles.row}>
+                <View style={styles.half}>
+                  <Text style={styles.label}>Años Exp.</Text>
+                  <TextInput style={styles.input} value={formData.experience_years} onChangeText={t => setFormData(p => ({ ...p, experience_years: t }))} placeholder="0" keyboardType="number-pad" placeholderTextColor="#9CA3AF" />
+                </View>
+                <View style={styles.half}>
+                  <Text style={styles.label}>Precio x Hora</Text>
+                  <View style={styles.priceOptions}>
+                    {['25000', '30000', '35000', '40000'].map(p => (
+                      <TouchableOpacity key={p} style={[styles.priceBtn, formData.price === p && styles.priceBtnActive]} onPress={() => setFormData(prev => ({ ...prev, price: p }))}>
+                        <Text style={[styles.priceText, formData.price === p && styles.priceTextActive]}>${parseInt(p).toLocaleString('es-CO')}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.switchRow}>
+                <Text style={styles.switchLabel}>Tengo mascotas propias</Text>
+                <Switch value={formData.has_own_dogs} onValueChange={v => setFormData(p => ({ ...p, has_own_dogs: v }))} trackColor={{ false: '#E5E7EB', true: '#13ec13' }} thumbColor={formData.has_own_dogs ? '#FFFFFF' : '#FFFFFF'} />
+              </View>
+
+              <View style={styles.navButtons}>
+                <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(2)}>
+                  <Text style={styles.secondaryBtnText}>Atrás</Text>
                 </TouchableOpacity>
-              ))}
+                <TouchableOpacity style={[styles.primaryBtn, !canProceed() && styles.btnDisabled]} onPress={handleSaveStep} disabled={!canProceed() || loading}>
+                  <Text style={styles.primaryBtnText}>{loading ? 'Guardando...' : 'Continuar'}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
+        )}
 
-          <View style={styles.formSection}>
-            <Text style={styles.label}>Cuéntanos sobre ti (opcional)</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={formData.bio}
-              onChangeText={(text) => setFormData({ ...formData, bio: text })}
-              placeholder="Experiencia con perros, disponibilidad, etc."
-              multiline
-              numberOfLines={3}
-              placeholderTextColor="#9CA3AF"
-            />
+        {step === 4 && (
+          <View style={styles.stepContainer}>
+            <View style={styles.stepHeader}>
+              <Text style={styles.stepEmoji}>💳</Text>
+              <Text style={styles.stepTitle}>Datos de Pago</Text>
+              <Text style={styles.stepSubtitle}>Cómo recibirás tus ganancias</Text>
+            </View>
+
+            <View style={styles.formCard}>
+              <View style={styles.row}>
+                <TouchableOpacity style={[styles.typeBtn, formData.bank_account_type === 'nequi' && styles.typeBtnActive]} onPress={() => setFormData(p => ({ ...p, bank_account_type: 'nequi' }))}>
+                  <Text style={[styles.typeText, formData.bank_account_type === 'nequi' && styles.typeTextActive]}>Nequi</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.typeBtn, formData.bank_account_type === 'banco' && styles.typeBtnActive]} onPress={() => setFormData(p => ({ ...p, bank_account_type: 'banco' }))}>
+                  <Text style={[styles.typeText, formData.bank_account_type === 'banco' && styles.typeTextActive]}>Cuenta Banco</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.label}>Número de Cuenta o Celular *</Text>
+              <TextInput style={styles.input} value={formData.bank_account_number} onChangeText={t => setFormData(p => ({ ...p, bank_account_number: t }))} placeholder="Escribe el número" keyboardType="phone-pad" placeholderTextColor="#9CA3AF" />
+
+              <View style={styles.navButtons}>
+                <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(3)}>
+                  <Text style={styles.secondaryBtnText}>Atrás</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.primaryBtn, !canProceed() && styles.btnDisabled]} onPress={handleSaveStep} disabled={!canProceed() || loading}>
+                  <Text style={styles.primaryBtnText}>{loading ? 'Guardando...' : 'Continuar'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
+        )}
 
-          <View style={styles.infoBox}>
-            <Text style={styles.infoIcon}>ℹ️</Text>
-            <Text style={styles.infoText}>
-              Tu perfil será revisado por nuestro equipo. Te notificaremos cuando estés habilitado para recibir paseos.
-            </Text>
+        {step === 5 && (
+          <View style={styles.stepContainer}>
+            <View style={styles.stepHeader}>
+              <Text style={styles.stepEmoji}>📍</Text>
+              <Text style={styles.stepTitle}>Tu Zona</Text>
+              <Text style={styles.stepSubtitle}>Define tu radio de cobertura</Text>
+            </View>
+
+            <View style={styles.formCard}>
+              <Text style={styles.label}>Radio de servicio (km)</Text>
+              <View style={styles.radiusOptions}>
+                {['2', '3', '5', '10', '15', '20'].map(r => (
+                  <TouchableOpacity key={r} style={[styles.radiusBtn, formData.serviceRadius === r && styles.radiusBtnActive]} onPress={() => setFormData(p => ({ ...p, serviceRadius: r }))}>
+                    <Text style={[styles.radiusText, formData.serviceRadius === r && styles.radiusTextActive]}>{r} km</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TouchableOpacity style={styles.gpsBtn} onPress={handleCurrentLocation} disabled={gettingLocation}>
+                <Text style={styles.gpsBtnText}>{gettingLocation ? 'Obteniendo...' : '📍 Usar mi ubicación actual'}</Text>
+              </TouchableOpacity>
+
+              {coords.lat && (
+                <Text style={styles.coordsText}>Lat: {coords.lat?.toFixed(4)}, Lng: {coords.lng?.toFixed(4)}</Text>
+              )}
+
+              <View style={styles.navButtons}>
+                <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(4)}>
+                  <Text style={styles.secondaryBtnText}>Atrás</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.primaryBtn} onPress={handleSaveStep} disabled={loading}>
+                  <Text style={styles.primaryBtnText}>{loading ? 'Guardando...' : 'Continuar'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
+        )}
 
-          <TouchableOpacity 
-            style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
-            onPress={handleComplete}
-            disabled={loading}
-          >
-            <Text style={styles.submitBtnText}>
-              {loading ? '⏳' : 'Completar Perfil'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {step === 6 && (
+          <View style={styles.stepContainer}>
+            <View style={styles.stepHeader}>
+              <Text style={styles.stepEmoji}>📅</Text>
+              <Text style={styles.stepTitle}>Tu Horario</Text>
+              <Text style={styles.stepSubtitle}>Selecciona tus días disponibles</Text>
+            </View>
+
+            <View style={styles.formCard}>
+              <Text style={styles.label}>Día</Text>
+              <View style={styles.dayRow}>
+                {DAYS_OF_WEEK.map(d => (
+                  <TouchableOpacity key={d.id} style={[styles.dayBtn, newSlot.day_of_week === String(d.id) && styles.dayBtnActive]} onPress={() => setNewSlot(p => ({ ...p, day_of_week: String(d.id) }))}>
+                    <Text style={[styles.dayText, newSlot.day_of_week === String(d.id) && styles.dayTextActive]}>{d.name.slice(0, 3)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.half}>
+                  <Text style={styles.label}>Inicio</Text>
+                  <TextInput style={styles.input} value={newSlot.start_time} onChangeText={t => setNewSlot(p => ({ ...p, start_time: t }))} placeholder="08:00" placeholderTextColor="#9CA3AF" />
+                </View>
+                <View style={styles.half}>
+                  <Text style={styles.label}>Fin</Text>
+                  <TextInput style={styles.input} value={newSlot.end_time} onChangeText={t => setNewSlot(p => ({ ...p, end_time: t }))} placeholder="17:00" placeholderTextColor="#9CA3AF" />
+                </View>
+              </View>
+
+              <TouchableOpacity style={styles.addBtn} onPress={handleAddSlot}>
+                <Text style={styles.addBtnText}>+ Agregar Horario</Text>
+              </TouchableOpacity>
+
+              <View style={styles.slotList}>
+                {availability.map(slot => {
+                  const day = DAYS_OF_WEEK.find(d => d.id === slot.day_of_week)?.name;
+                  return (
+                    <View key={slot.id} style={styles.slotItem}>
+                      <Text style={styles.slotText}>{day}: {slot.start_time?.slice(0, 5)} - {slot.end_time?.slice(0, 5)}</Text>
+                      <TouchableOpacity onPress={() => handleDeleteSlot(slot.id)}>
+                        <Text style={styles.slotDelete}>🗑️</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </View>
+
+              <View style={styles.navButtons}>
+                <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(5)}>
+                  <Text style={styles.secondaryBtnText}>Atrás</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.primaryBtn} onPress={() => setStep(7)}>
+                  <Text style={styles.primaryBtnText}>Continuar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {step === 7 && (
+          <View style={styles.stepContainer}>
+            <View style={styles.successBox}>
+              <Text style={styles.successEmoji}>✅</Text>
+              <Text style={styles.successTitle}>¡Todo Listo!</Text>
+              <Text style={styles.successText}>Tu perfil entrará en revisión. Te notificaremos cuando puedas empezar a recibir paseos.</Text>
+              <TouchableOpacity style={styles.primaryBtn} onPress={handleComplete} disabled={loading}>
+                <Text style={styles.primaryBtnText}>{loading ? '...' : 'Ir a mi Panel'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  content: {
-    flex: 1,
-    padding: 24,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#D1FAE5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  logoIcon: {
-    fontSize: 40,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#111827',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  subtitle: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: '#9CA3AF',
-    textTransform: 'uppercase',
-    marginTop: 4,
-    letterSpacing: 2,
-  },
-  form: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 24,
-  },
-  formSection: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: '#9CA3AF',
-    textTransform: 'uppercase',
-    marginBottom: 8,
-    marginLeft: 4,
-  },
-  input: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111827',
-    borderWidth: 2,
-    borderColor: '#F3F4F6',
-  },
-  textArea: {
-    height: 80,
-    textAlignVertical: 'top',
-  },
-  addressInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: '#F3F4F6',
-  },
-  mapPinIcon: {
-    fontSize: 18,
-    marginRight: 12,
-  },
-  addressTextInput: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  locationBtn: {
-    padding: 4,
-  },
-  locationIcon: {
-    fontSize: 20,
-  },
-  radiusOptions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  radiusBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  radiusBtnActive: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#10B981',
-  },
-  radiusText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#9CA3AF',
-  },
-  radiusTextActive: {
-    color: '#059669',
-  },
-  priceOptions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  priceBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  priceBtnActive: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#10B981',
-  },
-  priceText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#9CA3AF',
-  },
-  priceTextActive: {
-    color: '#059669',
-  },
-  infoBox: {
-    flexDirection: 'row',
-    backgroundColor: '#DBEAFE',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#93C5FD',
-  },
-  infoIcon: {
-    fontSize: 18,
-    marginRight: 12,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 12,
-    color: '#1E40AF',
-    lineHeight: 18,
-  },
-  submitBtn: {
-    backgroundColor: '#10B981',
-    borderRadius: 24,
-    paddingVertical: 20,
-    alignItems: 'center',
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  submitBtnDisabled: {
-    opacity: 0.6,
-  },
-  submitBtnText: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    textTransform: 'uppercase',
-    letterSpacing: 2,
-  },
+  container: { flex: 1, backgroundColor: '#111827' },
+  content: { flex: 1, padding: 20 },
+  progressContainer: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8, backgroundColor: '#111827', borderBottomWidth: 1, borderBottomColor: '#374151' },
+  progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  progressText: { fontSize: 11, fontWeight: '800', color: '#6B7280', textTransform: 'uppercase' },
+  progressBarBg: { height: 4, backgroundColor: '#374151', borderRadius: 2 },
+  progressBarFill: { height: 4, backgroundColor: '#13ec13', borderRadius: 2 },
+  stepContainer: { paddingBottom: 40 },
+  stepHeader: { alignItems: 'center', marginVertical: 24 },
+  stepEmoji: { fontSize: 40, marginBottom: 8 },
+  stepTitle: { fontSize: 22, fontWeight: '900', color: '#FFFFFF', textTransform: 'uppercase', letterSpacing: 1 },
+  stepSubtitle: { fontSize: 10, fontWeight: '900', color: '#9CA3AF', textTransform: 'uppercase', marginTop: 4, letterSpacing: 2 },
+  formCard: { backgroundColor: '#1F2937', borderRadius: 24, padding: 20, gap: 16 },
+  label: { fontSize: 10, fontWeight: '900', color: '#6B7280', textTransform: 'uppercase', marginBottom: 6, marginLeft: 4 },
+  input: { backgroundColor: '#374151', borderRadius: 16, padding: 16, fontSize: 14, fontWeight: '700', color: '#FFFFFF', borderWidth: 2, borderColor: 'transparent' },
+  textArea: { height: 100, textAlignVertical: 'top' },
+  row: { flexDirection: 'row', gap: 12 },
+  half: { flex: 1 },
+  addressInput: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#374151', borderRadius: 16, padding: 16, borderWidth: 2, borderColor: 'transparent' },
+  addressTextInput: { flex: 1, fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
+  locationIcon: { fontSize: 20, marginLeft: 8 },
+  primaryBtn: { backgroundColor: '#13ec13', borderRadius: 24, paddingVertical: 18, alignItems: 'center', marginTop: 8 },
+  primaryBtnText: { fontSize: 13, fontWeight: '900', color: '#052e05', textTransform: 'uppercase', letterSpacing: 1 },
+  secondaryBtn: { backgroundColor: '#374151', borderRadius: 24, paddingVertical: 18, alignItems: 'center', flex: 1 },
+  secondaryBtnText: { fontSize: 12, fontWeight: '900', color: '#FFFFFF', textTransform: 'uppercase', letterSpacing: 1 },
+  btnDisabled: { opacity: 0.5 },
+  navButtons: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  docCard: { backgroundColor: '#1F2937', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 2, borderColor: 'transparent' },
+  docHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+  docLabel: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
+  docCheck: { fontSize: 16, color: '#13ec13' },
+  docPreview: { alignItems: 'center' },
+  docImage: { width: '100%', height: 160, borderRadius: 12, marginBottom: 8 },
+  docRetake: { padding: 8 },
+  docRetakeText: { fontSize: 12, fontWeight: '700', color: '#13ec13' },
+  docButtons: { flexDirection: 'row', gap: 12 },
+  docBtn: { flex: 1, backgroundColor: '#374151', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  docBtnText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
+  priceOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  priceBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: '#374151', borderWidth: 2, borderColor: 'transparent' },
+  priceBtnActive: { backgroundColor: '#1F2937', borderColor: '#13ec13' },
+  priceText: { fontSize: 13, fontWeight: '700', color: '#9CA3AF' },
+  priceTextActive: { color: '#052e05' },
+  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#1F2937', borderRadius: 16, padding: 16 },
+  switchLabel: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
+  typeBtn: { flex: 1, paddingVertical: 16, borderRadius: 16, backgroundColor: '#374151', borderWidth: 2, borderColor: 'transparent', alignItems: 'center' },
+  typeBtnActive: { backgroundColor: '#052e05', borderColor: '#13ec13' },
+  typeText: { fontSize: 12, fontWeight: '900', color: '#9CA3AF', textTransform: 'uppercase' },
+  typeTextActive: { color: '#13ec13' },
+  radiusOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  radiusBtn: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, backgroundColor: '#374151', borderWidth: 2, borderColor: 'transparent' },
+  radiusBtnActive: { backgroundColor: '#1F2937', borderColor: '#13ec13' },
+  radiusText: { fontSize: 13, fontWeight: '700', color: '#9CA3AF' },
+  radiusTextActive: { color: '#13ec13' },
+  gpsBtn: { backgroundColor: '#1F2937', borderRadius: 16, padding: 16, alignItems: 'center', marginTop: 8, borderWidth: 1, borderColor: '#374151' },
+  gpsBtnText: { fontSize: 13, fontWeight: '700', color: '#13ec13' },
+  coordsText: { fontSize: 11, color: '#9CA3AF', textAlign: 'center', marginTop: 8 },
+  dayRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  dayBtn: { paddingHorizontal: 10, paddingVertical: 10, borderRadius: 10, backgroundColor: '#374151' },
+  dayBtnActive: { backgroundColor: '#13ec13' },
+  dayText: { fontSize: 11, fontWeight: '700', color: '#9CA3AF' },
+  dayTextActive: { color: '#052e05' },
+  addBtn: { backgroundColor: '#111827', borderRadius: 16, padding: 16, alignItems: 'center', marginTop: 8 },
+  addBtnText: { fontSize: 12, fontWeight: '900', color: '#FFFFFF', textTransform: 'uppercase' },
+  slotList: { marginTop: 16, gap: 8 },
+  slotItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#1F2937', borderRadius: 12, padding: 12 },
+  slotText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
+  slotDelete: { fontSize: 16 },
+  successBox: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20 },
+  successEmoji: { fontSize: 48, marginBottom: 16 },
+  successTitle: { fontSize: 28, fontWeight: '900', color: '#FFFFFF', marginBottom: 8 },
+  successText: { fontSize: 14, color: '#9CA3AF', textAlign: 'center', marginBottom: 32, lineHeight: 22 },
 });

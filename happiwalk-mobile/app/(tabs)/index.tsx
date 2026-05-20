@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl, Platform, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../../lib/supabase';
 import { isWithinRadius } from '../../lib/distance';
-import { Bell, Star, Clock, CreditCard, MapPin, ChevronRight, Dog, Loader2 } from '../../components/Icons';
+import { Bell, Star, Clock, CreditCard, MapPin, ChevronRight, Dog } from '../../components/Icons';
+import AvatarImage from '../../components/AvatarImage';
+import EmptyState from '../../components/EmptyState';
+import { SkeletonCard } from '../../components/Skeleton';
 
 interface Walker {
   id: string;
@@ -44,8 +48,9 @@ const getStatusInfo = (status: string) => {
     'pending': { label: 'Por Pagar', color: '#F59E0B', bg: '#FEF3C7', border: '#FCD34D' },
     'confirmed': { label: 'Pagado', color: '#3B82F6', bg: '#DBEAFE', border: '#93C5FD' },
     'accepted': { label: 'En camino', color: '#3B82F6', bg: '#DBEAFE', border: '#93C5FD' },
+    'pickup_requested': { label: 'Esperando', color: '#F59E0B', bg: '#FEF3C7', border: '#FCD34D' },
     'picked_up': { label: 'Recogida', color: '#8B5CF6', bg: '#EDE9FE', border: '#C4B5FD' },
-    'in_progress': { label: 'En curso', color: '#10B981', bg: '#D1FAE5', border: '#6EE7B7' },
+    'in_progress': { label: 'En curso', color: '#0EA5E9', bg: '#D1FAE5', border: '#6EE7B7' },
     'completed': { label: 'Completado', color: '#6B7280', bg: '#F3F4F6', border: '#D1D5DB' },
   };
   return statuses[status] || { label: status, color: '#6B7280', bg: '#F3F4F6', border: '#D1D5DB' };
@@ -62,6 +67,48 @@ export default function HomeScreen() {
   const [bookingToRate, setBookingToRate] = useState<Booking | null>(null);
   const [petCount, setPetCount] = useState(0);
   const [displayName, setDisplayName] = useState('Amigo');
+
+  const [roleChecking, setRoleChecking] = useState(true);
+
+  useEffect(() => {
+    const checkRole = async () => {
+      try {
+        // 1. Check cache first for immediate decision
+        const cachedRole = await AsyncStorage.getItem('cached_profile_role');
+        if (cachedRole === 'walker') {
+          router.replace('/walker-home');
+          return;
+        } else if (cachedRole === 'owner') {
+          setRoleChecking(false);
+        }
+
+        // 2. Fetch from database to be absolutely sure
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setRoleChecking(false);
+          return;
+        }
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        
+        if (profile?.role) {
+          await AsyncStorage.setItem('cached_profile_role', profile.role);
+          if (profile.role === 'walker') {
+            router.replace('/walker-home');
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Error checking role:', error);
+      } finally {
+        setRoleChecking(false);
+      }
+    };
+    checkRole();
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -159,6 +206,7 @@ export default function HomeScreen() {
 
     } catch (error) {
       console.error('Error:', error);
+      Alert.alert('Error', 'No se pudieron cargar los datos. Desliza para reintentar.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -200,12 +248,20 @@ export default function HomeScreen() {
     };
   };
 
+  if (roleChecking) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' }}>
+        <ActivityIndicator size="large" color="#0EA5E9" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <ScrollView
         style={styles.scrollView}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#10B981']} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0EA5E9']} />
         }
         showsVerticalScrollIndicator={false}
       >
@@ -299,15 +355,15 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                 )}
 
-                <TouchableOpacity
-                  style={[styles.detailsBtn, upcomingWalk.status === 'pending' && styles.payBtn]}
-                  onPress={() => router.push({ pathname: '/booking-details', params: { id: upcomingWalk.id } })}
-                >
-                  <Text style={[styles.detailsBtnText, upcomingWalk.status === 'pending' && styles.payBtnText]}>
-                    {upcomingWalk.status === 'pending' ? 'Completar Pago' : 'Ver detalles'}
-                  </Text>
-                  <ChevronRight size={16} color={upcomingWalk.status === 'pending' ? '#FFFFFF' : '#6B7280'} />
-                </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.detailsBtn, upcomingWalk.status === 'pending' && styles.payBtn]}
+              onPress={() => router.push({ pathname: '/booking-details', params: { id: upcomingWalk.id } })}
+            >
+              <Text style={[styles.detailsBtnText, upcomingWalk.status === 'pending' && styles.payBtnText]}>
+                {upcomingWalk.status === 'pending' ? 'Completar Pago' : upcomingWalk.status === 'pickup_requested' ? 'Confirmar Recogida' : 'Ver detalles'}
+              </Text>
+              <ChevronRight size={16} color={upcomingWalk.status === 'pending' ? '#FFFFFF' : '#6B7280'} />
+            </TouchableOpacity>
               </View>
             </View>
           )}
@@ -315,9 +371,17 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitle}>Paseadores Verificados</Text>
 
           {loading ? (
-            <View style={styles.loadingContainer}>
-              <Loader2 size={24} color="#9CA3AF" />
+            <View style={styles.skeletonContainer}>
+              <SkeletonCard count={3} />
             </View>
+          ) : walkers.length === 0 ? (
+            <EmptyState
+              icon={<Dog size={36} color="#0EA5E9" />}
+              title="No hay paseadores cerca"
+              description="Aún no hay paseadores disponibles en tu zona. Intenta de nuevo más tarde o ajusta tu ubicación."
+              actionLabel="Reservar un Paseo"
+              onAction={() => router.push('/booking')}
+            />
           ) : (
             <View style={styles.walkersList}>
               {walkers.map((walker) => {
@@ -333,18 +397,12 @@ export default function HomeScreen() {
                     onPress={() => router.push({ pathname: '/walker-profile', params: { walkerId: walker.id } })}
                   >
                     <View style={styles.walkerImage}>
-                      {profile?.profile_photo_url ? (
-                        <Image
-                          source={{ uri: profile.profile_photo_url }}
-                          style={styles.walkerImg}
-                        />
-                      ) : (
-                        <View style={[styles.walkerImg, styles.walkerImgPlaceholder]}>
-                          <Text style={styles.walkerInitial}>
-                            {(fullName || 'P')[0].toUpperCase()}
-                          </Text>
-                        </View>
-                      )}
+                      <AvatarImage
+                        photoUrl={walker.user_profiles?.profile_photo_url}
+                        fallbackInitial={fullName || 'P'}
+                        size={72}
+                        style={styles.walkerImg}
+                      />
                       <View style={styles.ratingBadge}>
                         <Star size={8} color="#FBBF24" fill="#FBBF24" />
                         <Text style={styles.ratingText}>
@@ -455,12 +513,12 @@ const styles = StyleSheet.create({
   },
   bookWalkCard: {
     flex: 1,
-    backgroundColor: '#10B981',
+    backgroundColor: '#0EA5E9',
     borderRadius: 20,
     padding: 20,
     justifyContent: 'space-between',
     minHeight: 130,
-    shadowColor: '#10B981',
+    shadowColor: '#0EA5E9',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -612,7 +670,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   liveBtn: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#0EA5E9',
     borderRadius: 16,
     padding: 14,
     alignItems: 'center',
@@ -620,7 +678,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     marginBottom: 12,
-    shadowColor: '#10B981',
+    shadowColor: '#0EA5E9',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -650,9 +708,8 @@ const styles = StyleSheet.create({
   payBtnText: {
     color: '#FFFFFF',
   },
-  loadingContainer: {
-    padding: 40,
-    alignItems: 'center',
+  skeletonContainer: {
+    padding: 16,
   },
   walkersList: {
     gap: 16,
@@ -687,7 +744,7 @@ const styles = StyleSheet.create({
   walkerInitial: {
     fontSize: 24,
     fontWeight: '900',
-    color: '#10B981',
+    color: '#0EA5E9',
   },
   ratingBadge: {
     position: 'absolute',
@@ -724,7 +781,7 @@ const styles = StyleSheet.create({
   walkerPrice: {
     fontSize: 13,
     fontWeight: '900',
-    color: '#10B981',
+    color: '#0EA5E9',
   },
   walkerLocationRow: {
     flexDirection: 'row',

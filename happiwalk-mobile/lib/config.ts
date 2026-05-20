@@ -1,5 +1,11 @@
-// Google Maps API Key
-export const GOOGLE_MAPS_API_KEY = 'AIzaSyAl2je5gnJuDuhFlM1tjdFUF99vDREa9gc';
+// Google Maps API Key (for native iOS/Android Maps SDK)
+export const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+
+// Places API Key (for address autocomplete web service)
+export const PLACES_API_KEY = process.env.EXPO_PUBLIC_PLACES_API_KEY || '';
+
+// Mercado Pago Public Key
+export const MERCADOPAGO_PUBLIC_KEY = process.env.EXPO_PUBLIC_MERCADOPAGO_PUBLIC_KEY || '';
 
 // Medellín center coordinates
 export const MEDELLIN_CENTER = {

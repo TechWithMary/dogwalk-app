@@ -9,24 +9,36 @@ export default function Index() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.user) {
-        const { data: walkerData } = await supabase
-          .from('walkers')
-          .select('id')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
 
-        if (walkerData) {
-          router.replace('/walker-home');
+        if (session?.user) {
+          const { data: profile } = await supabase
+            .from('user_profiles')
+            .select('role, is_profile_complete')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+
+          if (profile) {
+            if (!profile.is_profile_complete) {
+              router.replace(profile.role === 'walker' ? '/onboarding-walker' : '/onboarding-owner');
+            } else if (profile.role === 'walker') {
+              router.replace('/walker-home');
+            } else {
+              router.replace('/(tabs)');
+            }
+          } else {
+            router.replace('/(auth)/login');
+          }
         } else {
-          router.replace('/(tabs)');
+          router.replace('/(auth)/login');
         }
-      } else {
+      } catch (error) {
+        console.error('Auth check error:', error);
         router.replace('/(auth)/login');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     checkAuth();
@@ -35,7 +47,7 @@ export default function Index() {
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' }}>
-        <ActivityIndicator size="large" color="#10B981" />
+        <ActivityIndicator size="large" color="#0EA5E9" />
       </View>
     );
   }

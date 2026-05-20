@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, Alert } from 'react-native';
+import AvatarImage from '../components/AvatarImage';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
+import { SkeletonProfile } from '../components/Skeleton';
 
 interface Walker {
   id: string;
@@ -83,7 +85,16 @@ export default function WalkerProfileScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <Text style={styles.loadingText}>Cargando...</Text>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Text style={styles.backText}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Perfil del Paseador</Text>
+          <View style={styles.headerRight} />
+        </View>
+        <View style={styles.content}>
+          <SkeletonProfile />
+        </View>
       </View>
     );
   }
@@ -109,18 +120,12 @@ export default function WalkerProfileScreen() {
       <ScrollView style={styles.content}>
         <View style={styles.profileCard}>
           <View style={styles.profileImageContainer}>
-            {walker.user_profiles?.profile_photo_url ? (
-              <Image
-                source={{ uri: walker.user_profiles.profile_photo_url }}
-                style={styles.profileImage}
-              />
-            ) : (
-              <View style={[styles.profileImage, styles.profileImagePlaceholder]}>
-                <Text style={styles.profileInitial}>
-                  {(walker.name || 'P')[0].toUpperCase()}
-                </Text>
-              </View>
-            )}
+            <AvatarImage
+              photoUrl={walker.user_profiles?.profile_photo_url}
+              fallbackInitial={walker.name || 'P'}
+              size={96}
+              style={styles.profileImage}
+            />
             {walker.verified_at && (
               <View style={styles.verifiedBadge}>
                 <Text style={styles.verifiedText}>✓</Text>
@@ -166,18 +171,12 @@ export default function WalkerProfileScreen() {
             reviews.map((review) => (
               <View key={review.id} style={styles.reviewCard}>
                 <View style={styles.reviewHeader}>
-                  {review.owner?.user_profiles?.profile_photo_url ? (
-                    <Image
-                      source={{ uri: review.owner.user_profiles.profile_photo_url }}
-                      style={styles.reviewerImage}
-                    />
-                  ) : (
-                    <View style={[styles.reviewerImage, styles.reviewerImagePlaceholder]}>
-                      <Text style={styles.reviewerInitial}>
-                        {(review.owner?.name || 'U')[0].toUpperCase()}
-                      </Text>
-                    </View>
-                  )}
+                  <AvatarImage
+                    photoUrl={review.owner?.user_profiles?.profile_photo_url}
+                    fallbackInitial={review.owner?.name || 'U'}
+                    size={40}
+                    style={styles.reviewerImage}
+                  />
                   <View style={styles.reviewerInfo}>
                     <Text style={styles.reviewerName}>{review.owner?.name || 'Usuario'}</Text>
                     <View style={styles.reviewRating}>
@@ -289,7 +288,7 @@ const styles = StyleSheet.create({
   profileInitial: {
     fontSize: 40,
     fontWeight: '800',
-    color: '#10B981',
+    color: '#0EA5E9',
   },
   verifiedBadge: {
     position: 'absolute',
@@ -298,7 +297,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#10B981',
+    backgroundColor: '#0EA5E9',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
@@ -426,7 +425,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#E5E7EB',
   },
   bookBtn: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#0EA5E9',
     borderRadius: 12,
     padding: 18,
     alignItems: 'center',
