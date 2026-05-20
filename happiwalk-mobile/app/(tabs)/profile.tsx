@@ -291,86 +291,88 @@ if (loading) {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: 24 }]}>
-        <View style={styles.profileSection}>
-          <TouchableOpacity style={styles.avatarContainer} onPress={pickImage} disabled={uploading}>
-            {uploading ? (
-              <View style={styles.avatarPlaceholder}><Loader2 size={24} color="#0EA5E9" /></View>
-            ) : avatarUrl ? (
-              <Image
-                source={{ uri: avatarUrl }}
-                style={styles.avatarImg}
-                resizeMode="cover"
-                onLoadEnd={() => {}}
-                onError={(err) => {
-                  console.error('Error cargando avatar:', err.nativeEvent);
-                  setAvatarUrl(null);
-                }}
-              />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarInitial}>{(displayName || 'U')[0].toUpperCase()}</Text>
-              </View>
-            )}
-            <View style={styles.cameraOverlay}><Camera size={16} color="#FFFFFF" /></View>
-          </TouchableOpacity>
-          <Text style={styles.profileName}>{displayName}</Text>
-          <Text style={styles.profileEmail}>{profile?.email}</Text>
-          {getVerificationBadge()}
-        </View>
+        <View style={{ flex: 1 }}>
+          <View style={styles.profileSection}>
+            <TouchableOpacity style={styles.avatarContainer} onPress={pickImage} disabled={uploading}>
+              {uploading ? (
+                <View style={styles.avatarPlaceholder}><Loader2 size={24} color="#0EA5E9" /></View>
+              ) : avatarUrl ? (
+                <Image
+                  source={{ uri: avatarUrl }}
+                  style={styles.avatarImg}
+                  resizeMode="cover"
+                  onLoadEnd={() => {}}
+                  onError={(err) => {
+                    console.error('Error cargando avatar:', err.nativeEvent);
+                    setAvatarUrl(null);
+                  }}
+                />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <Text style={styles.avatarInitial}>{(displayName || 'U')[0].toUpperCase()}</Text>
+                </View>
+              )}
+              <View style={styles.cameraOverlay}><Camera size={16} color="#FFFFFF" /></View>
+            </TouchableOpacity>
+            <Text style={styles.profileName}>{displayName}</Text>
+            <Text style={styles.profileEmail}>{profile?.email}</Text>
+            {getVerificationBadge()}
+          </View>
 
-        <View style={styles.menuSection}>
-          <Text style={styles.menuHeader}>Cuenta</Text>
-          <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/edit-profile')}>
-            <View style={styles.menuIconBg}><User size={20} color="#6B7280" /></View>
-            <Text style={styles.menuLabel}>Editar Información Personal</Text>
-            <ChevronRight size={20} color="#9CA3AF" />
-          </TouchableOpacity>
-          
-          {!isWalker && (
-            <>
-              <Text style={styles.menuHeader}>Mascotas</Text>
-<TouchableOpacity style={styles.menuItem} onPress={() => router.push('/pets')}>
-            <View style={styles.menuIconBg}><DogIcon size={20} color="#6B7280" /></View>
-            <Text style={styles.menuLabel}>Gestionar Mis Mascotas</Text>
-            <ChevronRight size={20} color="#9CA3AF" />
-          </TouchableOpacity>
-            </>
-          )}
-          
-          <Text style={styles.menuHeader}>Pagos</Text>
-          <TouchableOpacity style={styles.menuItem} onPress={() => router.push(isWalker ? '/walker-balance' : '/wallet')}>
-            <View style={styles.menuIconBg}><Text style={styles.menuIcon}>💳</Text></View>
-            <Text style={styles.menuLabel}>{isWalker ? 'Mis Ganancias' : 'Mi Billetera'}</Text>
-            <ChevronRight size={20} color="#9CA3AF" />
-          </TouchableOpacity>
-
-          <Text style={styles.menuHeader}>Soporte</Text>
-          <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/support')}>
-            <View style={styles.menuIconBg}><HelpCircle size={20} color="#6B7280" /></View>
-            <Text style={styles.menuLabel}>Centro de Ayuda</Text>
-            <ChevronRight size={20} color="#9CA3AF" />
-          </TouchableOpacity>
-        </View>
-
-        {profile?.role === 'admin' && (
           <View style={styles.menuSection}>
-            <Text style={styles.menuHeader}>Administración</Text>
-            <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/admin/verifications')}>
-              <View style={styles.menuIconBg}><Shield size={20} color="#0EA5E9" /></View>
-              <Text style={styles.menuLabel}>Verificar Paseadores</Text>
+            <Text style={styles.menuHeader}>Cuenta</Text>
+            <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/edit-profile')}>
+              <View style={styles.menuIconBg}><User size={20} color="#6B7280" /></View>
+              <Text style={styles.menuLabel}>Editar Información Personal</Text>
               <ChevronRight size={20} color="#9CA3AF" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/admin/payouts')}>
-              <View style={styles.menuIconBg}><CreditCard size={20} color="#0EA5E9" /></View>
-              <Text style={styles.menuLabel}>Gestionar Pagos</Text>
+            
+            {!isWalker && (
+              <>
+                <Text style={styles.menuHeader}>Mascotas</Text>
+                <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/pets')}>
+                  <View style={styles.menuIconBg}><DogIcon size={20} color="#6B7280" /></View>
+                  <Text style={styles.menuLabel}>Gestionar Mis Mascotas</Text>
+                  <ChevronRight size={20} color="#9CA3AF" />
+                </TouchableOpacity>
+              </>
+            )}
+            
+            <Text style={styles.menuHeader}>Pagos</Text>
+            <TouchableOpacity style={styles.menuItem} onPress={() => router.push(isWalker ? '/walker-balance' : '/wallet')}>
+              <View style={styles.menuIconBg}><Text style={styles.menuIcon}>💳</Text></View>
+              <Text style={styles.menuLabel}>{isWalker ? 'Mis Ganancias' : 'Mi Billetera'}</Text>
+              <ChevronRight size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+
+            <Text style={styles.menuHeader}>Soporte</Text>
+            <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/support')}>
+              <View style={styles.menuIconBg}><HelpCircle size={20} color="#6B7280" /></View>
+              <Text style={styles.menuLabel}>Centro de Ayuda</Text>
               <ChevronRight size={20} color="#9CA3AF" />
             </TouchableOpacity>
           </View>
-        )}
 
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Cerrar Sesión</Text>
-        </TouchableOpacity>
+          {profile?.role === 'admin' && (
+            <View style={styles.menuSection}>
+              <Text style={styles.menuHeader}>Administración</Text>
+              <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/admin/verifications')}>
+                <View style={styles.menuIconBg}><Shield size={20} color="#0EA5E9" /></View>
+                <Text style={styles.menuLabel}>Verificar Paseadores</Text>
+                <ChevronRight size={20} color="#9CA3AF" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/admin/payouts')}>
+                <View style={styles.menuIconBg}><CreditCard size={20} color="#0EA5E9" /></View>
+                <Text style={styles.menuLabel}>Gestionar Pagos</Text>
+                <ChevronRight size={20} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Text style={styles.logoutText}>Cerrar Sesión</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.footer}>
           <Text style={styles.version}>Versión 1.0.0</Text>
