@@ -30,6 +30,7 @@ export default function EditProfileScreen() {
   const [addressLng, setAddressLng] = useState<number | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [isGpsLocation, setIsGpsLocation] = useState(false);
+  const [isUserEditingAddress, setIsUserEditingAddress] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const bioInputRef = useRef<TextInput>(null);
 
@@ -44,7 +45,11 @@ export default function EditProfileScreen() {
     );
     const hideSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setKeyboardHeight(0)
+      () => {
+        setKeyboardHeight(0);
+        setAddressSuggestions([]);
+        setIsUserEditingAddress(false);
+      }
     );
     return () => {
       showSub.remove();
@@ -55,6 +60,10 @@ export default function EditProfileScreen() {
   useEffect(() => {
     if (isGpsLocation) {
       setIsGpsLocation(false);
+      return;
+    }
+    
+    if (!isUserEditingAddress) {
       return;
     }
     
@@ -80,9 +89,10 @@ export default function EditProfileScreen() {
       }
     }, 300);
     return () => clearTimeout(delaySearch);
-  }, [formData.address]);
+  }, [formData.address, isUserEditingAddress]);
 
   const handleSelectSuggestion = async (suggestion: any) => {
+    setIsUserEditingAddress(false);
     setAddressSuggestions([]);
     setAddressError('');
     const details = await getPlaceDetails(suggestion.placeId);
@@ -99,6 +109,7 @@ export default function EditProfileScreen() {
 
   const handleCurrentLocation = async () => {
     setGettingLocation(true);
+    setIsUserEditingAddress(false);
     setAddressSuggestions([]);
     setAddressError('');
     setIsGpsLocation(true);
@@ -421,6 +432,7 @@ export default function EditProfileScreen() {
                     style={styles.input}
                     value={formData.address}
                     onChangeText={(text) => { 
+                      setIsUserEditingAddress(true);
                       setFormData({ ...formData, address: text }); 
                       setAddressError('');
                       if (!text) setAddressSuggestions([]);
@@ -443,7 +455,7 @@ export default function EditProfileScreen() {
                 {addressError ? (
                   <Text style={styles.addressErrorText}>{addressError}</Text>
                 ) : null}
-                {addressSuggestions.length > 0 && !addressError && (
+                {isUserEditingAddress && addressSuggestions.length > 0 && !addressError && (
                   <View style={styles.suggestionsBox}>
                     {addressSuggestions.slice(0, 5).map((suggestion: any, index: number) => (
                       <TouchableOpacity
@@ -636,7 +648,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   bottomSpacer: {
-    height: 80,
+    height: 140,
   },
   avatarSection: {
     alignItems: 'center',
