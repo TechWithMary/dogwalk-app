@@ -285,12 +285,12 @@ export default function ProfileScreen() {
   };
 
 if (loading) {
-    return <SafeAreaView style={styles.container}><SkeletonProfile /></SafeAreaView>;
+    return <SafeAreaView style={styles.container} edges={['top']}><SkeletonProfile /></SafeAreaView>;
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 8 }]}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: 24 }]}>
         <View style={styles.profileSection}>
           <TouchableOpacity style={styles.avatarContainer} onPress={pickImage} disabled={uploading}>
             {uploading ? (
@@ -383,8 +383,8 @@ if (loading) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  content: { flex: 1, padding: 24 },
-  scrollContent: { minHeight: '100%' },
+  content: { flex: 1 },
+  scrollContent: { flexGrow: 1, padding: 24 },
   profileSection: { alignItems: 'center', marginBottom: 16, marginTop: 8 },
   avatarContainer: { position: 'relative', marginBottom: 16 },
   avatarImg: { width: 76, height: 76, borderRadius: 38 },

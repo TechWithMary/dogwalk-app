@@ -493,8 +493,6 @@ export default function EditProfileScreen() {
           </View>
 
           <View style={styles.bottomSpacer} />
-
-          <View style={styles.bottomSpacer} />
         </ScrollView>
 
       <View style={[styles.buttonContainer, { position: 'absolute', bottom: 0, left: 0, right: 0, paddingBottom: insets.bottom + 16 }]}>
