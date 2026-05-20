@@ -136,7 +136,7 @@ const { isLoaded } = useJsApiLoader({
             <GoogleMap
               mapContainerStyle={containerStyle}
               center={center}
-              zoom={13}
+              zoom={Math.floor(14.8 - Math.log2(radius))}
               onLoad={setMap}
               options={{ disableDefaultUI: true, zoomControl: false }}
             >

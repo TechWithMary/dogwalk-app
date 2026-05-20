@@ -8,8 +8,9 @@ import {
   Platform,
   KeyboardAvoidingView,
   ScrollView,
+  Modal,
 } from 'react-native';
-import MapView, { Marker, Circle, Region } from 'react-native-maps';
+import MapView, { Marker, Circle, Region, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import Svg, { Polygon } from 'react-native-svg';
 import { supabase } from '../lib/supabase';
@@ -60,6 +61,10 @@ export default function ServiceAreaManager({ walkerId, onClose, onSave }: Servic
           .single();
 
         if (data && !error) {
+          const rVal = data.service_radius_km ? Math.max(MIN_RADIUS, Math.min(MAX_RADIUS, data.service_radius_km)) : DEFAULT_RADIUS;
+          if (data.service_radius_km) {
+            setRadius(rVal);
+          }
           if (data.service_latitude && data.service_longitude) {
             const newCenter = {
               latitude: data.service_latitude,
@@ -69,13 +74,10 @@ export default function ServiceAreaManager({ walkerId, onClose, onSave }: Servic
             setTimeout(() => {
               mapRef.current?.animateToRegion({
                 ...newCenter,
-                latitudeDelta: 0.05,
-                longitudeDelta: 0.05,
+                latitudeDelta: rVal * 0.035,
+                longitudeDelta: rVal * 0.035,
               });
             }, 300);
-          }
-          if (data.service_radius_km) {
-            setRadius(Math.max(MIN_RADIUS, Math.min(MAX_RADIUS, data.service_radius_km)));
           }
           if (data.location) {
             setAddress(data.location);
@@ -135,8 +137,8 @@ export default function ServiceAreaManager({ walkerId, onClose, onSave }: Servic
       mapRef.current?.animateToRegion({
         latitude,
         longitude,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
+        latitudeDelta: radius * 0.035,
+        longitudeDelta: radius * 0.035,
       });
 
       getAddressFromCoords(latitude, longitude);
@@ -145,7 +147,7 @@ export default function ServiceAreaManager({ walkerId, onClose, onSave }: Servic
     } finally {
       setGettingLocation(false);
     }
-  }, [getAddressFromCoords]);
+  }, [getAddressFromCoords, radius]);
 
   const handleSave = useCallback(async () => {
     setLoading(true);
@@ -173,137 +175,155 @@ export default function ServiceAreaManager({ walkerId, onClose, onSave }: Servic
     }
   }, [center, radius, address, walkerId, onSave, onClose]);
 
+  const handleRadiusChange = useCallback((newRadius: number) => {
+    setRadius(newRadius);
+    mapRef.current?.animateToRegion({
+      latitude: center.latitude,
+      longitude: center.longitude,
+      latitudeDelta: newRadius * 0.035,
+      longitudeDelta: newRadius * 0.035,
+    }, 300);
+  }, [center]);
+
   const mapRegion: Region = {
     latitude: center.latitude,
     longitude: center.longitude,
-    latitudeDelta: radius * 0.028,
-    longitudeDelta: radius * 0.028,
+    latitudeDelta: radius * 0.035,
+    longitudeDelta: radius * 0.035,
   };
 
   const radiusSteps = Array.from({ length: MAX_RADIUS - MIN_RADIUS + 1 }, (_, i) => i + MIN_RADIUS);
 
   return (
-    <KeyboardAvoidingView
-      style={styles.overlay}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <Modal
+      visible={true}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={onClose}
     >
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <MapPin size={20} color="#F43F5E" />
-            <View style={styles.headerText}>
-              <Text style={styles.title}>Mi Zona</Text>
-              <Text style={styles.subtitle}>Define dónde prestas tus servicios</Text>
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <View style={styles.headerLeft}>
+              <MapPin size={20} color="#F43F5E" />
+              <View style={styles.headerText}>
+                <Text style={styles.title}>Mi Zona</Text>
+                <Text style={styles.subtitle}>Define dónde prestas tus servicios</Text>
+              </View>
             </View>
+            <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+              <X size={20} color="#9CA3AF" />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-            <X size={20} color="#9CA3AF" />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.mapContainer}>
-          {initialLoading ? (
-            <View style={styles.mapLoading}>
-              <Loader2 size={32} color="#13ec13" />
-            </View>
-          ) : (
-            <MapView
-              ref={mapRef}
-              style={styles.map}
-              initialRegion={mapRegion}
-              showsUserLocation={false}
-              showsMyLocationButton={false}
-              showsCompass={false}
-              showsScale={false}
-              toolbarEnabled={false}
-              pitchEnabled={false}
-              rotateEnabled={false}
+  
+          <View style={styles.mapContainer}>
+            {initialLoading ? (
+              <View style={styles.mapLoading}>
+                <Loader2 size={32} color="#13ec13" />
+              </View>
+            ) : (
+              <MapView
+                ref={mapRef}
+                style={styles.map}
+                provider={PROVIDER_GOOGLE}
+                initialRegion={mapRegion}
+                showsUserLocation={false}
+                showsMyLocationButton={false}
+                showsCompass={false}
+                showsScale={false}
+                toolbarEnabled={false}
+                pitchEnabled={false}
+                rotateEnabled={false}
+              >
+                <Marker
+                  coordinate={center}
+                  draggable
+                  onDragEnd={onMarkerDragEnd}
+                  pinColor="#F43F5E"
+                />
+                <Circle
+                  center={center}
+                  radius={radius * 1000}
+                  fillColor="rgba(16, 185, 129, 0.2)"
+                  strokeColor="#052e05"
+                  strokeWidth={2}
+                />
+              </MapView>
+            )}
+  
+            <TouchableOpacity
+              style={styles.gpsBtn}
+              onPress={handleCurrentLocation}
+              disabled={gettingLocation}
+              activeOpacity={0.7}
             >
-              <Marker
-                coordinate={center}
-                draggable
-                onDragEnd={onMarkerDragEnd}
-                pinColor="#F43F5E"
-              />
-              <Circle
-                center={center}
-                radius={radius * 1000}
-                fillColor="rgba(16, 185, 129, 0.2)"
-                strokeColor="#052e05"
-                strokeWidth={2}
-              />
-            </MapView>
-          )}
-
-          <TouchableOpacity
-            style={styles.gpsBtn}
-            onPress={handleCurrentLocation}
-            disabled={gettingLocation}
-            activeOpacity={0.7}
+              {gettingLocation ? (
+                <Loader2 size={20} color="#374151" />
+              ) : (
+                <Navigation size={20} color="#374151" />
+              )}
+            </TouchableOpacity>
+          </View>
+  
+          <ScrollView
+            style={styles.controls}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
-            {gettingLocation ? (
-              <Loader2 size={20} color="#374151" />
-            ) : (
-              <Navigation size={20} color="#374151" />
-            )}
-          </TouchableOpacity>
+            <View style={styles.addressCard}>
+              <MapPin size={18} color="#9CA3AF" />
+              <View style={styles.addressText}>
+                <Text style={styles.addressLabel}>UBICACIÓN CENTRAL</Text>
+                <Text style={styles.addressValue} numberOfLines={2}>
+                  {address || 'Arrastra el pin en el mapa'}
+                </Text>
+              </View>
+            </View>
+  
+            <View style={styles.radiusSection}>
+              <View style={styles.radiusHeader}>
+                <Text style={styles.radiusLabel}>Radio de cobertura</Text>
+                <Text style={styles.radiusValue}>{radius} km</Text>
+              </View>
+  
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.radiusOptions}>
+                {radiusSteps.map((r) => (
+                  <TouchableOpacity
+                    key={r}
+                    style={[styles.radiusBtn, radius === r && styles.radiusBtnActive]}
+                    onPress={() => handleRadiusChange(r)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.radiusBtnText, radius === r && styles.radiusBtnTextActive]}>
+                      {r} km
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+  
+            <TouchableOpacity
+              style={[styles.saveBtn, loading && styles.saveBtnDisabled]}
+              onPress={handleSave}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <Loader2 size={20} color="#FFFFFF" />
+              ) : (
+                <>
+                  <Save size={20} color="#FFFFFF" />
+                  <Text style={styles.saveBtnText}>Guardar Zona</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </ScrollView>
         </View>
-
-        <ScrollView
-          style={styles.controls}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.addressCard}>
-            <MapPin size={18} color="#9CA3AF" />
-            <View style={styles.addressText}>
-              <Text style={styles.addressLabel}>UBICACIÓN CENTRAL</Text>
-              <Text style={styles.addressValue} numberOfLines={2}>
-                {address || 'Arrastra el pin en el mapa'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.radiusSection}>
-            <View style={styles.radiusHeader}>
-              <Text style={styles.radiusLabel}>Radio de cobertura</Text>
-              <Text style={styles.radiusValue}>{radius} km</Text>
-            </View>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.radiusOptions}>
-              {radiusSteps.map((r) => (
-                <TouchableOpacity
-                  key={r}
-                  style={[styles.radiusBtn, radius === r && styles.radiusBtnActive]}
-                  onPress={() => setRadius(r)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.radiusBtnText, radius === r && styles.radiusBtnTextActive]}>
-                    {r} km
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.saveBtn, loading && styles.saveBtnDisabled]}
-            onPress={handleSave}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <Loader2 size={20} color="#FFFFFF" />
-            ) : (
-              <>
-                <Save size={20} color="#FFFFFF" />
-                <Text style={styles.saveBtnText}>Guardar Zona</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
