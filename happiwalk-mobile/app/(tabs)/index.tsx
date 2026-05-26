@@ -176,7 +176,7 @@ export default function HomeScreen() {
         .from('bookings')
         .select('*, walkers(*)')
         .eq('user_id', user.id)
-        .in('status', ['pending', 'confirmed', 'accepted', 'picked_up', 'in_progress'])
+          .in('status', ['pending', 'confirmed', 'accepted', 'pickup_requested', 'picked_up', 'in_progress'])
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();

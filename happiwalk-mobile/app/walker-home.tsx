@@ -273,7 +273,7 @@ export default function WalkerHomeScreen() {
           user_id: booking.user_id,
           title: '🐕 Paseador en el Punto',
           body: `${walkerData?.name || 'El paseador'} ha llegado. Por favor confirma que entregaste tu mascota.`,
-          link_to: '/home',
+          link_to: `/booking-details?id=${bookingId}`,
         });
       }
 
