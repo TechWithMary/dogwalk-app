@@ -201,8 +201,8 @@ const styles = StyleSheet.create({
   },
   profile: {
     alignItems: 'center',
-    gap: 12,
-    paddingTop: 24,
+    gap: 16,
+    paddingTop: 40,
   },
   profileStats: {
     flexDirection: 'row',

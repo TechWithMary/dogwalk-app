@@ -639,8 +639,8 @@ export default function WalkerHomeScreen() {
                       </View>
                       <TouchableOpacity
                         style={[styles.acceptBtn, acceptingId === booking.id && styles.acceptBtnDisabled]}
-                        onPress={() => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        onPress={async () => {
+                          try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                           acceptBooking(booking.id);
                         }}
                         disabled={acceptingId === booking.id}
@@ -698,8 +698,8 @@ export default function WalkerHomeScreen() {
                         <>
                           <TouchableOpacity
                             style={[styles.actionBtn, styles.pickupBtn, processingId === booking.id && styles.actionBtnDisabled]}
-                            onPress={() => {
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            onPress={async () => {
+                              try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                               confirmPickup(booking.id);
                             }}
                             disabled={processingId === booking.id}
@@ -736,8 +736,8 @@ export default function WalkerHomeScreen() {
                       {booking.status === 'picked_up' && (
                           <TouchableOpacity
                             style={[styles.actionBtn, styles.startBtn, processingId === booking.id && styles.actionBtnDisabled]}
-                            onPress={() => {
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            onPress={async () => {
+                              try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                               startWalk(booking.id);
                             }}
                             disabled={processingId === booking.id}
@@ -760,8 +760,8 @@ export default function WalkerHomeScreen() {
                           </View>
                           <TouchableOpacity
                             style={[styles.actionBtn, styles.finishBtn, processingId === booking.id && styles.actionBtnDisabled]}
-                            onPress={() => {
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            onPress={async () => {
+                              try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                               finishWalk(booking.id);
                             }}
                             disabled={processingId === booking.id}

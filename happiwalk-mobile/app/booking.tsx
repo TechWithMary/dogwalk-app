@@ -76,7 +76,21 @@ export default function BookingScreen() {
   const [searchingAddress, setSearchingAddress] = useState(false);
   const [addressError, setAddressError] = useState('');
   const [addressConfirmed, setAddressConfirmed] = useState(false);
+  const [isUserEditingAddress, setIsUserEditingAddress] = useState(false);
   const paymentPanelAnim = useRef(null);
+
+  useEffect(() => {
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setAddressSuggestions([]);
+        setIsUserEditingAddress(false);
+      }
+    );
+    return () => {
+      hideSub.remove();
+    };
+  }, []);
 
   const basePrice = PRICES[duration];
   const petCount = selectedPets.length;
@@ -84,6 +98,8 @@ export default function BookingScreen() {
   const isReadyForPayment = selectedPets.length > 0 && addressConfirmed && address.trim().length > 0 && (bookingType === 'now' || (date && time));
 
   useEffect(() => {
+    if (!isUserEditingAddress) return;
+
     const delaySearch = setTimeout(async () => {
       if (address.length > 2) {
         setSearchingAddress(true);
@@ -106,7 +122,7 @@ export default function BookingScreen() {
       }
     }, 300);
     return () => clearTimeout(delaySearch);
-  }, [address]);
+  }, [address, isUserEditingAddress]);
 
   useEffect(() => {
     if (bookingType === 'schedule' || bookingType === 'now') {
@@ -115,6 +131,7 @@ export default function BookingScreen() {
   }, [date, time, bookingType, markerPosition, bookingType]);
 
   const handleSelectSuggestion = async (suggestion: any) => {
+    setIsUserEditingAddress(false);
     setAddressSuggestions([]);
     setAddress(suggestion.mainText || suggestion.description);
     setAddressConfirmed(false);
@@ -232,6 +249,9 @@ const checkAvailability = async () => {
 
   const handleCurrentLocation = async () => {
     setGettingLocation(true);
+    setIsUserEditingAddress(false);
+    setAddressSuggestions([]);
+    setAddressError('');
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
@@ -290,7 +310,6 @@ const checkAvailability = async () => {
       lat: markerPosition.latitude,
       lng: markerPosition.longitude,
       pet_ids: selectedPets,
-      pet_count: selectedPets.length,
     };
   };
 
@@ -364,7 +383,7 @@ const checkAvailability = async () => {
         description: `Paseo ${duration} - Pago con saldo de billetera`,
       });
 
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
       Alert.alert('Éxito', `¡Reserva confirmada! Saldo descontado: $${totalPrice.toLocaleString()}`, [
         { text: 'OK', onPress: () => router.replace('/(tabs)') },
       ]);
@@ -600,7 +619,12 @@ const checkAvailability = async () => {
               <TextInput
                 style={styles.addressText}
                 value={address}
-                onChangeText={(text) => { setAddress(text); setAddressError(''); }}
+                onChangeText={(text) => { 
+                  setIsUserEditingAddress(true);
+                  setAddress(text); 
+                  setAddressError(''); 
+                  if (!text) setAddressSuggestions([]);
+                }}
                 placeholder="Busca tu dirección..."
                 placeholderTextColor="#9CA3AF"
                 returnKeyType="done"
@@ -612,7 +636,7 @@ const checkAvailability = async () => {
             {addressError ? (
               <Text style={styles.addressErrorText}>{addressError}</Text>
             ) : null}
-            {addressSuggestions.length > 0 && !addressError && (
+            {isUserEditingAddress && addressSuggestions.length > 0 && !addressError && (
               <View style={styles.suggestionsBox}>
                 {addressSuggestions.slice(0, 5).map((suggestion: any, index: number) => (
                   <TouchableOpacity
@@ -713,9 +737,9 @@ const checkAvailability = async () => {
 
           <TouchableOpacity
             style={[styles.confirmBtnFull, (loading || !isReadyForPayment) && styles.confirmBtnDisabled]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              paymentMethod === 'wallet' && walletBalance >= totalPrice ? handlePaymentWithWallet : handlePaymentSuccess;
+            onPress={async () => {
+              try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              paymentMethod === 'wallet' && walletBalance >= totalPrice ? handlePaymentWithWallet() : handlePaymentSuccess();
             }}
             disabled={!isReadyForPayment || loading}
           >

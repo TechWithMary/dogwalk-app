@@ -47,8 +47,8 @@ export default function AvailabilityManager({ walkerId, onClose }: AvailabilityM
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [selectedDays, setSelectedDays] = useState<number[]>([1]);
   const [newSlot, setNewSlot] = useState({
-    day_of_week: '1',
     start_time: '08:00',
     end_time: '17:00',
   });
@@ -80,6 +80,10 @@ export default function AvailabilityManager({ walkerId, onClose }: AvailabilityM
   }, [fetchAvailability, walkerId]);
 
   const handleAddSlot = async () => {
+    if (selectedDays.length === 0) {
+      Alert.alert('Error', 'Selecciona al menos un día');
+      return;
+    }
     if (!newSlot.start_time || !newSlot.end_time) {
       Alert.alert('Error', 'Selecciona hora de inicio y fin');
       return;
@@ -91,24 +95,24 @@ export default function AvailabilityManager({ walkerId, onClose }: AvailabilityM
 
     setAdding(true);
     try {
-      const { error } = await supabase.from('walker_availability').insert([
-        {
-          walker_id: walkerId,
-          day_of_week: parseInt(newSlot.day_of_week),
-          start_time: newSlot.start_time,
-          end_time: newSlot.end_time,
-        },
-      ]);
+      const slots = selectedDays.map((dayId) => ({
+        walker_id: walkerId,
+        day_of_week: dayId,
+        start_time: newSlot.start_time,
+        end_time: newSlot.end_time,
+      }));
+
+      const { error } = await supabase.from('walker_availability').insert(slots);
 
       if (error) {
         if (error.code === '23505') {
-          Alert.alert('Error', 'Este horario ya existe');
+          Alert.alert('Error', 'Uno o más de los horarios seleccionados ya existen');
           return;
         }
         throw error;
       }
 
-      Alert.alert('Éxito', 'Horario agregado');
+      Alert.alert('Éxito', 'Horarios agregados');
       await fetchAvailability();
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Error al agregar');
@@ -160,27 +164,61 @@ export default function AvailabilityManager({ walkerId, onClose }: AvailabilityM
         <View style={styles.formSection}>
           <Text style={styles.label}>Día</Text>
           <View style={styles.dayRow}>
-            {DAYS_OF_WEEK.map((day) => (
-              <TouchableOpacity
-                key={day.id}
-                style={[
-                  styles.dayBtn,
-                  newSlot.day_of_week === String(day.id) && styles.dayBtnActive,
-                ]}
-                onPress={() =>
-                  setNewSlot((p) => ({ ...p, day_of_week: String(day.id) }))
-                }
-              >
-                <Text
+            {DAYS_OF_WEEK.map((day) => {
+              const isSelected = selectedDays.includes(day.id);
+              return (
+                <TouchableOpacity
+                  key={day.id}
                   style={[
-                    styles.dayText,
-                    newSlot.day_of_week === String(day.id) && styles.dayTextActive,
+                    styles.dayBtn,
+                    isSelected && styles.dayBtnActive,
                   ]}
+                  onPress={() => {
+                    if (isSelected) {
+                      setSelectedDays(selectedDays.filter((id) => id !== day.id));
+                    } else {
+                      setSelectedDays([...selectedDays, day.id]);
+                    }
+                  }}
                 >
-                  {day.name.slice(0, 3)}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.dayText,
+                      isSelected && styles.dayTextActive,
+                    ]}
+                  >
+                    {day.name.slice(0, 3)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <View style={styles.shortcutsRow}>
+            <TouchableOpacity
+              style={styles.shortcutBtn}
+              onPress={() => setSelectedDays([1, 2, 3, 4, 5])}
+            >
+              <Text style={styles.shortcutText}>Lun a Vie</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.shortcutBtn}
+              onPress={() => setSelectedDays([6, 0])}
+            >
+              <Text style={styles.shortcutText}>Fin de Sem</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.shortcutBtn}
+              onPress={() => setSelectedDays([1, 2, 3, 4, 5, 6, 0])}
+            >
+              <Text style={styles.shortcutText}>Todos</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.shortcutBtn}
+              onPress={() => setSelectedDays([])}
+            >
+              <Text style={styles.shortcutText}>Limpiar</Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.timeRow}>
@@ -456,5 +494,26 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#6B7280',
     marginTop: 12,
+  },
+  shortcutsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 8,
+    marginBottom: 4,
+    flexWrap: 'wrap',
+  },
+  shortcutBtn: {
+    backgroundColor: '#374151',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#4B5563',
+  },
+  shortcutText: {
+    color: '#9CA3AF',
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
 });

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } f
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
-import { Settings, ChevronRight, MapPin, Calendar, User, LogOut, Bell } from '../components/Icons';
+import { ChevronRight, MapPin, Calendar, LogOut, Bell } from '../components/Icons';
 import ServiceAreaManager from '../components/ServiceAreaManager';
 import AvailabilityManager from '../components/AvailabilityManager';
 
@@ -99,12 +99,6 @@ export default function WalkerSettingsScreen() {
       label: 'Disponibilidad',
       subtitle: 'Gestionar tus horarios',
       onPress: () => setShowAvailability(true),
-    },
-    {
-      icon: <User size={20} color="#0EA5E9" />,
-      label: 'Editar Perfil',
-      subtitle: 'Actualizar tu información',
-      onPress: () => router.push('/edit-profile'),
     },
   ];
 
@@ -256,7 +250,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FEE2E2',
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: '#EF4444',
     borderRadius: 16,
     padding: 16,
     gap: 8,

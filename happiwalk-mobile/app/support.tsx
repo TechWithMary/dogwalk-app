@@ -60,7 +60,7 @@ const faqs: FAQItem[] = [
   {
     category: 'Cuenta',
     question: '¿Cómo agrego una mascota?',
-    answer: 'En tu perfil, selecciona "Gestionar Mis Mascotas" y luego "Agregar Mascota". Completa la información y sube una foto.',
+    answer: 'En la pantalla de inicio, selecciona "Mis Mascotas" y luego "Agregar Mascota". Completa la información y sube una foto.',
   },
   {
     category: 'Técnico',
@@ -129,7 +129,7 @@ export default function HelpCenterScreen() {
         botResponse = '🗺️ Seguimiento en tiempo real:\n\nUna vez que el paseador inicie el paseo:\n1. Ve a "Paseos Activos"\n2. Verás la ubicación de tu mascota en el mapa\n3. También verás la ruta recorrida\n\n📸 El paseador también subirá fotos durante el paseo.';
       }
       else if (lowerMsg.match(/mascota|perro|gato|agregar|pet|animal/)) {
-        botResponse = '🐾 Para gestionar tus mascotas:\n\n1. Ve a tu Perfil → "Gestionar Mis Mascotas"\n2. Toca "Agregar Mascota"\n3. Completa nombre, raza, edad y comportamiento\n4. Sube una foto\n\nEsto ayuda al paseador a conocer mejor a tu peludito. ❤️';
+        botResponse = '🐾 Para gestionar tus mascotas:\n\n1. Ve a la pantalla de Inicio → "Mis Mascotas"\n2. Toca "Agregar Mascota"\n3. Completa nombre, raza, edad y comportamiento\n4. Sube una foto\n\nEsto ayuda al paseador a conocer mejor a tu peludito. ❤️';
       }
       else if (lowerMsg.match(/error|bug|falla|no funciona|problema|crashea|se cierra/)) {
         botResponse = '🔧 Prueba estas soluciones:\n\n1. Cierra completamente la app y vuelve a abrirla\n2. Actualiza a la última versión desde App Store\n3. Verifica tu conexión a internet\n4. Reinicia tu teléfono\n\nSi el problema persiste, usa el botón de email al final de esta conversación.';

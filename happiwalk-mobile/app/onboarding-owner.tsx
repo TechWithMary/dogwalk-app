@@ -4,15 +4,8 @@ import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { supabase } from '../lib/supabase';
 import { searchAddressSuggestions, getPlaceDetails } from '../lib/addressSearch';
-
-const BREEDS = [
-  "Criollo / Mezcla", "Labrador Retriever", "Golden Retriever", "Pastor Alemán", 
-  "Bulldog Francés", "Bulldog Inglés", "Beagle", "Poodle", "Rottweiler", 
-  "Yorkshire Terrier", "Boxer", "Dachshund", "Siberian Husky", "Chihuahua", 
-  "Border Collie", "Pug", "Shih Tzu", "Cocker Spaniel", "Pitbull", "Doberman",
-  "Gran Danés", "Maltés", "Pomerania", "Basset Hound", "Pastor Belga", 
-  "Dogo Argentino", "Mastín", "San Bernardo", "Otro"
-];
+import BreedPicker from '../components/BreedPicker';
+import { OTHER_BREED_OPTION } from '../constants/pet-breeds';
 
 export default function OnboardingOwnerScreen() {
   const router = useRouter();
@@ -31,12 +24,28 @@ export default function OnboardingOwnerScreen() {
   const [addressSuggestions, setAddressSuggestions] = useState<any[]>([]);
   const [searchingAddress, setSearchingAddress] = useState(false);
   const [addressError, setAddressError] = useState('');
+  const [isUserEditingAddress, setIsUserEditingAddress] = useState(false);
 
   useEffect(() => {
     requestLocationPermission();
   }, []);
 
   useEffect(() => {
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setAddressSuggestions([]);
+        setIsUserEditingAddress(false);
+      }
+    );
+    return () => {
+      hideSub.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isUserEditingAddress) return;
+
     const delaySearch = setTimeout(async () => {
       if (address.length > 2) {
         setSearchingAddress(true);
@@ -59,7 +68,7 @@ export default function OnboardingOwnerScreen() {
       }
     }, 300);
     return () => clearTimeout(delaySearch);
-  }, [address]);
+  }, [address, isUserEditingAddress]);
 
   const requestLocationPermission = async () => {
     try {
@@ -75,6 +84,9 @@ export default function OnboardingOwnerScreen() {
   const handleCurrentLocation = async () => {
     try {
       setGettingLocation(true);
+      setIsUserEditingAddress(false);
+      setAddressSuggestions([]);
+      setAddressError('');
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permiso denegado', 'Activa el GPS en configuración');
@@ -108,6 +120,7 @@ export default function OnboardingOwnerScreen() {
   };
 
   const handleSelectSuggestion = async (suggestion: any) => {
+    setIsUserEditingAddress(false);
     setAddressSuggestions([]);
     setAddressError('');
     const details = await getPlaceDetails(suggestion.placeId);
@@ -132,7 +145,7 @@ export default function OnboardingOwnerScreen() {
       return;
     }
 
-    if (petData.breed === 'Otro' && !otherBreed.trim()) {
+    if (petData.breed === OTHER_BREED_OPTION && !otherBreed.trim()) {
       Alert.alert('Error', 'Especifica la raza de tu mascota');
       return;
     }
@@ -159,7 +172,7 @@ export default function OnboardingOwnerScreen() {
         ? profile.last_name 
         : (user.user_metadata?.last_name || '');
 
-      const finalBreed = petData.breed === 'Otro' ? otherBreed : petData.breed;
+      const finalBreed = petData.breed === OTHER_BREED_OPTION ? otherBreed.trim() : petData.breed.trim();
       
       const { error: petError } = await supabase.from('pets').insert([
         { 
@@ -222,7 +235,12 @@ export default function OnboardingOwnerScreen() {
                 <TextInput
                   style={styles.addressTextInput}
                   value={address}
-                  onChangeText={(text) => { setAddress(text); setAddressError(''); }}
+                  onChangeText={(text) => { 
+                    setIsUserEditingAddress(true);
+                    setAddress(text); 
+                    setAddressError(''); 
+                    if (!text) setAddressSuggestions([]);
+                  }}
                   placeholder="Escribe tu dirección..."
                   placeholderTextColor="#9CA3AF"
                   returnKeyType="done"
@@ -240,7 +258,7 @@ export default function OnboardingOwnerScreen() {
               {addressError ? (
                 <Text style={styles.addressErrorText}>{addressError}</Text>
               ) : null}
-              {addressSuggestions.length > 0 && !addressError && (
+              {isUserEditingAddress && addressSuggestions.length > 0 && !addressError && (
                 <View style={styles.suggestionsBox}>
                   {addressSuggestions.slice(0, 5).map((suggestion: any, index: number) => (
                     <TouchableOpacity
@@ -278,18 +296,6 @@ export default function OnboardingOwnerScreen() {
 
           <View style={styles.row}>
             <View style={[styles.col, styles.colLeft]}>
-              <Text style={styles.label}>Raza *</Text>
-              <TouchableOpacity 
-                style={styles.selectInput}
-                onPress={() => setShowBreedPicker(!showBreedPicker)}
-              >
-                <Text style={[styles.selectText, !petData.breed && styles.placeholder]}>
-                  {petData.breed || 'Selecciona'}
-                </Text>
-                <Text style={styles.selectArrow}>▼</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={[styles.col, styles.colRight]}>
               <Text style={styles.label}>Edad (Años)</Text>
               <TextInput
                 style={styles.input}
@@ -302,37 +308,16 @@ export default function OnboardingOwnerScreen() {
             </View>
           </View>
 
-          {showBreedPicker && (
-            <View style={styles.breedList}>
-              <ScrollView style={styles.breedScroll} nestedScrollEnabled>
-                {BREEDS.map((breed) => (
-                  <TouchableOpacity
-                    key={breed}
-                    style={styles.breedOption}
-                    onPress={() => {
-                      setPetData({ ...petData, breed });
-                      setShowBreedPicker(false);
-                    }}
-                  >
-                    <Text style={styles.breedOptionText}>{breed}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-
-          {petData.breed === 'Otro' && (
-            <View style={styles.formSection}>
-              <Text style={styles.label}>Especifica la raza *</Text>
-              <TextInput
-                style={styles.input}
-                value={otherBreed}
-                onChangeText={setOtherBreed}
-                placeholder="Escribe la raza"
-                placeholderTextColor="#9CA3AF"
-              />
-            </View>
-          )}
+          <View style={styles.formSection}>
+            <Text style={styles.label}>Raza *</Text>
+            <BreedPicker
+              value={petData.breed}
+              onChange={(breed) => setPetData({ ...petData, breed })}
+              otherBreed={otherBreed}
+              onOtherBreedChange={setOtherBreed}
+              onOpenChange={setShowBreedPicker}
+            />
+          </View>
 
           <View style={styles.formSection}>
             <Text style={styles.label}>Nivel de Energía</Text>

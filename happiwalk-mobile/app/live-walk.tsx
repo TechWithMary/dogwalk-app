@@ -154,7 +154,7 @@ export default function LiveWalkScreen() {
       <MapView
         ref={mapRef}
         style={styles.map}
-        provider={Platform.OS === 'ios' ? undefined : PROVIDER_GOOGLE}
+        provider={PROVIDER_GOOGLE}
         initialRegion={{
           ...walkerLocation,
           latitudeDelta: 0.01,

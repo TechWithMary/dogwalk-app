@@ -64,7 +64,8 @@ export default function OnboardingWalkerScreen() {
       hideSub.remove();
     };
   }, []);
-  const [newSlot, setNewSlot] = useState({ day_of_week: '1', start_time: '08:00', end_time: '17:00' });
+  const [selectedDays, setSelectedDays] = useState<number[]>([1]);
+  const [newSlot, setNewSlot] = useState({ start_time: '08:00', end_time: '17:00' });
 
   useEffect(() => {
     const initData = async () => {
@@ -287,22 +288,27 @@ export default function OnboardingWalkerScreen() {
 
   const handleAddSlot = async () => {
     if (!walkerId) return;
+    if (selectedDays.length === 0) {
+      Alert.alert('Error', 'Selecciona al menos un día');
+      return;
+    }
     if (newSlot.start_time >= newSlot.end_time) {
       Alert.alert('Error', 'La hora de fin debe ser después del inicio');
       return;
     }
     try {
-      const { error } = await supabase.from('walker_availability').insert([{
+      const slots = selectedDays.map(dayId => ({
         walker_id: walkerId,
-        day_of_week: parseInt(newSlot.day_of_week),
+        day_of_week: dayId,
         start_time: newSlot.start_time,
         end_time: newSlot.end_time,
-      }]);
+      }));
+      const { error } = await supabase.from('walker_availability').insert(slots);
       if (error) {
-        if (error.code === '23505') { Alert.alert('Error', 'Este horario ya existe'); return; }
+        if (error.code === '23505') { Alert.alert('Error', 'Uno o más de los horarios seleccionados ya existen'); return; }
         throw error;
       }
-      Alert.alert('Éxito', 'Horario agregado');
+      Alert.alert('Éxito', 'Horarios agregados');
       await fetchAvailability();
     } catch (err: any) {
       Alert.alert('Error', err.message || 'No se pudo agregar');
@@ -585,11 +591,41 @@ export default function OnboardingWalkerScreen() {
             <View style={styles.formCard}>
               <Text style={styles.label}>Día</Text>
               <View style={styles.dayRow}>
-                {DAYS_OF_WEEK.map(d => (
-                  <TouchableOpacity key={d.id} style={[styles.dayBtn, newSlot.day_of_week === String(d.id) && styles.dayBtnActive]} onPress={() => setNewSlot(p => ({ ...p, day_of_week: String(d.id) }))}>
-                    <Text style={[styles.dayText, newSlot.day_of_week === String(d.id) && styles.dayTextActive]}>{d.name.slice(0, 3)}</Text>
-                  </TouchableOpacity>
-                ))}
+                {DAYS_OF_WEEK.map(d => {
+                  const isSelected = selectedDays.includes(d.id);
+                  return (
+                    <TouchableOpacity
+                      key={d.id}
+                      style={[styles.dayBtn, isSelected && styles.dayBtnActive]}
+                      onPress={() => {
+                        if (isSelected) {
+                          setSelectedDays(selectedDays.filter(id => id !== d.id));
+                        } else {
+                          setSelectedDays([...selectedDays, d.id]);
+                        }
+                      }}
+                    >
+                      <Text style={[styles.dayText, isSelected && styles.dayTextActive]}>
+                        {d.name.slice(0, 3)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <View style={styles.shortcutsRow}>
+                <TouchableOpacity style={styles.shortcutBtn} onPress={() => setSelectedDays([1, 2, 3, 4, 5])}>
+                  <Text style={styles.shortcutText}>Lun a Vie</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.shortcutBtn} onPress={() => setSelectedDays([6, 0])}>
+                  <Text style={styles.shortcutText}>Fin de Sem</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.shortcutBtn} onPress={() => setSelectedDays([1, 2, 3, 4, 5, 6, 0])}>
+                  <Text style={styles.shortcutText}>Todos</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.shortcutBtn} onPress={() => setSelectedDays([])}>
+                  <Text style={styles.shortcutText}>Limpiar</Text>
+                </TouchableOpacity>
               </View>
 
               <View style={styles.row}>
@@ -724,4 +760,7 @@ const styles = StyleSheet.create({
   successEmoji: { fontSize: 48, marginBottom: 16 },
   successTitle: { fontSize: 28, fontWeight: '900', color: '#FFFFFF', marginBottom: 8 },
   successText: { fontSize: 14, color: '#9CA3AF', textAlign: 'center', marginBottom: 32, lineHeight: 22 },
+  shortcutsRow: { flexDirection: 'row', gap: 6, marginTop: 8, marginBottom: 4, flexWrap: 'wrap' },
+  shortcutBtn: { backgroundColor: '#374151', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#4B5563' },
+  shortcutText: { color: '#9CA3AF', fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
 });

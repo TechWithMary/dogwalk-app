@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient'; 
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, User, Dog, Wallet, LogOut, Loader2, Shield, Camera } from 'lucide-react';
+import { ChevronRight, User, Wallet, LogOut, Loader2, Shield, Camera } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const Profile = ({ onLogout, navigate: propNavigate }) => {
@@ -185,13 +185,6 @@ const Profile = ({ onLogout, navigate: propNavigate }) => {
       <div className="space-y-3">
         <h3 className="text-xs font-bold text-gray-400 uppercase px-2">Cuenta</h3>
         <ProfileButton icon={<User className="text-gray-600" />} label="Editar Información Personal" onClick={() => navigate('/edit-profile')} />
-        
-        {!isWalker && (
-          <>
-            <h3 className="text-xs font-bold text-gray-400 uppercase px-2 mt-6">Mascotas</h3>
-            <ProfileButton icon={<Dog className="text-gray-600" />} label="Gestionar Mis Mascotas" onClick={() => navigate('/manage-pets')} />
-          </>
-        )}
         
         <h3 className="text-xs font-bold text-gray-400 uppercase px-2 mt-6">Pagos</h3>
         <ProfileButton icon={<Wallet className="text-gray-600" />} label={isWalker ? "Mis Ganancias" : "Mi Billetera"} onClick={() => navigate(isWalker ? '/walker-balance' : '/wallet')} />
