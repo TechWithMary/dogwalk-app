@@ -58,10 +58,10 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   iconCircleLight: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F3F4F6',
   },
   iconCircleDark: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   title: {
     fontSize: 18,
@@ -91,10 +91,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   actionBtnLight: {
-    backgroundColor: '#13ec13',
+    backgroundColor: '#111827',
   },
   actionBtnDark: {
-    backgroundColor: '#13ec13',
+    backgroundColor: '#FFFFFF',
   },
   actionBtnText: {
     fontSize: 15,

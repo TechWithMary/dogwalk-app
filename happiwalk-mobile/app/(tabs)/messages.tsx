@@ -23,7 +23,6 @@ export default function MessagesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCurrentUser();
@@ -38,15 +37,7 @@ export default function MessagesScreen() {
   const fetchCurrentUser = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setCurrentUser(user);
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('role')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        setUserRole(profile?.role || null);
-      }
+      setCurrentUser(user);
     } catch (error) {
       console.error('Error fetching user:', error);
     }
@@ -143,29 +134,17 @@ export default function MessagesScreen() {
       <ScrollView
         style={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0EA5E9']} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#111827']} />
         }
       >
         {loading ? (
           <SkeletonList count={5} />
         ) : conversations.length === 0 ? (
-          userRole === 'walker' ? (
-            <EmptyState
-              icon={<MessageSquare size={36} color="#0EA5E9" />}
-              title="No tienes conversaciones"
-              description="Completa tu perfil y espera a que un dueño te contacte para empezar a pasear."
-              actionLabel="Configurar Perfil"
-              onAction={() => router.push('/walker-settings')}
-            />
-          ) : (
-            <EmptyState
-              icon={<MessageSquare size={36} color="#0EA5E9" />}
-              title="No tienes conversaciones"
-              description="Las conversaciones aparecerán cuando reserves un paseo. ¡Reserva tu primer paseo para empezar!"
-              actionLabel="Reservar un Paseo"
-              onAction={() => router.push('/booking')}
-            />
-          )
+          <EmptyState
+            icon={<MessageSquare size={36} color="#6B7280" />}
+            title="No tienes conversaciones"
+            description="Las conversaciones aparecerán cuando tengas paseos activos."
+          />
         ) : (
           conversations.map((chat) => (
             <TouchableOpacity
@@ -207,7 +186,7 @@ export default function MessagesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
   header: {
-    backgroundColor: '#0EA5E9',
+    backgroundColor: '#111827',
     paddingTop: 60,
     paddingHorizontal: 20,
     paddingBottom: 20,
@@ -233,7 +212,7 @@ const styles = StyleSheet.create({
   chatLastMsg: { fontSize: 14, color: '#6B7280' },
   chatLastMsgUnread: { color: '#111827', fontWeight: '700' },
   unreadBadge: {
-    backgroundColor: '#0EA5E9',
+    backgroundColor: '#111827',
     borderRadius: 12,
     minWidth: 24,
     height: 24,

@@ -139,14 +139,14 @@ export default function MessagesScreen() {
       <ScrollView
         style={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0EA5E9']} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#111827']} />
         }
       >
         {loading ? (
           <SkeletonList count={5} />
         ) : conversations.length === 0 ? (
           <EmptyState
-            icon={<MessageSquare size={36} color="#0EA5E9" />}
+            icon={<MessageSquare size={36} color="#6B7280" />}
             title="No tienes conversaciones"
             description="Las conversaciones aparecerán cuando tengas paseos activos."
           />
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
   chatLastMsg: { fontSize: 14, color: '#6B7280' },
   chatLastMsgUnread: { color: '#111827', fontWeight: '700' },
   unreadBadge: {
-    backgroundColor: '#0EA5E9',
+    backgroundColor: '#111827',
     borderRadius: 12,
     minWidth: 24,
     height: 24,
