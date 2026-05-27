@@ -374,17 +374,17 @@ export default function WalkerHomeScreen() {
               const netEarning = price - platformFee - gatewayFee; // 76% of total
 
               if (walkerUserId) {
-                await supabase
+                const { data: profile } = await supabase
                   .from('user_profiles')
                   .select('balance')
                   .eq('user_id', walkerUserId)
-                  .maybeSingle()
-                  .then(({ data: profile }) => {
-                    supabase
-                      .from('user_profiles')
-                      .update({ balance: (profile?.balance || 0) + netEarning })
-                      .eq('user_id', walkerUserId);
-                  });
+                  .maybeSingle();
+
+                const newBalance = (profile?.balance || 0) + netEarning;
+                await supabase
+                  .from('user_profiles')
+                  .update({ balance: newBalance })
+                  .eq('user_id', walkerUserId);
 
                 await supabase.from('transactions').insert({
                   user_id: walkerUserId,
