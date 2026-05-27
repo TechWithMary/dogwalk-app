@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, Platform, Linking } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface Booking {
   id: string;
@@ -27,8 +27,6 @@ export default function BookingDetailsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const bookingId = params.id as string;
-  const insets = useSafeAreaInsets();
-
   const [booking, setBooking] = useState<Booking | null>(null);
   const [walkerProfile, setWalkerProfile] = useState<any>(null);
   const [pets, setPets] = useState<any[]>([]);
@@ -268,8 +266,8 @@ export default function BookingDetailsScreen() {
   const petNames = pets.map(p => p.name).join(', ') || 'tu(s) mascota(s)';
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
@@ -421,6 +419,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
+    paddingTop: 8,
     paddingBottom: 16,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
