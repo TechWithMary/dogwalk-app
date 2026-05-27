@@ -370,7 +370,7 @@ const HomeWalker = ({ currentUser }) => {
 
       const { error } = await supabase
         .from('bookings')
-        .update({ status: 'picked_up' })
+        .update({ status: 'pickup_requested' })
         .eq('id', walkId)
         .eq('status', 'accepted');
 
@@ -379,13 +379,13 @@ const HomeWalker = ({ currentUser }) => {
       if (booking?.user_id) {
         await supabase.from('notifications').insert({
           user_id: booking.user_id,
-          title: '🐕 Mascota Recogida',
-          body: `${walkerData?.name || 'El paseador'} ha recogido a ${petName}. ¡El paseo está por comenzar!`,
-          link_to: '/home'
+          title: '🐕 Paseador en el Punto',
+          body: `${walkerData?.name || 'El paseador'} ha llegado. Por favor confirma que entregaste tu mascota.`,
+          link_to: `/booking-details?id=${walkId}`
         });
       }
       
-      toast.success('¡Mascota recogida! Ahora puedes iniciar el paseo.');
+      toast.success('Notificación enviada al dueño. Espera confirmación para iniciar el paseo.');
       fetchWalkerData();
     } catch (error) {
       console.error(error);
@@ -430,7 +430,7 @@ const HomeWalker = ({ currentUser }) => {
         .from('bookings')
         .select('*')
         .eq('walker_id', walkerId)
-        .in('status', ['accepted', 'picked_up', 'in_progress']);
+        .in('status', ['accepted', 'pickup_requested', 'picked_up', 'in_progress']);
 
       const { data: availableBookings } = await supabase
         .from('bookings')
@@ -460,7 +460,7 @@ const HomeWalker = ({ currentUser }) => {
           rating: 5.0
         },
         newRequests: bookings?.filter(b => b.status === 'pending' || b.status === 'confirmed') || [],
-        activeWalks: bookings?.filter(b => b.status === 'accepted' || b.status === 'picked_up' || b.status === 'in_progress') || []
+        activeWalks: bookings?.filter(b => ['accepted', 'pickup_requested', 'picked_up', 'in_progress'].includes(b.status)) || []
       });
     } catch (error) {
       console.error(error);
@@ -580,10 +580,12 @@ const HomeWalker = ({ currentUser }) => {
                       <p className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1"><MapPin size={10}/> {walk.address?.split(',')[0] || 'Dirección no disponible'}</p>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase mt-1 inline-block ${
                         walk.status === 'accepted' ? 'bg-blue-100 text-blue-600' : 
+                        walk.status === 'pickup_requested' ? 'bg-yellow-100 text-yellow-600' :
                         walk.status === 'picked_up' ? 'bg-purple-100 text-purple-600' : 
                         'bg-emerald-100 text-emerald-600'
                       }`}>
                         {walk.status === 'accepted' ? 'En camino' : 
+                         walk.status === 'pickup_requested' ? 'Esperando confirmación' :
                          walk.status === 'picked_up' ? 'Mascota recogida' : 'En curso'}
                       </span>
                     </div>
@@ -599,6 +601,12 @@ const HomeWalker = ({ currentUser }) => {
                   >
                     {processingWalkId === walk.id ? <Loader2 className="animate-spin w-4 h-4" /> : <><Dog size={16} /> Ya recogí la mascota</>}
                   </button>
+                )}
+
+                {walk.status === 'pickup_requested' && (
+                  <div className="w-full bg-yellow-50 border border-yellow-200 text-yellow-800 py-4 rounded-2xl font-black text-xs text-center">
+                    ⏳ Esperando confirmación del dueño
+                  </div>
                 )}
 
                 {walk.status === 'picked_up' && (
