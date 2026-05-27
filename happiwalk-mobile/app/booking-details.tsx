@@ -329,7 +329,7 @@ export default function BookingDetailsScreen() {
 
         {booking.walkers && (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>🐕 Paseador</Text>
+            <Text style={styles.cardTitle}>👤 Paseador</Text>
             <View style={styles.walkerRow}>
               <View style={styles.walkerImage}>
                 {booking.walkers.img ? (
