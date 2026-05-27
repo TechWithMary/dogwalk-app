@@ -370,12 +370,11 @@ export default function BookingDetailsScreen() {
 
         {booking.status === 'pickup_requested' && (
           <>
-            <View style={[styles.infoBanner, { backgroundColor: statusInfo.bg, borderColor: statusInfo.border }]}>
-              <Text style={styles.infoIcon}>⏳</Text>
-              <Text style={styles.infoText}>El paseador ha llegado. Confirma que entregaste tu mascota.</Text>
+            <View style={[styles.pickupBanner, { backgroundColor: statusInfo.bg, borderColor: statusInfo.border }]}>
+              <Text style={styles.pickupBannerText}>El paseador ha llegado. Confirma que entregaste tu mascota.</Text>
             </View>
             <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirmPickup}>
-              <Text style={styles.confirmBtnText}>✅ Confirmar Recogida</Text>
+              <Text style={styles.confirmBtnText}>Confirmar Recogida</Text>
             </TouchableOpacity>
           </>
         )}
@@ -653,10 +652,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  pickupBanner: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+  },
+  pickupBannerText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#92400E',
+    lineHeight: 16,
+  },
   confirmBtn: {
     backgroundColor: '#0EA5E9',
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
     alignItems: 'center',
     marginBottom: 12,
   },
