@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../lib/supabase';
+import { sendLocalNotification } from '../lib/notifications';
 import { Dog, MapPin, ChevronRight, Loader2, Star, TrendingUp, Power, Wallet, House, MessageSquare, User, Calendar, MapPin as MapPinIcon, Settings } from '../components/Icons';
 import EmptyState from '../components/EmptyState';
 import { SkeletonCard } from '../components/Skeleton';
@@ -139,6 +140,23 @@ export default function WalkerHomeScreen() {
   useEffect(() => {
     fetchWalkerData();
   }, [fetchWalkerData]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('walker-bookings-updates')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'bookings' },
+        (payload) => {
+          const updated = payload.new as any;
+          if (updated.walker_id === walkerIdRef.current) {
+            fetchWalkerData();
+          }
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   const onRefresh = () => {
     setRefreshing(true);

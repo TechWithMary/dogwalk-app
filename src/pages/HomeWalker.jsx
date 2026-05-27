@@ -31,6 +31,7 @@ const HomeWalker = ({ currentUser }) => {
   const [isTracking, setIsTracking] = useState(false);
   const [currentWalkId, setCurrentWalkId] = useState(null);
   const [gpsError, setGpsError] = useState(null);
+  const [walkerId, setWalkerId] = useState(null);
   const locationIntervalRef = useRef(null);
   const walkerIdRef = useRef(null);
 
@@ -272,6 +273,19 @@ const HomeWalker = ({ currentUser }) => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!walkerId) return;
+    const channel = supabase
+      .channel('walker-bookings')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'bookings', filter: `walker_id=eq.${walkerId}` },
+        () => { fetchWalkerData(); },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [walkerId]);
+
   const finishWalk = async (walkId) => {
     if (!confirm('¿Confirmas que has terminado el paseo?')) return;
     
@@ -419,6 +433,8 @@ const HomeWalker = ({ currentUser }) => {
       
       const walkerBalance = profileData?.balance || 0;
       setBalance(walkerBalance);
+
+      if (walkerId) setWalkerId(walkerId);
 
       if (!walkerId) {
         setData({ stats: { monthlyEarnings: 0, completedWalks: 0, rating: 5.0 }, newRequests: [], activeWalks: [] });

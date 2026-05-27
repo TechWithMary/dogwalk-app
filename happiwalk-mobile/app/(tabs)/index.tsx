@@ -217,6 +217,36 @@ export default function HomeScreen() {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    let bookingChannel: any = null;
+    let notifChannel: any = null;
+    const setup = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.id) return;
+      bookingChannel = supabase
+        .channel('owner-bookings')
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'bookings', filter: `user_id=eq.${user.id}` },
+          () => { fetchData(); },
+        )
+        .subscribe();
+      notifChannel = supabase
+        .channel('owner-notifications')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+          () => { fetchData(); },
+        )
+        .subscribe();
+    };
+    setup();
+    return () => {
+      if (bookingChannel) supabase.removeChannel(bookingChannel);
+      if (notifChannel) supabase.removeChannel(notifChannel);
+    };
+  }, []);
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchData();

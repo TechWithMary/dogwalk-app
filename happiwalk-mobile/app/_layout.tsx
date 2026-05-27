@@ -2,15 +2,17 @@ import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useEffect } from 'react';
-import { Linking, Alert, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Linking, Alert, AppState, StyleSheet, Text, View } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { getPendingBooking, clearPendingBooking } from '../lib/paymentService';
 import {
   registerForPushNotifications,
   setupAndroidChannel,
   resolveNotificationRoute,
+  sendLocalNotification,
 } from '../lib/notifications';
+import { supabase } from '../lib/supabase';
 import { useNetworkStatus } from '../lib/network';
 import { ToastProvider } from '../components/Toast';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -19,10 +21,15 @@ import { COLORS } from '../lib/theme';
 export default function RootLayout() {
   const router = useRouter();
   const { isOffline } = useNetworkStatus();
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     setupAndroidChannel();
     registerForPushNotifications();
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user?.id) setCurrentUserId(user.id);
+    });
 
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {
@@ -46,6 +53,26 @@ export default function RootLayout() {
       responseSubscription.remove();
     };
   }, []);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const channel = supabase
+      .channel('notifications-push')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${currentUserId}` },
+        (payload) => {
+          const notif = payload.new as any;
+          sendLocalNotification(notif.title || 'Nueva notificación', notif.body || '', { link_to: notif.link_to });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUserId]);
 
   useEffect(() => {
     const handleDeepLink = async (event: { url: string }) => {
