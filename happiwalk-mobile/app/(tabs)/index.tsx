@@ -366,7 +366,7 @@ export default function HomeScreen() {
                       <Text style={styles.upcomingTime}>{upcomingWalk.scheduled_time}</Text>
                     </View>
                     {upcomingWalk.walkers && (
-                      <Text style={styles.upcomingWalker}>🐕 {upcomingWalk.walkers.name || 'Paseador asignado'}</Text>
+                      <Text style={styles.upcomingWalker}>👤 Paseador: {upcomingWalk.walkers.name || 'Asignado'}</Text>
                     )}
                   </View>
                   <View style={styles.upcomingRight}>
