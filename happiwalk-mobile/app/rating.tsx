@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, Platform } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, Platform, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { Star, X, Loader2 } from '../components/Icons';
@@ -29,7 +29,21 @@ export default function RatingScreen() {
   const [hover, setHover] = useState(0);
   const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!bookingId) return;
+    (async () => {
+      const { data } = await supabase
+        .from('bookings')
+        .select('*, walkers(*)')
+        .eq('id', bookingId)
+        .single();
+      setBooking(data);
+      setFetching(false);
+    })();
+  }, [bookingId]);
 
   const handleSubmit = async () => {
     if (rating === 0) {
@@ -85,6 +99,14 @@ export default function RatingScreen() {
   };
 
   const displayRating = hover || rating;
+
+  if (fetching) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#0EA5E9" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
