@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import { Calendar, CheckCircle, ChevronRight, DollarSign, Loader2, MapPin, Power, Star, RefreshCw, CheckSquare, Wallet, Dog, AlertTriangle, XCircle, Clock, TrendingUp, Award, Navigation } from 'lucide-react';
+import { Calendar, CheckCircle, ChevronRight, DollarSign, Loader2, MapPin, Power, Star, RefreshCw, CheckSquare, Wallet, Dog, AlertTriangle, XCircle, Clock, TrendingUp, Award, Navigation, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import AvailabilityManager from '../components/AvailabilityManager';
 import ServiceAreaManager from '../components/ServiceAreaManager';
@@ -30,6 +30,7 @@ const HomeWalker = ({ currentUser }) => {
   const [processingWalkId, setProcessingWalkId] = useState(null);
   const [isTracking, setIsTracking] = useState(false);
   const [currentWalkId, setCurrentWalkId] = useState(null);
+  const [gpsError, setGpsError] = useState(null);
   const locationIntervalRef = useRef(null);
   const walkerIdRef = useRef(null);
 
@@ -163,13 +164,24 @@ const HomeWalker = ({ currentUser }) => {
     }
   };
 
-  const sendLocation = async (bookingId) => {
-    if (!navigator.geolocation) return;
-    
+  const sendLocation = async (bookingId, useHighAccuracy = true) => {
+    if (!navigator.geolocation) {
+      setGpsError('Tu navegador no soporta geolocalización');
+      return;
+    }
+
+    console.log(`[GPS] sendLocation attempt highAccuracy=${useHighAccuracy} for booking ${bookingId}`);
+    setGpsError(null);
+
+    const geoOptions = useHighAccuracy
+      ? { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+      : { enableHighAccuracy: false, maximumAge: 30000, timeout: 10000 };
+
     navigator.geolocation.getCurrentPosition(
       async (position) => {
+        console.log(`[GPS] Got position: ${position.coords.latitude}, ${position.coords.longitude} (accuracy: ${position.coords.accuracy}m)`);
         try {
-          await supabase.from('locations').insert({
+          const { error } = await supabase.from('locations').insert({
             booking_id: bookingId,
             walker_id: walkerIdRef.current,
             latitude: position.coords.latitude,
@@ -179,17 +191,42 @@ const HomeWalker = ({ currentUser }) => {
             activity_type: 'walking',
             location_source: 'gps'
           });
+          if (error) {
+            console.error('[GPS] Insert error:', error);
+            setGpsError('Error al guardar ubicación: ' + error.message);
+          } else {
+            console.log('[GPS] Location inserted successfully');
+            setGpsError(null);
+          }
         } catch (err) {
-          console.error('Error enviando ubicación:', err);
+          console.error('[GPS] Exception sending location:', err);
+          setGpsError('Error al enviar ubicación');
         }
       },
-      (err) => console.error('Error GPS:', err),
-      { enableHighAccuracy: true, maximumAge: 0 }
+      (err) => {
+        console.error('[GPS] getCurrentPosition error:', err.code, err.message);
+        if (useHighAccuracy && err.code === 3) {
+          console.log('[GPS] Timeout with high accuracy, retrying without...');
+          sendLocation(bookingId, false);
+        } else {
+          const msg = err.code === 1
+            ? 'Permiso de ubicación denegado. Hacé click en el candado 🔒 de la barra de direcciones y permití la ubicación.'
+            : err.code === 3
+              ? 'GPS sin señal. Intentá salir a un lugar abierto.'
+              : 'Error de GPS: ' + err.message;
+          setGpsError(msg);
+          toast.error(msg);
+        }
+      },
+      geoOptions
     );
   };
 
   const startGPSTracking = async (walkId) => {
     if (locationIntervalRef.current) return;
+    
+    console.log('[GPS] Starting GPS tracking for walk:', walkId);
+    setGpsError(null);
     
     if (!walkerIdRef.current) {
       const { data: { user } } = await supabase.auth.getUser();
@@ -201,6 +238,7 @@ const HomeWalker = ({ currentUser }) => {
           .single();
         if (walkerData) {
           walkerIdRef.current = walkerData.id;
+          console.log('[GPS] Walker ID:', walkerData.id);
         }
       }
     }
@@ -216,12 +254,14 @@ const HomeWalker = ({ currentUser }) => {
   };
 
   const stopGPSTracking = () => {
+    console.log('[GPS] Stopping GPS tracking');
     if (locationIntervalRef.current) {
       clearInterval(locationIntervalRef.current);
       locationIntervalRef.current = null;
     }
     setIsTracking(false);
     setCurrentWalkId(null);
+    setGpsError(null);
   };
 
   useEffect(() => {
@@ -573,6 +613,20 @@ const HomeWalker = ({ currentUser }) => {
 
                 {walk.status === 'in_progress' && (
                   <>
+                    {gpsError && (
+                      <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-3 flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <span className="text-xs font-bold text-red-700">{gpsError}</span>
+                          <button
+                            onClick={() => { setGpsError(null); sendLocation(walk.id); }}
+                            className="text-xs font-bold text-red-600 underline mt-1 block"
+                          >
+                            Reintentar
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-3 flex items-center justify-center gap-2">
                       <Navigation className="w-4 h-4 text-emerald-500 animate-pulse" />
                       <span className="text-xs font-bold text-emerald-700">GPS activo - El dueño puede ver tu ubicación</span>
