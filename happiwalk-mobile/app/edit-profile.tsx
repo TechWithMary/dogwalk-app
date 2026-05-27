@@ -6,12 +6,11 @@ import * as Location from 'expo-location';
 import { File } from 'expo-file-system';
 import { supabase, getSignedAvatarUrl, getAvatarUploadPath } from '../lib/supabase';
 import { searchAddressSuggestions, getPlaceDetails } from '../lib/addressSearch';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, User, Phone, MapPin, Save, Camera, Loader2 } from '../components/Icons';
 
 export default function EditProfileScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -337,8 +336,8 @@ export default function EditProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <ArrowLeft size={20} color="#374151" />
         </TouchableOpacity>
@@ -533,6 +532,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
+    paddingTop: 8,
     paddingBottom: 8,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
