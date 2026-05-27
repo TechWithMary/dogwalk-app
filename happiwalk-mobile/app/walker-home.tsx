@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, RefreshControl, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
@@ -645,7 +645,7 @@ export default function WalkerHomeScreen() {
                           <View style={styles.bookingLocation}>
                             <MapPin size={12} color="#9CA3AF" />
                             <Text style={styles.bookingAddress}>
-                              {booking.address?.split(',')[0] || 'Dirección no disponible'}
+                              {booking.address || 'Dirección no disponible'}
                             </Text>
                           </View>
                         </View>
@@ -696,7 +696,7 @@ export default function WalkerHomeScreen() {
                           <View style={styles.bookingLocation}>
                             <MapPin size={12} color="#9CA3AF" />
                             <Text style={styles.bookingAddress}>
-                              {booking.address?.split(',')[0] || 'Dirección no disponible'}
+                              {booking.address || 'Dirección no disponible'}
                             </Text>
                           </View>
                           <View style={[styles.statusBadge, { backgroundColor: statusStyles.bg }]}>
@@ -714,6 +714,20 @@ export default function WalkerHomeScreen() {
 
                       {booking.status === 'accepted' && (
                         <>
+                          {booking.address && (
+                            <TouchableOpacity
+                              style={styles.mapsBtn}
+                              onPress={() => {
+                                const url = Platform.OS === 'ios'
+                                  ? `https://maps.apple.com/?q=${encodeURIComponent(booking.address)}`
+                                  : `https://www.google.com/maps/search/${encodeURIComponent(booking.address)}`;
+                                Linking.openURL(url);
+                              }}
+                            >
+                              <MapPin size={16} color="#3B82F6" />
+                              <Text style={styles.mapsBtnText}>Ver ubicación en Maps</Text>
+                            </TouchableOpacity>
+                          )}
                           <TouchableOpacity
                             style={[styles.actionBtn, styles.pickupBtn, processingId === booking.id && styles.actionBtnDisabled]}
                             onPress={async () => {
@@ -1219,5 +1233,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
     marginTop: 4,
+  },
+  mapsBtn: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 10,
+  },
+  mapsBtnText: {
+    color: '#3B82F6',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

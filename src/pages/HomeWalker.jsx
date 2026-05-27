@@ -593,7 +593,7 @@ const HomeWalker = ({ currentUser }) => {
                     <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400"><Dog /></div>
                     <div>
                       <h4 className="font-black text-gray-900">Paseo {walk.duration}</h4>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1"><MapPin size={10}/> {walk.address?.split(',')[0] || 'Dirección no disponible'}</p>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase leading-relaxed"><MapPin size={10} className="inline mr-1" /> {walk.address || 'Dirección no disponible'}</p>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase mt-1 inline-block ${
                         walk.status === 'accepted' ? 'bg-blue-100 text-blue-600' : 
                         walk.status === 'pickup_requested' ? 'bg-yellow-100 text-yellow-600' :
@@ -610,13 +610,25 @@ const HomeWalker = ({ currentUser }) => {
                 </div>
 
                 {walk.status === 'accepted' && (
-                  <button 
-                    onClick={() => confirmPickup(walk.id)}
-                    disabled={processingWalkId === walk.id}
-                    className="w-full bg-purple-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {processingWalkId === walk.id ? <Loader2 className="animate-spin w-4 h-4" /> : <><Dog size={16} /> Ya recogí la mascota</>}
-                  </button>
+                  <>
+                    {walk.address && (
+                      <a
+                        href={`https://www.google.com/maps/search/${encodeURIComponent(walk.address)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full bg-blue-50 border border-blue-200 text-blue-700 py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 mb-3 hover:bg-blue-100 transition-all"
+                      >
+                        <MapPin size={14} /> Abrir en Google Maps
+                      </a>
+                    )}
+                    <button 
+                      onClick={() => confirmPickup(walk.id)}
+                      disabled={processingWalkId === walk.id}
+                      className="w-full bg-purple-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {processingWalkId === walk.id ? <Loader2 className="animate-spin w-4 h-4" /> : <><Dog size={16} /> Ya recogí la mascota</>}
+                    </button>
+                  </>
                 )}
 
                 {walk.status === 'pickup_requested' && (
