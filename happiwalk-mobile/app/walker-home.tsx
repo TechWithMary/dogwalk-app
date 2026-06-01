@@ -524,7 +524,7 @@ export default function WalkerHomeScreen() {
                 <Dog size={24} color="#000000" />
               </View>
               <View>
-                <Text style={styles.panelLabel}>Panel Control</Text>
+                <Text style={styles.panelLabel}>Panel de Control</Text>
                 <Text style={styles.greeting}>Hola, Paseador!</Text>
               </View>
             </View>
@@ -553,7 +553,7 @@ export default function WalkerHomeScreen() {
                 <Dog size={24} color="#000000" />
               </View>
               <View>
-                <Text style={styles.panelLabel}>Panel Control</Text>
+                <Text style={styles.panelLabel}>Panel de Control</Text>
                 <Text style={styles.greeting}>Hola, {displayName}!</Text>
               </View>
             </View>

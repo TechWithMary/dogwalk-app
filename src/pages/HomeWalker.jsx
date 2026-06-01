@@ -506,7 +506,7 @@ const HomeWalker = ({ currentUser }) => {
               <Dog className="text-black w-6 h-6" />
             </div>
             <div>
-              <p className="text-gray-400 text-[10px] font-black uppercase tracking-[0.2em]">Panel Control</p>
+              <p className="text-gray-400 text-[10px] font-black uppercase tracking-[0.2em]">Panel de Control</p>
               <h1 className="text-white text-xl font-black">Hola, {getCleanName()}!</h1>
             </div>
           </div>
