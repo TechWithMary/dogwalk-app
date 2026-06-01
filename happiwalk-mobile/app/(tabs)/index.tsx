@@ -67,8 +67,29 @@ export default function HomeScreen() {
   const [bookingToRate, setBookingToRate] = useState<Booking | null>(null);
   const [petCount, setPetCount] = useState(0);
   const [displayName, setDisplayName] = useState('Amigo');
+  const [ratedBookingIds, setRatedBookingIds] = useState<Set<string>>(new Set());
 
   const [roleChecking, setRoleChecking] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem('ratedBookings');
+        if (stored) {
+          setRatedBookingIds(new Set(JSON.parse(stored)));
+        }
+      } catch {}
+    })();
+  }, []);
+
+  const markBookingAsRated = async (bookingId: string) => {
+    setRatedBookingIds(prev => {
+      const next = new Set(prev);
+      next.add(bookingId);
+      AsyncStorage.setItem('ratedBookings', JSON.stringify([...next])).catch(() => {});
+      return next;
+    });
+  };
 
   useEffect(() => {
     const checkRole = async () => {
@@ -199,11 +220,12 @@ export default function HomeScreen() {
         .limit(1)
         .maybeSingle();
 
-      if (pendingReview) {
+      if (pendingReview && !ratedBookingIds.has(pendingReview.id)) {
         setBookingToRate(pendingReview);
         setShowRatingModal(true);
       } else {
         setShowRatingModal(false);
+        setBookingToRate(null);
       }
 
     } catch (error) {
@@ -254,9 +276,21 @@ export default function HomeScreen() {
     fetchData();
   };
 
-  const handleRate = () => {
+  const handleRate = async () => {
     if (bookingToRate) {
-      router.push({ pathname: '/rating', params: { bookingId: bookingToRate.id } });
+      const bookingId = bookingToRate.id;
+      await markBookingAsRated(bookingId);
+      setShowRatingModal(false);
+      setBookingToRate(null);
+      router.push({ pathname: '/rating', params: { bookingId } });
+    }
+  };
+
+  const handleDismissRating = async () => {
+    if (bookingToRate) {
+      await markBookingAsRated(bookingToRate.id);
+      setShowRatingModal(false);
+      setBookingToRate(null);
     }
   };
 
@@ -468,7 +502,7 @@ export default function HomeScreen() {
             <TouchableOpacity style={styles.ratingModalBtn} onPress={handleRate}>
               <Text style={styles.ratingModalBtnText}>Calificar Ahora</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setShowRatingModal(false)}>
+            <TouchableOpacity onPress={handleDismissRating}>
               <Text style={styles.ratingModalSkip}>Más tarde</Text>
             </TouchableOpacity>
           </View>

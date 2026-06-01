@@ -62,15 +62,16 @@ const RatingModal = ({ booking, onClose, onSuccess }) => {
 
       const { error: updateError } = await supabase
         .from('bookings')
-        .update({ rating: rating, review_text: comment })
+        .update({ rating: rating, review_text: comment || null })
         .eq('id', booking.id);
 
       if (updateError) {
         console.error('Update error:', updateError);
+        throw new Error('No se pudo guardar la calificación: ' + updateError.message);
       }
 
       toast.success('¡Gracias por tu calificación!');
-      onSuccess();
+      onSuccess(booking.id);
     } catch (error) {
       console.error(error);
       toast.error('Error al guardar: ' + error.message);

@@ -29,6 +29,25 @@ const { isLoaded } = useJsApiLoader({
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [bookingToRate, setBookingToRate] = useState(null);
   const [selectedWalker, setSelectedWalker] = useState(null);
+  const [ratedBookingIds, setRatedBookingIds] = useState(() => {
+    try {
+      const stored = localStorage.getItem('ratedBookings');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  const markBookingAsRated = (bookingId) => {
+    setRatedBookingIds(prev => {
+      const next = new Set(prev);
+      next.add(bookingId);
+      try {
+        localStorage.setItem('ratedBookings', JSON.stringify([...next]));
+      } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -132,12 +151,13 @@ const { isLoaded } = useJsApiLoader({
           .limit(1)
           .maybeSingle();
 
-        if (pendingReview) {
+        if (pendingReview && !ratedBookingIds.has(pendingReview.id)) {
           console.log('Pending review booking:', pendingReview);
           setBookingToRate(pendingReview);
           setShowRatingModal(true);
         } else {
           setShowRatingModal(false);
+          setBookingToRate(null);
         }
 
       } catch (error) {
@@ -174,9 +194,14 @@ const { isLoaded } = useJsApiLoader({
       {showRatingModal && bookingToRate && (
         <RatingModal 
           booking={bookingToRate} 
-          onClose={() => setShowRatingModal(false)} 
-          onSuccess={() => {
+          onClose={() => {
             setShowRatingModal(false);
+            setBookingToRate(null);
+          }} 
+          onSuccess={(ratedBookingId) => {
+            markBookingAsRated(ratedBookingId);
+            setShowRatingModal(false);
+            setBookingToRate(null);
           }}
         />
       )}

@@ -72,10 +72,12 @@ export default function RatingScreen() {
         throw new Error('No se encontró el paseador');
       }
 
+      const numericBookingId = Number(bookingId);
+
       const { error: reviewError } = await supabase
         .from('booking_reviews')
         .insert([{
-          booking_id: bookingId,
+          booking_id: numericBookingId,
           reviewer_id: user.id,
           reviewee_id: revieweeId,
           rating: rating,
@@ -85,10 +87,14 @@ export default function RatingScreen() {
 
       if (reviewError) throw reviewError;
 
-      await supabase
+      const { error: updateError } = await supabase
         .from('bookings')
         .update({ rating: rating, review_text: comment.trim() || null })
-        .eq('id', bookingId);
+        .eq('id', numericBookingId);
+
+      if (updateError) {
+        throw new Error('No se pudo guardar la calificación: ' + updateError.message);
+      }
 
       router.back();
     } catch (err: any) {
