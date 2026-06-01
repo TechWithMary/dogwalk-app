@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, RefreshControl, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, RefreshControl, Linking, AppState } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
@@ -73,7 +73,7 @@ export default function WalkerHomeScreen() {
 
       const { data: walkerData } = await supabase
         .from('walkers')
-        .select('id, name, user_id')
+        .select('id, name, user_id, is_online')
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -83,6 +83,7 @@ export default function WalkerHomeScreen() {
       }
 
       walkerIdRef.current = walkerData.id;
+      setIsOnline(walkerData.is_online ?? true);
 
       const cleanerName = (walkerData.name || 'Paseador')
         .replace(/\b(nuevo|usuario|walker)\b/gi, '')
@@ -158,6 +159,17 @@ export default function WalkerHomeScreen() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && isOnline) {
+        setWalkerOnline(true);
+      } else if (state !== 'active') {
+        setWalkerOnline(false);
+      }
+    });
+    return () => { sub.remove(); };
+  }, [isOnline]);
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchWalkerData();
@@ -206,6 +218,15 @@ export default function WalkerHomeScreen() {
       clearInterval(locationIntervalRef.current);
       locationIntervalRef.current = null;
     }
+  };
+
+  const setWalkerOnline = async (online: boolean) => {
+    setIsOnline(online);
+    if (!walkerIdRef.current) return;
+    await supabase
+      .from('walkers')
+      .update({ is_online: online })
+      .eq('id', walkerIdRef.current);
   };
 
   const acceptBooking = async (bookingId: string) => {
@@ -566,7 +587,7 @@ export default function WalkerHomeScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.onlineBtn, isOnline && styles.onlineBtnActive]}
-                onPress={() => setIsOnline(!isOnline)}
+                onPress={() => setWalkerOnline(!isOnline)}
               >
                 <Power size={14} color={isOnline ? '#0EA5E9' : '#6B7280'} />
                 <Text style={[styles.onlineText, isOnline && styles.onlineTextActive]}>

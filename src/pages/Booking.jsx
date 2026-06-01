@@ -111,6 +111,7 @@ const Booking = ({ setView, navigate }) => {
           .from('walkers')
           .select('id, user_id, name, img, rating, service_latitude, service_longitude, service_radius_km, user_profiles(first_name, last_name)')
           .eq('overall_verification_status', 'approved')
+          .eq('is_online', true)
           .in('id', walkerIds);
         
         if (verifiedWalkers && markerPos) {

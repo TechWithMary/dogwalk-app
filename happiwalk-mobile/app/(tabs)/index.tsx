@@ -143,7 +143,8 @@ export default function HomeScreen() {
         const { data: allWalkers } = await supabase
           .from('walkers')
           .select('*, user_profiles(*)')
-          .eq('overall_verification_status', 'approved');
+          .eq('overall_verification_status', 'approved')
+          .eq('is_online', true);
 
         if (allWalkers) {
           walkersRes = allWalkers.filter((walker: Walker) => {
@@ -160,6 +161,7 @@ export default function HomeScreen() {
           .from('walkers')
           .select('*, user_profiles(*)')
           .eq('overall_verification_status', 'approved')
+          .eq('is_online', true)
           .limit(3);
         walkersRes = defaultWalkers || [];
       }

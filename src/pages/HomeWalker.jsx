@@ -254,6 +254,15 @@ const HomeWalker = ({ currentUser }) => {
     }, 10000);
   };
 
+  const setWalkerOnline = async (online) => {
+    setIsOnline(online);
+    if (!walkerIdRef.current) return;
+    await supabase
+      .from('walkers')
+      .update({ is_online: online })
+      .eq('id', walkerIdRef.current);
+  };
+
   const stopGPSTracking = () => {
     console.log('[GPS] Stopping GPS tracking');
     if (locationIntervalRef.current) {
@@ -416,11 +425,15 @@ const HomeWalker = ({ currentUser }) => {
 
       const { data: walkerData, error: walkerError } = await supabase
         .from('walkers')
-        .select('id, overall_verification_status')
+        .select('id, overall_verification_status, is_online')
         .eq('user_id', user.id);
 
       if (walkerError) {
         console.error('Error fetching walker:', walkerError);
+      }
+
+      if (walkerData?.[0]?.is_online !== undefined) {
+        setIsOnline(walkerData[0].is_online);
       }
 
       const walkerId = walkerData?.[0]?.id;
@@ -489,6 +502,27 @@ const HomeWalker = ({ currentUser }) => {
     fetchWalkerData();
   }, [fetchWalkerData]);
 
+  useEffect(() => {
+    const handleUnload = () => {
+      if (walkerIdRef.current) {
+        supabase.from('walkers').update({ is_online: false }).eq('id', walkerIdRef.current);
+      }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden' && walkerIdRef.current) {
+        supabase.from('walkers').update({ is_online: false }).eq('id', walkerIdRef.current);
+      } else if (document.visibilityState === 'visible' && isOnline && walkerIdRef.current) {
+        supabase.from('walkers').update({ is_online: true }).eq('id', walkerIdRef.current);
+      }
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [isOnline]);
+
   
   const getCleanName = () => {
     const name = currentUser?.name || 'Paseador';
@@ -510,7 +544,7 @@ const HomeWalker = ({ currentUser }) => {
               <h1 className="text-white text-xl font-black">Hola, {getCleanName()}!</h1>
             </div>
           </div>
-          <button onClick={() => setIsOnline(!isOnline)} className={`flex items-center gap-2 px-4 py-2 rounded-2xl font-bold text-xs transition-all ${isOnline ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+          <button onClick={() => setWalkerOnline(!isOnline)} className={`flex items-center gap-2 px-4 py-2 rounded-2xl font-bold text-xs transition-all ${isOnline ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
             <Power size={14} /> {isOnline ? 'ONLINE' : 'OFFLINE'}
           </button>
         </div>

@@ -75,7 +75,8 @@ const { isLoaded } = useJsApiLoader({
           const { data: allWalkers } = await supabase
             .from('walkers')
             .select(`*, user_profiles (*)`)
-            .eq('overall_verification_status', 'approved');
+            .eq('overall_verification_status', 'approved')
+            .eq('is_online', true);
 
           if (allWalkers) {
             walkersRes = allWalkers.filter(walker => {
@@ -92,6 +93,7 @@ const { isLoaded } = useJsApiLoader({
             .from('walkers')
             .select(`*, user_profiles (*)`)
             .eq('overall_verification_status', 'approved')
+            .eq('is_online', true)
             .limit(3);
           walkersRes = defaultWalkers || [];
         }
