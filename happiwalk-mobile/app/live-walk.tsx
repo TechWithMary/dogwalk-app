@@ -1,31 +1,56 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { supabase } from '../lib/supabase';
-
-const { width, height } = Dimensions.get('window');
+import { Dog } from '../components/Icons';
 
 interface Booking {
   id: string;
   scheduled_date: string;
   scheduled_time: string;
-  duration_hours: number;
+  duration: string;
   status: string;
-  walker: {
+  pet_ids: string[];
+  address: string;
+  walker_id: string;
+  walkers?: {
     id: string;
     name: string;
     location: string;
+    user_id: string;
   };
-  pet: {
+  pet?: {
     name: string;
   };
 }
 
-const MEDELLIN_CENTER = {
-  latitude: 6.2476,
-  longitude: -75.5658,
-};
+function haversineDistance(
+  p1: { latitude: number; longitude: number },
+  p2: { latitude: number; longitude: number },
+): number {
+  const R = 6371;
+  const dLat = ((p2.latitude - p1.latitude) * Math.PI) / 180;
+  const dLon = ((p2.longitude - p1.longitude) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((p1.latitude * Math.PI) / 180) *
+      Math.cos((p2.latitude * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function calculateRouteDistance(points: { latitude: number; longitude: number }[]): number {
+  if (points.length < 2) return 0;
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    total += haversineDistance(points[i - 1], points[i]);
+  }
+  return total;
+}
+
+const ACCURACY_THRESHOLD = 100;
 
 export default function LiveWalkScreen() {
   const router = useRouter();
@@ -34,12 +59,14 @@ export default function LiveWalkScreen() {
 
   const mapRef = useRef<MapView>(null);
   const [booking, setBooking] = useState<Booking | null>(null);
-  const [walkerId, setWalkerId] = useState<string | null>(null);
-  const [walkerLocation, setWalkerLocation] = useState(MEDELLIN_CENTER);
+  const [walkerLocation, setWalkerLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [route, setRoute] = useState<{ latitude: number; longitude: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [walkStartTime, setWalkStartTime] = useState<Date | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [gpsDistance, setGpsDistance] = useState(0);
+  const [showMapTimeout, setShowMapTimeout] = useState(false);
 
   useEffect(() => {
     if (bookingId) {
@@ -48,14 +75,79 @@ export default function LiveWalkScreen() {
   }, [bookingId]);
 
   useEffect(() => {
-    if (!walkerId || !bookingId) return;
+    if (loading) return;
+    const timer = setTimeout(() => setShowMapTimeout(true), 15000);
+    return () => clearTimeout(timer);
+  }, [loading]);
 
-    fetchWalkerLocation();
-    const interval = setInterval(() => {
-      fetchWalkerLocation();
-    }, 10000);
-    return () => clearInterval(interval);
-  }, [walkerId, bookingId]);
+  useEffect(() => {
+    if (!bookingId) return;
+    console.log('[LiveWalk] Starting with bookingId:', bookingId);
+
+    const processLocation = (lat: number, lng: number, source: string) => {
+      console.log('[LiveWalk] Location from', source, ':', lat, lng);
+      setWalkerLocation({ latitude: lat, longitude: lng });
+      setLastUpdate(new Date());
+      setRoute(prev => {
+        const point = { latitude: lat, longitude: lng };
+        const newRoute = [...prev, point];
+        setGpsDistance(calculateRouteDistance(newRoute));
+        return newRoute;
+      });
+      if (mapRef.current) {
+        mapRef.current.animateToRegion({
+          latitude: lat,
+          longitude: lng,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        }, 1000);
+      }
+    };
+
+    const channel = supabase
+      .channel(`live-walk-${bookingId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'locations', filter: `booking_id=eq.${bookingId}` },
+        (payload) => {
+          const loc = payload.new as any;
+          const lat = Number(loc.latitude);
+          const lng = Number(loc.longitude);
+          const acc = loc.accuracy != null ? Number(loc.accuracy) : null;
+          if (acc !== null && acc > ACCURACY_THRESHOLD) return;
+          processLocation(lat, lng, 'realtime');
+        },
+      )
+      .subscribe();
+
+    const pollInterval = setInterval(async () => {
+      const { data, error } = await supabase
+        .from('locations')
+        .select('latitude, longitude, accuracy')
+        .eq('booking_id', bookingId)
+        .order('timestamp', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) {
+        console.error('[LiveWalk] Poll error:', error);
+        return;
+      }
+      if (data) {
+        const lat = Number(data.latitude);
+        const lng = Number(data.longitude);
+        const acc = data.accuracy != null ? Number(data.accuracy) : null;
+        if (acc !== null && acc > ACCURACY_THRESHOLD) return;
+        processLocation(lat, lng, 'poll');
+      } else {
+        console.log('[LiveWalk] Poll: no data found');
+      }
+    }, 5000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+    };
+  }, [bookingId]);
 
   useEffect(() => {
     if (!walkStartTime) return;
@@ -71,25 +163,84 @@ export default function LiveWalkScreen() {
     return () => clearInterval(interval);
   }, [walkStartTime]);
 
+  useEffect(() => {
+    const updateFreshness = setInterval(() => {
+      if (lastUpdate) {
+        setLastUpdate(new Date(lastUpdate.getTime()));
+      }
+    }, 10000);
+    return () => clearInterval(updateFreshness);
+  }, [lastUpdate]);
+
   const fetchBooking = async () => {
     try {
+      console.log('[LiveWalk] Fetching booking:', bookingId);
       const { data, error } = await supabase
         .from('bookings')
-        .select(`
-          *,
-          walker:walkers(id, name, location),
-          pet:pets(name)
-        `)
+        .select('*, walkers(*)')
         .eq('id', bookingId)
         .single();
 
-      if (error) throw error;
-      setBooking(data);
-      if (data?.walker?.id) {
-        setWalkerId(data.walker.id);
+      if (error) {
+        console.error('[LiveWalk] Booking fetch error:', error);
+        throw error;
       }
+
+      let bookingWithPet = { ...data };
+
+      if (data?.pet_ids && data.pet_ids.length > 0) {
+        const { data: petData } = await supabase
+          .from('pets')
+          .select('name')
+          .eq('id', data.pet_ids[0])
+          .single();
+        if (petData) {
+          bookingWithPet.pet = petData;
+        }
+      }
+
+      setBooking(bookingWithPet);
       if (data?.walk_start_time) {
         setWalkStartTime(new Date(data.walk_start_time));
+      }
+
+      const { data: locationData } = await supabase
+        .from('locations')
+        .select('latitude, longitude, accuracy, timestamp')
+        .eq('booking_id', bookingId)
+        .order('timestamp', { ascending: true });
+
+      if (locationData && locationData.length > 0) {
+        console.log('[LiveWalk] Found', locationData.length, 'existing locations');
+        const filtered = locationData.filter(
+          loc => loc.accuracy == null || Number(loc.accuracy) <= ACCURACY_THRESHOLD,
+        );
+        console.log('[LiveWalk] After accuracy filter:', filtered.length, 'locations');
+
+        if (filtered.length > 0) {
+          const points = filtered.map(loc => ({
+            latitude: Number(loc.latitude),
+            longitude: Number(loc.longitude),
+          }));
+
+          setRoute(points);
+          setGpsDistance(calculateRouteDistance(points));
+
+          const last = points[points.length - 1];
+          setWalkerLocation(last);
+          setLastUpdate(new Date(filtered[filtered.length - 1].timestamp));
+
+          if (mapRef.current) {
+            mapRef.current.animateToRegion({
+              latitude: last.latitude,
+              longitude: last.longitude,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01,
+            }, 500);
+          }
+        }
+      } else {
+        console.log('[LiveWalk] No existing locations found');
       }
     } catch (error) {
       console.error('Error:', error);
@@ -98,56 +249,66 @@ export default function LiveWalkScreen() {
     }
   };
 
-  const fetchWalkerLocation = async () => {
-    if (!bookingId) return;
-    try {
-      const { data, error } = await supabase
-        .from('locations')
-        .select('latitude, longitude, timestamp')
-        .eq('booking_id', bookingId)
-        .order('timestamp', { ascending: true });
-
-      if (error) {
-        console.error('Error fetching location:', error);
-        return;
-      }
-
-      if (data && data.length > 0) {
-        const points = data.map(loc => ({
-          latitude: loc.latitude,
-          longitude: loc.longitude,
-        }));
-        const last = points[points.length - 1];
-        setRoute(points);
-        setWalkerLocation(last);
-
-        if (mapRef.current) {
-          mapRef.current.animateToRegion({
-            latitude: last.latitude,
-            longitude: last.longitude,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          }, 1000);
-        }
-      }
-    } catch (err) {
-      console.error('Location fetch error:', err);
-    }
-  };
-
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
+    if (hrs > 0) {
+      return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const getLastUpdateText = () => {
+    if (!lastUpdate) return null;
+    const diff = Math.floor((new Date().getTime() - lastUpdate.getTime()) / 1000);
+    if (diff < 10) return 'Ahora';
+    if (diff < 60) return `Hace ${diff}s`;
+    const mins = Math.floor(diff / 60);
+    return `Hace ${mins}min`;
+  };
+
+  const statusLabel = walkerLocation
+    ? getLastUpdateText() || 'Esperando...'
+    : 'Sin señal';
+
   if (loading) {
     return (
-      <View style={styles.container}>
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#0EA5E9" />
         <Text style={styles.loadingText}>Cargando...</Text>
       </View>
     );
   }
+
+  if (!walkerLocation && !showMapTimeout) {
+    return (
+      <View style={styles.centerContainer}>
+        <View style={styles.waitingIcon}>
+          <Dog size={48} color="#0EA5E9" />
+        </View>
+        <Text style={styles.waitingTitle}>Esperando ubicación...</Text>
+        <Text style={styles.waitingSubtitle}>
+          {booking?.walkers?.name || 'El paseador'} está por iniciar el paseo
+        </Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Text style={styles.backButtonText}>Volver</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const fallbackCenter = walkerLocation || {
+    latitude: 6.2476,
+    longitude: -75.5658,
+  };
+
+  const initialRegion = {
+    latitude: fallbackCenter.latitude,
+    longitude: fallbackCenter.longitude,
+    latitudeDelta: 0.01,
+    longitudeDelta: 0.01,
+  };
 
   return (
     <View style={styles.container}>
@@ -155,23 +316,32 @@ export default function LiveWalkScreen() {
         ref={mapRef}
         style={styles.map}
         provider={PROVIDER_GOOGLE}
-        initialRegion={{
-          ...walkerLocation,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        }}
-        showsUserLocation
+        initialRegion={initialRegion}
       >
-        <Marker
-          coordinate={walkerLocation}
-          title={booking?.walker?.name || 'Paseador'}
-          description="📍 Ubicación actual"
-        >
-          <View style={styles.markerContainer}>
-            <Text style={styles.markerEmoji}>🐕</Text>
-          </View>
-        </Marker>
-        
+        {route.length > 0 && (
+          <Marker
+            coordinate={route[0]}
+            title="Inicio"
+            description="Punto de recogida"
+          >
+            <View style={styles.startMarker}>
+              <Dog size={18} color="#FFFFFF" />
+            </View>
+          </Marker>
+        )}
+
+        {walkerLocation && (
+          <Marker
+            coordinate={walkerLocation}
+            title={booking?.walkers?.name || 'Paseador'}
+            description="Ubicación actual de tu mascota"
+          >
+            <View style={styles.markerContainer}>
+              <Dog size={22} color="#FFFFFF" />
+            </View>
+          </Marker>
+        )}
+
         {route.length > 1 && (
           <Polyline
             coordinates={route}
@@ -188,7 +358,7 @@ export default function LiveWalkScreen() {
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Paseo en Vivo</Text>
           <Text style={styles.headerSubtitle}>
-            {booking?.pet?.name} con {booking?.walker?.name}
+            {booking?.pet?.name} con {booking?.walkers?.name}
           </Text>
         </View>
         <TouchableOpacity style={styles.callBtn}>
@@ -203,20 +373,22 @@ export default function LiveWalkScreen() {
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{(elapsedTime * 0.8).toFixed(1)} km</Text>
+          <Text style={styles.statValue}>{gpsDistance.toFixed(2)} km</Text>
           <Text style={styles.statLabel}>Distancia</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>🏃</Text>
-          <Text style={styles.statLabel}>Estado</Text>
+          <Text style={styles.statValue}>
+            {walkerLocation ? '🟢' : '🔴'}
+          </Text>
+          <Text style={styles.statLabel}>{statusLabel}</Text>
         </View>
       </View>
 
       <View style={styles.infoCard}>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Paseador</Text>
-          <Text style={styles.infoValue}>{booking?.walker?.name}</Text>
+          <Text style={styles.infoValue}>{booking?.walkers?.name}</Text>
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Mascota</Text>
@@ -224,7 +396,7 @@ export default function LiveWalkScreen() {
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Duración</Text>
-          <Text style={styles.infoValue}>{booking?.duration_hours} hora(s)</Text>
+          <Text style={styles.infoValue}>{booking?.duration || '-'}</Text>
         </View>
       </View>
     </View>
@@ -232,6 +404,13 @@ export default function LiveWalkScreen() {
 }
 
 const styles = StyleSheet.create({
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    padding: 24,
+  },
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
@@ -292,20 +471,61 @@ const styles = StyleSheet.create({
   callBtnText: {
     fontSize: 18,
   },
+  startMarker: {
+    backgroundColor: '#052e05',
+    borderRadius: 16,
+    padding: 6,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+  },
   markerContainer: {
     backgroundColor: '#0EA5E9',
     borderRadius: 20,
     padding: 8,
     borderWidth: 3,
     borderColor: '#FFFFFF',
-  },
-  markerEmoji: {
-    fontSize: 20,
+    shadowColor: '#0EA5E9',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
   },
   loadingText: {
-    textAlign: 'center',
+    fontSize: 14,
     color: '#9CA3AF',
-    marginTop: 40,
+    marginTop: 16,
+  },
+  waitingIcon: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: '#E0F2FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  waitingTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  waitingSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 32,
+  },
+  backButton: {
+    backgroundColor: '#111827',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+  },
+  backButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
   },
   statsCard: {
     position: 'absolute',
