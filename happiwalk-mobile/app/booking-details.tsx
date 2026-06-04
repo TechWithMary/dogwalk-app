@@ -461,8 +461,8 @@ const getStatusInfo = (status: string): { label: string; Icon: any; color: strin
         {booking.status === 'pickup_requested' && (
           <>
             <View style={[styles.pickupBanner, { backgroundColor: statusInfo.bg, borderColor: statusInfo.border }]}>
-              <View style={[styles.bannerIconWrap, { backgroundColor: statusInfo.color }]}>
-                <Hourglass size={18} color="#FFFFFF" strokeWidth={2.4} />
+              <View style={[styles.pickupIconWrap, { backgroundColor: statusInfo.color }]}>
+                <Hourglass size={14} color="#FFFFFF" strokeWidth={2.6} />
               </View>
               <Text style={styles.pickupBannerText}>El paseador ha llegado. Confirma que entregaste tu mascota.</Text>
             </View>
@@ -781,18 +781,26 @@ const styles = StyleSheet.create({
   },
   pickupBanner: {
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     marginBottom: 10,
   },
+  pickupIconWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   pickupBannerText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: '#92400E',
-    lineHeight: 18,
+    lineHeight: 16,
     flex: 1,
   },
   confirmBtn: {
