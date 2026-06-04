@@ -96,7 +96,7 @@ export function useChatNotifications(currentUserId: string | null) {
     if (!currentUserId) return;
 
     const channel = supabase
-      .channel('chat-global-notifications')
+      .channel(`chat-global-notifications-${currentUserId.slice(0, 8)}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${currentUserId}` },
