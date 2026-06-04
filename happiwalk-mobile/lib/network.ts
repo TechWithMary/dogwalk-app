@@ -1,25 +1,32 @@
 import { useState, useEffect } from 'react';
-import * as Network from 'expo-network';
 
-export function useNetworkStatus() {
-  const [isConnected, setIsConnected] = useState(true);
-  const [isInternetReachable, setIsInternetReachable] = useState(true);
+type NetworkHook = {
+  isConnected: boolean;
+  isOffline: boolean;
+};
+
+export function useNetworkStatus(): NetworkHook {
+  const [isConnected, setIsConnected] = useState(
+    typeof navigator !== 'undefined' && 'onLine' in navigator ? navigator.onLine : true
+  );
 
   useEffect(() => {
-    const subscription = Network.addNetworkStateListener((state) => {
-      setIsConnected(state.isConnected ?? false);
-      setIsInternetReachable(state.isInternetReachable ?? false);
-    });
+    if (typeof navigator === 'undefined' || !('onLine' in navigator)) return;
 
-    Network.getNetworkStateAsync().then((state) => {
-      setIsConnected(state.isConnected ?? false);
-      setIsInternetReachable(state.isInternetReachable ?? false);
-    }).catch(() => {});
+    const handleOnline = () => setIsConnected(true);
+    const handleOffline = () => setIsConnected(false);
 
-    return () => subscription.remove();
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
-  const isOffline = !isConnected || !isInternetReachable;
-
-  return { isConnected, isInternetReachable, isOffline };
+  return {
+    isConnected,
+    isOffline: !isConnected,
+  };
 }
