@@ -8,6 +8,7 @@ import {
   Platform,
   Alert,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
@@ -69,6 +70,39 @@ export default function AdminPayoutsScreen() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('pending');
   const [refreshing, setRefreshing] = useState(false);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.replace('/(auth)/login'); return; }
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('role')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (profile?.role !== 'admin') {
+        Alert.alert('Acceso Denegado', 'No tienes permisos de administrador');
+        router.replace('/(tabs)');
+        return;
+      }
+      setIsAdmin(true);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (isAdmin) fetchPayouts();
+  }, [isAdmin, activeTab]);
+
+  if (isAdmin === null) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' }}>
+        <ActivityIndicator size="large" color="#0EA5E9" />
+      </View>
+    );
+  }
+
+  if (!isAdmin) return null;
 
   const fetchPayouts = useCallback(async () => {
     try {

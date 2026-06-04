@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, RefreshControl, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, RefreshControl, Platform, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { ShieldCheck, User, Check, X, Loader2, Phone, ChevronLeft } from '../../components/Icons';
@@ -30,6 +30,25 @@ export default function VerificationsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.replace('/(auth)/login'); return; }
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('role')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (profile?.role !== 'admin') {
+        Alert.alert('Acceso Denegado', 'No tienes permisos de administrador');
+        router.replace('/(tabs)');
+        return;
+      }
+      setIsAdmin(true);
+    })();
+  }, []);
 
   const fetchPendingWalkers = useCallback(async () => {
     try {
@@ -56,14 +75,24 @@ export default function VerificationsScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchPendingWalkers();
-  }, [fetchPendingWalkers]);
-
   const handleRefresh = () => {
     setRefreshing(true);
     fetchPendingWalkers();
   };
+
+  useEffect(() => {
+    if (isAdmin) fetchPendingWalkers();
+  }, [isAdmin]);
+
+  if (isAdmin === null) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' }}>
+        <ActivityIndicator size="large" color="#0EA5E9" />
+      </View>
+    );
+  }
+
+  if (!isAdmin) return null;
 
   const handleVerification = (walkerId: string, status: 'approved' | 'rejected') => {
     const action = status === 'approved' ? 'APROBAR' : 'RECHAZAR';
