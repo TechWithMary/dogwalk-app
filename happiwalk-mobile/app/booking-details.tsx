@@ -205,23 +205,36 @@ export default function BookingDetailsScreen() {
       if (!user) return;
 
       const walkerUserId = booking?.walkers?.user_id;
+      console.log('[Chat] Current user:', user.id);
+      console.log('[Chat] Walker user_id:', walkerUserId);
+      console.log('[Chat] Booking:', booking?.id);
+
       if (!walkerUserId) {
-        Alert.alert('Error', 'No se pudo identificar al paseador');
+        Alert.alert('Error', 'No se pudo identificar al paseador. El booking no tiene walker con user_id.');
+        return;
+      }
+
+      if (walkerUserId === user.id) {
+        Alert.alert('Error', 'No podés chatear con vos mismo');
         return;
       }
 
       const [p1, p2] = [user.id, walkerUserId].sort();
+      console.log('[Chat] Looking for conversation with p1:', p1, 'p2:', p2);
 
-      const { data: existing } = await supabase
+      const { data: existing, error: searchError } = await supabase
         .from('conversations')
         .select('id')
         .eq('participant_one_id', p1)
         .eq('participant_two_id', p2)
         .maybeSingle();
 
+      console.log('[Chat] Existing conversation:', existing, 'error:', searchError);
+
       let conversationId = existing?.id;
 
       if (!conversationId) {
+        console.log('[Chat] Creating new conversation...');
         const { data: created, error: createError } = await supabase
           .from('conversations')
           .insert({
@@ -232,6 +245,7 @@ export default function BookingDetailsScreen() {
           .select('id')
           .single();
 
+        console.log('[Chat] Create result:', created, 'error:', createError);
         if (createError) throw createError;
         conversationId = created.id;
       }
@@ -239,7 +253,7 @@ export default function BookingDetailsScreen() {
       router.push({ pathname: '/chat', params: { conversationId } });
     } catch (error: any) {
       console.error('Error opening chat:', error);
-      Alert.alert('Error', 'No se pudo abrir el chat');
+      Alert.alert('Error', 'No se pudo abrir el chat: ' + (error.message || error));
     }
   };
 
