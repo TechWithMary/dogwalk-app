@@ -14,6 +14,9 @@ interface Booking {
   pet_ids: string[];
   address: string;
   walker_id: string;
+  lat: number | null;
+  lng: number | null;
+  walk_start_time: string | null;
   walkers?: {
     id: string;
     name: string;
@@ -76,7 +79,7 @@ export default function LiveWalkScreen() {
 
   useEffect(() => {
     if (loading) return;
-    const timer = setTimeout(() => setShowMapTimeout(true), 15000);
+    const timer = setTimeout(() => setShowMapTimeout(true), 8000);
     return () => clearTimeout(timer);
   }, [loading]);
 
@@ -287,10 +290,20 @@ export default function LiveWalkScreen() {
         <View style={styles.waitingIcon}>
           <Dog size={48} color="#0EA5E9" />
         </View>
-        <Text style={styles.waitingTitle}>Esperando ubicación...</Text>
-        <Text style={styles.waitingSubtitle}>
-          {booking?.walkers?.name || 'El paseador'} está por iniciar el paseo
+        <Text style={styles.waitingTitle}>
+          {booking?.status === 'picked_up' ? 'Esperando GPS...' : 'Esperando inicio del paseo'}
         </Text>
+        <Text style={styles.waitingSubtitle}>
+          {booking?.status === 'picked_up'
+            ? `${booking?.walkers?.name || 'El paseador'} aún no activó el GPS del paseo`
+            : `${booking?.walkers?.name || 'El paseador'} está por iniciar el paseo`}
+        </Text>
+        {booking?.address && (
+          <View style={styles.pickupInfo}>
+            <Text style={styles.pickupLabel}>📍 Punto de recogida</Text>
+            <Text style={styles.pickupAddress}>{booking.address}</Text>
+          </View>
+        )}
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Text style={styles.backButtonText}>Volver</Text>
         </TouchableOpacity>
@@ -298,7 +311,11 @@ export default function LiveWalkScreen() {
     );
   }
 
-  const fallbackCenter = walkerLocation || {
+  const pickupLocation = booking?.lat != null && booking?.lng != null
+    ? { latitude: booking.lat, longitude: booking.lng }
+    : null;
+
+  const fallbackCenter = walkerLocation || pickupLocation || {
     latitude: 6.2476,
     longitude: -75.5658,
   };
@@ -310,6 +327,16 @@ export default function LiveWalkScreen() {
     longitudeDelta: 0.01,
   };
 
+  useEffect(() => {
+    if (!mapRef.current) return;
+    if (walkerLocation && pickupLocation) {
+      mapRef.current.fitToCoordinates([walkerLocation, pickupLocation], {
+        edgePadding: { top: 120, right: 60, bottom: 280, left: 60 },
+        animated: true,
+      });
+    }
+  }, [walkerLocation, pickupLocation]);
+
   return (
     <View style={styles.container}>
       <MapView
@@ -318,11 +345,20 @@ export default function LiveWalkScreen() {
         provider={PROVIDER_GOOGLE}
         initialRegion={initialRegion}
       >
+        {pickupLocation && (
+          <Marker
+            coordinate={pickupLocation}
+            title="Punto de recogida"
+            description={booking?.address || 'Donde se recogió la mascota'}
+            pinColor="#F59E0B"
+          />
+        )}
+
         {route.length > 0 && (
           <Marker
             coordinate={route[0]}
-            title="Inicio"
-            description="Punto de recogida"
+            title="Inicio del recorrido"
+            description="Punto de partida del paseo"
           >
             <View style={styles.startMarker}>
               <Dog size={18} color="#FFFFFF" />
@@ -509,12 +545,36 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#111827',
     marginBottom: 8,
+    textAlign: 'center',
   },
   waitingSubtitle: {
     fontSize: 14,
     color: '#6B7280',
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
+    paddingHorizontal: 16,
+  },
+  pickupInfo: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FCD34D',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 24,
+    maxWidth: 320,
+  },
+  pickupLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#92400E',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  pickupAddress: {
+    fontSize: 13,
+    color: '#78350F',
+    fontWeight: '600',
   },
   backButton: {
     backgroundColor: '#111827',
