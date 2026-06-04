@@ -67,6 +67,7 @@ export default function WalkerHomeScreen() {
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const walkerIdRef = useRef<string | null>(null);
   const locationErrorShownRef = useRef(false);
+  const initialTabSetRef = useRef(false);
 
   const fetchWalkerData = useCallback(async () => {
     try {
@@ -115,8 +116,14 @@ export default function WalkerHomeScreen() {
 
       const allBookings = [...(myBookings || []), ...(availableBookings || [])];
 
+      const activeList = allBookings.filter(b => b.status === 'accepted' || b.status === 'pickup_requested' || b.status === 'picked_up' || b.status === 'in_progress') || [];
       setNewRequests(allBookings.filter(b => b.status === 'pending' || b.status === 'confirmed') || []);
-      setActiveWalks(allBookings.filter(b => b.status === 'accepted' || b.status === 'pickup_requested' || b.status === 'picked_up' || b.status === 'in_progress') || []);
+      setActiveWalks(activeList);
+
+      if (!initialTabSetRef.current) {
+        initialTabSetRef.current = true;
+        setActiveTab(activeList.length > 0 ? 'active' : 'pending');
+      }
 
       const { data: completedBookings } = await supabase
         .from('bookings')
