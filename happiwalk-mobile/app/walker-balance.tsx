@@ -34,6 +34,7 @@ export default function WalkerBalanceScreen() {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [requesting, setRequesting] = useState(false);
+  const [bankInfo, setBankInfo] = useState<{ bank_account_type: string | null; bank_account_number: string | null } | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -42,11 +43,15 @@ export default function WalkerBalanceScreen() {
 
       const { data: profile } = await supabase
         .from('user_profiles')
-        .select('balance')
+        .select('balance, bank_account_type, bank_account_number')
         .eq('user_id', user.id)
         .maybeSingle();
 
       setBalance(profile?.balance || 0);
+      setBankInfo({
+        bank_account_type: profile?.bank_account_type ?? null,
+        bank_account_number: profile?.bank_account_number ?? null,
+      });
 
       const { data: walkerData } = await supabase
         .from('walkers')
@@ -120,35 +125,32 @@ export default function WalkerBalanceScreen() {
         return;
       }
 
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('bank_account_type, bank_account_number')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (!profile?.bank_account_number) {
-        Alert.alert('Error', 'Completa tus datos bancarios en tu perfil primero');
-        return;
-      }
-
-      const { error: payoutError } = await supabase.from('payouts').insert({
-        walker_id: walkerData.id,
-        amount: amount,
-        status: 'pending',
-        payout_date: new Date().toISOString().split('T')[0],
-        notes: `Tipo: ${profile?.bank_account_type || 'Nequi'}, Cuenta: ${profile?.bank_account_number || 'No registrada'}`,
+      const { data: result, error: rpcError } = await supabase.rpc('request_payout', {
+        p_walker_id: walkerData.id,
+        p_amount: amount,
       });
 
-      if (payoutError) throw payoutError;
+      if (rpcError) {
+        // Postgres RAISE EXCEPTION message comes through
+        const friendlyMsg = rpcError.message
+          .replace(/^request_payout: /, '')
+          .replace(/^process_payout: /, '');
+        throw new Error(friendlyMsg);
+      }
 
+      // Notify admin that a new payout request is waiting
       await supabase.from('notifications').insert({
         user_id: user.id,
         title: '💰 Solicitud de Retiro Enviada',
-        body: `Tu solicitud de retiro por ${formatMoney(amount)} ha sido recibida.`,
+        body: `Tu solicitud de retiro por ${formatMoney(amount)} está siendo procesada. Te avisaremos cuando se complete.`,
         link_to: '/walker-balance',
       });
 
-      Alert.alert('Éxito', 'Solicitud enviada');
+      Alert.alert(
+        'Solicitud enviada',
+        `Retiro de ${formatMoney(amount)} en proceso. Te avisaremos cuando se complete.\n\nA ${result?.bank_type || 'tu cuenta'}: ${result?.bank_number || ''}`,
+        [{ text: 'OK' }]
+      );
       setShowWithdrawModal(false);
       setWithdrawAmount('');
       fetchData();
@@ -300,10 +302,22 @@ export default function WalkerBalanceScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>¿Cuánto quieres retirar?</Text>
+              <Text style={styles.modalTitle}>Solicitar Retiro</Text>
               <TouchableOpacity onPress={() => setShowWithdrawModal(false)}>
                 <X size={24} color="#6B7280" />
               </TouchableOpacity>
+            </View>
+
+            <View style={styles.bankInfoBox}>
+              <Text style={styles.bankInfoLabel}>Transferiremos a:</Text>
+              <Text style={styles.bankInfoValue}>
+                {bankInfo?.bank_account_type || 'Nequi'} · {bankInfo?.bank_account_number || 'Sin cuenta'}
+              </Text>
+              {!bankInfo?.bank_account_number && (
+                <Text style={styles.bankInfoWarning}>
+                  ⚠️ Configurá tu cuenta bancaria en tu perfil antes de retirar.
+                </Text>
+              )}
             </View>
 
             <TextInput
@@ -587,6 +601,32 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
     marginBottom: 20,
+  },
+  bankInfoBox: {
+    backgroundColor: 'rgba(14,165,233,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(14,165,233,0.2)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  bankInfoLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0EA5E9',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  bankInfoValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#E5E7EB',
+  },
+  bankInfoWarning: {
+    fontSize: 12,
+    color: '#F59E0B',
+    marginTop: 8,
   },
   modalActions: {
     flexDirection: 'row',

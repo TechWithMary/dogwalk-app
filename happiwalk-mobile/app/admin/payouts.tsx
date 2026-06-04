@@ -9,6 +9,7 @@ import {
   Alert,
   RefreshControl,
   ActivityIndicator,
+  Clipboard,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
@@ -23,6 +24,7 @@ import {
   AlertCircle,
   DollarSign,
   Phone,
+  Copy,
 } from '../../components/Icons';
 import EmptyState from '../../components/EmptyState';
 import { SkeletonList } from '../../components/Skeleton';
@@ -143,6 +145,7 @@ export default function AdminPayoutsScreen() {
 
   const processPayout = async (payoutId: string, newStatus: 'completed' | 'rejected') => {
     const action = newStatus === 'completed' ? 'APROBAR' : 'RECHAZAR';
+    const actionKey = newStatus === 'completed' ? 'approve' : 'reject';
 
     Alert.alert(
       'Confirmar',
@@ -155,64 +158,34 @@ export default function AdminPayoutsScreen() {
           onPress: async () => {
             setProcessingId(payoutId);
             try {
-              const { data: payoutData, error: fetchError } = await supabase
-                .from('payouts')
-                .select('*, walkers(*)')
-                .eq('id', payoutId)
-                .single();
+              const { data: { user } } = await supabase.auth.getUser();
+              if (!user) throw new Error('No admin user');
 
-              if (fetchError) throw fetchError;
+              // Atomic RPC: marks payout, updates transaction, refunds balance on reject
+              const { data: result, error: rpcError } = await supabase.rpc('process_payout', {
+                p_payout_id: payoutId,
+                p_admin_user_id: user.id,
+                p_action: actionKey,
+                p_admin_note: newStatus === 'completed'
+                  ? 'Transferencia realizada'
+                  : 'Saldo insuficiente o datos incorrectos',
+              });
 
-              const { error: updateError } = await supabase
-                .from('payouts')
-                .update({
-                  status: newStatus,
-                  payout_date: new Date().toISOString().split('T')[0],
-                })
-                .eq('id', payoutId);
-
-              if (updateError) throw updateError;
-
-              if (newStatus === 'completed' && payoutData?.walkers?.user_id) {
-                const walkerUserId = payoutData.walkers.user_id;
-
-                const { data: profile } = await supabase
-                  .from('user_profiles')
-                  .select('balance')
-                  .eq('user_id', walkerUserId)
-                  .single();
-
-                const currentBalance = Number(profile?.balance) || 0;
-                const newBalance = Math.max(0, currentBalance - payoutData.amount);
-
-                const { error: balanceError } = await supabase
-                  .from('user_profiles')
-                  .update({ balance: newBalance })
-                  .eq('user_id', walkerUserId);
-
-                if (balanceError) console.error('Balance update error:', balanceError);
-
-                await supabase.from('transactions').insert({
-                  user_id: walkerUserId,
-                  transaction_type: 'withdrawal',
-                  amount: payoutData.amount,
-                  net_amount: payoutData.amount,
-                  status: 'completed',
-                  description: `Retiro aprobado - ${payoutData.notes || ''}`,
-                });
+              if (rpcError) {
+                const friendlyMsg = rpcError.message
+                  .replace(/^process_payout: /, '')
+                  .replace(/^request_payout: /, '');
+                throw new Error(friendlyMsg);
               }
 
-              if (payoutData?.walkers?.user_id) {
+              // Notify the walker
+              if (result?.walker_user_id) {
                 await supabase.from('notifications').insert({
-                  user_id: payoutData.walkers.user_id,
-                  title:
-                    newStatus === 'completed'
-                      ? '✅ Retiro Aprobado'
-                      : '❌ Retiro Rechazado',
-                  body:
-                    newStatus === 'completed'
-                      ? `Tu retiro de ${formatMoney(payoutData.amount)} ha sido procesado.`
-                      : 'Tu solicitud de retiro ha sido rechazada. Contacta soporte.',
+                  user_id: result.walker_user_id,
+                  title: newStatus === 'completed' ? '✅ Retiro Aprobado' : '❌ Retiro Rechazado',
+                  body: newStatus === 'completed'
+                    ? `Tu retiro de ${formatMoney(result.amount)} fue procesado y transferido.`
+                    : 'Tu solicitud de retiro fue rechazada. Contacta soporte.',
                   link_to: '/walker-balance',
                 });
               }
@@ -220,8 +193,8 @@ export default function AdminPayoutsScreen() {
               Alert.alert(
                 'Éxito',
                 newStatus === 'completed'
-                  ? 'Retiro aprobado y balance actualizado'
-                  : 'Retiro rechazado'
+                  ? 'Retiro aprobado y pagado'
+                  : 'Retiro rechazado y saldo devuelto'
               );
 
               setTimeout(() => fetchPayouts(), 500);
@@ -235,6 +208,12 @@ export default function AdminPayoutsScreen() {
         },
       ]
     );
+  };
+
+  const copyToClipboard = (value: string, label: string) => {
+    if (!value) return;
+    Clipboard.setString(value);
+    Alert.alert('Copiado', `${label} copiado al portapapeles`);
   };
 
   const getStatusBadge = (status: string) => {
@@ -368,14 +347,46 @@ export default function AdminPayoutsScreen() {
                         {formatMoney(payout.amount)}
                       </Text>
                     </View>
-                    <View style={styles.bankRow}>
-                      <CreditCard size={16} color="#9CA3AF" />
-                      <Text style={styles.bankType}>
-                        {profile?.bank_account_type || 'Nequi'}
-                      </Text>
-                      <Text style={styles.bankNumber}>
-                        •••• {profile?.bank_account_number?.slice(-4) || '****'}
-                      </Text>
+
+                    <View style={styles.bankDetails}>
+                      <View style={styles.bankDetailRow}>
+                        <CreditCard size={14} color="#9CA3AF" />
+                        <Text style={styles.bankDetailLabel}>Tipo:</Text>
+                        <Text style={styles.bankDetailValue}>
+                          {profile?.bank_account_type || 'Nequi'}
+                        </Text>
+                      </View>
+                      <View style={styles.bankDetailRow}>
+                        <Text style={styles.bankDetailLabel}>Cuenta:</Text>
+                        <Text style={styles.bankDetailValue}>
+                          {profile?.bank_account_number || 'Sin registrar'}
+                        </Text>
+                        {profile?.bank_account_number ? (
+                          <TouchableOpacity
+                            style={styles.copyBtn}
+                            onPress={() => copyToClipboard(profile.bank_account_number!, 'Número de cuenta')}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Copy size={14} color="#0EA5E9" />
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                      <View style={styles.bankDetailRow}>
+                        <Phone size={14} color="#9CA3AF" />
+                        <Text style={styles.bankDetailLabel}>WhatsApp:</Text>
+                        <Text style={styles.bankDetailValue}>
+                          {profile?.phone || 'Sin teléfono'}
+                        </Text>
+                        {profile?.phone ? (
+                          <TouchableOpacity
+                            style={styles.copyBtn}
+                            onPress={() => copyToClipboard(profile.phone!, 'Teléfono')}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Copy size={14} color="#0EA5E9" />
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
                     </View>
                   </View>
 
@@ -619,20 +630,37 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#0EA5E9',
   },
-  bankRow: {
+  bankDetails: {
+    gap: 8,
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.05)',
+    paddingTop: 12,
+  },
+  bankDetailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
-  bankType: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#E5E7EB',
-    textTransform: 'capitalize',
-  },
-  bankNumber: {
-    fontSize: 13,
+  bankDetailLabel: {
+    fontSize: 12,
     color: '#9CA3AF',
+    fontWeight: '600',
+  },
+  bankDetailValue: {
+    fontSize: 13,
+    color: '#E5E7EB',
+    fontWeight: '500',
+    flexShrink: 1,
+  },
+  copyBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: 'rgba(14,165,233,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
   },
   notesRow: {
     flexDirection: 'row',
