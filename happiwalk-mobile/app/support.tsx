@@ -42,12 +42,12 @@ const OWNER_FAQS: FAQItem[] = [
   {
     category: 'Reservas',
     question: '¿Puedo ver la ubicación de mi mascota durante el paseo?',
-    answer: 'Sí, una vez que el paseador inicia el paseo (después de la recogida), puedes ver la ubicación en tiempo real desde "Paseos Activos" o tocando "Ver Walk en Vivo".',
+    answer: 'Sí, una vez que confirmás la recogida, la app abre el mapa en vivo automáticamente. También podés tocar "Ver Walk en Vivo" en los detalles del paseo para abrirlo manualmente.',
   },
   {
     category: 'Reservas',
     question: '¿Qué pasa si el paseador no llega?',
-    answer: 'Si el paseador no llega en los primeros 15 minutos, puedes cancelar sin cargo desde los detalles de la reserva y buscar otro paseador disponible.',
+    answer: 'Si el paseador se demora o no llega, primero envíale un mensaje por el chat de la reserva. Si pasa un buen rato sin aparecer, escribinos por WhatsApp y te ayudamos a resolverlo.',
   },
   {
     category: 'Pagos',
@@ -100,7 +100,7 @@ const WALKER_FAQS: FAQItem[] = [
   {
     category: 'Paseos',
     question: '¿Qué pasa si el dueño no contesta al llegar?',
-    answer: 'Espera 10 minutos en el punto de recogida. Si no hay respuesta, toca "Reportar problema" en los detalles del paseo o escríbenos por WhatsApp para que contactemos al dueño.',
+    answer: 'Esperá unos minutos en el punto de recogida y envíale un mensaje por el chat. Si después de un rato no responde, contactanos por WhatsApp y te ayudamos.',
   },
   {
     category: 'Paseos',
@@ -110,12 +110,12 @@ const WALKER_FAQS: FAQItem[] = [
   {
     category: 'Paseos',
     question: '¿Puedo cancelar un paseo ya aceptado?',
-    answer: 'Sí, pero te penaliza. Cancela solo en emergencias. Si cancelas más de 2 veces al mes, tu ranking baja y reduces tus oportunidades de reservas.',
+    answer: 'Sí, pero es solo para emergencias. Si necesitás cancelar, abrí la reserva y avisale al dueño por chat. Las cancelaciones frecuentes afectan tu reputación.',
   },
   {
     category: 'Pagos',
     question: '¿Cuándo me pagan?',
-    answer: 'Tu pago se acumula en "Mis Ganancias" después de cada paseo completado. Puedes solicitar un retiro a tu cuenta bancaria o Nequi cuando tengas mínimo $20.000 COP.',
+    answer: 'Tu pago se acumula en "Mis Ganancias" después de cada paseo completado. Podés solicitar un retiro a tu cuenta bancaria o Nequi cuando tengas mínimo $50.000 COP.',
   },
   {
     category: 'Pagos',
@@ -154,86 +154,6 @@ const WALKER_CATEGORIES = ['Todos', 'Paseos', 'Pagos', 'Verificación', 'Cuenta'
 
 const WHATSAPP_NUMBER = '573219078042';
 const WHATSAPP_DISPLAY = '+57 321 907 8042';
-
-const ownerBotResponses = (msg: string): string => {
-  if (msg.match(/hola|buenas|hey|hi|hello/)) {
-    return '¡Hola! 👋 Soy el asistente para dueños de HappiWalk. Puedo ayudarte con:\n\n• Reservar paseos\n• Ver la ubicación de tu mascota\n• Pagos, reembolsos y billetera\n• Gestión de mascotas\n• Problemas técnicos\n\n¿Qué necesitas?';
-  }
-  if (msg.match(/paseador|walker|disponible|hay alguien|no hay/)) {
-    return '🐕 Para ver paseadores disponibles:\n\n1. Ve a "Reservar un Paseo"\n2. Selecciona mascotas, fecha y hora\n3. Verás la lista de paseadores disponibles\n\n💡 Tip: Si no hay, prueba otra fecha u horario. Los paseadores aparecen según su zona.';
-  }
-  if (msg.match(/reservar|agendar|pedir|quiero un paseo|cómo pido/)) {
-    return '📅 Para reservar:\n\n1. Toca "Reservar un Paseo"\n2. Selecciona tu(s) mascota(s)\n3. Elige fecha y hora\n4. Elige un paseador\n5. Confirma el pago\n\n✅ Recibirás confirmación push al instante.';
-  }
-  if (msg.match(/cancelar|devolver|reembolso|no puedo/)) {
-    return '❌ Política de cancelación:\n\n• Más de 2h antes: reembolso 100%\n• Menos de 2h antes: cargo del 50%\n• Paseo ya iniciado: sin reembolso\n\nPara cancelar: ve a "Mis Reservas" → selecciona el paseo → "Cancelar".';
-  }
-  if (msg.match(/precio|cuánto|costo|pago|pagar|billetera|saldo/)) {
-    return '💳 Sobre pagos:\n\n• El precio varía por duración y número de mascotas\n• Verás el precio exacto antes de confirmar\n• Métodos: Mercado Pago, Nequi, tarjeta\n\nPara agregar fondos: Perfil → "Mi Billetera" → "Agregar Fondos".';
-  }
-  if (msg.match(/ubicación|dónde|gps|rastrear|seguimiento|en vivo/)) {
-    return '🗺️ Seguimiento en vivo:\n\n1. Espera a que el paseador llegue y tú confirmes la recogida\n2. La app abre automáticamente el mapa en vivo\n3. Verás ruta, distancia y tiempo\n\n📸 El paseador sube fotos durante el paseo.';
-  }
-  if (msg.match(/mascota|perro|gato|agregar pet/)) {
-    return '🐾 Para gestionar mascotas:\n\nInicio → "Mis Mascotas" → "Agregar Mascota"\n\nDatos útiles: raza, edad, comportamiento (tímido, sociable, tira de la correa, le tiene miedo a otros perros, etc.) y foto.';
-  }
-  if (msg.match(/error|bug|falla|no funciona|crashea|se cierra/)) {
-    return '🔧 Prueba:\n\n1. Cierra la app y vuelve a abrir\n2. Actualiza desde App Store\n3. Verifica tu internet\n4. Reinicia el teléfono\n\nSi persiste, escríbenos por WhatsApp con una captura del error.';
-  }
-  if (msg.match(/cuenta|perfil|nombre|email|contraseña/)) {
-    return '👤 Para editar tu perfil: Perfil → "Editar Información Personal".\n\nPara cambiar email o contraseña, contáctanos por WhatsApp.';
-  }
-  if (msg.match(/verificado|seguro|antecedentes/)) {
-    return '✅ Los paseadores verificados tienen:\n\n• Documento de identidad validado\n• Antecedentes revisados\n• Identidad confirmada por selfie\n\nAparecen con badge azul. Recomendamos siempre elegirlos.';
-  }
-  if (msg.match(/foto|fotos|imagen/)) {
-    return '📸 Fotos durante el paseo:\n\nEl paseador puede subir fotos durante el recorrido. Las encuentras en "Paseos Activos" (durante) y en el historial (después).';
-  }
-  if (msg.match(/humano|persona|agente|llamar|teléfono|whatsapp/)) {
-    return '👨‍💼 Para hablar con una persona real:\n\nToca el botón de WhatsApp al final de esta conversación. Respondemos rápido en horario comercial.';
-  }
-  return '🤔 No entendí bien. Cuéntame más. Por ejemplo:\n\n• "No encuentro paseadores"\n• "Cómo reservo"\n• "Quiero ver a mi mascota"\n• "Necesito un reembolso"\n\nTambién puedes escribirnos por WhatsApp.';
-};
-
-const walkerBotResponses = (msg: string): string => {
-  if (msg.match(/hola|buenas|hey|hi|hello/)) {
-    return '¡Hola! 👋 Soy el asistente para paseadores de HappiWalk. Puedo ayudarte con:\n\n• Aceptar y gestionar paseos\n• GPS y tracking\n• Ganancias y retiros\n• Verificación de documentos\n• Problemas técnicos\n\n¿Qué necesitas?';
-  }
-  if (msg.match(/aceptar|nuevo paseo|tengo una reserva/)) {
-    return '✅ Para aceptar un paseo:\n\n1. Llega una notificación push al dueño reservar\n2. Abre la app → tab "Home" → "Por Aceptar"\n3. Revisa mascota, dirección y hora\n4. Toca "Aceptar Paseo"\n\n⏰ Tienes 5 minutos para aceptar o se libera al siguiente paseador.';
-  }
-  if (msg.match(/gps|ubicación|activar|tracking|rastreo/)) {
-    return '📡 GPS automático:\n\nCuando el dueño confirma la recogida, la app activa el GPS automáticamente después de 4 segundos. No tienes que hacer nada.\n\nSi el dueño no confirma, ve a la reserva y toca "Iniciar Paseo GPS" manualmente.';
-  }
-  if (msg.match(/pago|cuándo pagan|ganancia|retiro|saldo|cuenta/)) {
-    return '💰 Tus ganancias:\n\n• El 80% del valor del paseo es para ti\n• Se acumula en "Mis Ganancias" al completar\n• Retiro mínimo: $20.000 COP\n• Métodos: Nequi, Bancolombia, Davivienda\n\nVe a Perfil → "Mis Ganancias" para ver el saldo y retirar.';
-  }
-  if (msg.match(/verificacion|verificar|documento|cedula|c.c.|antecedentes|selfie/)) {
-    return '✅ Verificación:\n\n1. Perfil → "Verificación"\n2. Sube cédula (frontal y trasera) + selfie sosteniendo el documento\n3. Equipo revisa en 24-48h hábiles\n4. Te avisamos por WhatsApp\n\nHasta estar verificado, no aparecerás en búsquedas de dueños.';
-  }
-  if (msg.match(/cancelar|no puedo|no voy/)) {
-    return '❌ Cancelaciones:\n\n• Solo cancela en emergencias reales\n• Cancelar con <2h afecta tu ranking\n• 2+ cancelaciones al mes reduces prioridad en reservas\n\nSi es emergencia real: abre la reserva → "Cancelar" → cuéntale al dueño por chat.';
-  }
-  if (msg.match(/finalizar|terminar|acabar|concluir/)) {
-    return '🏁 Para finalizar un paseo:\n\n1. Abre la reserva activa\n2. Toca "Finalizar Paseo"\n3. Confirma\n4. La app guarda duración, distancia y ruta\n5. El dueño te califica y recibes tu pago\n\nNo cierres la app hasta ver "Paseo finalizado".';
-  }
-  if (msg.match(/dueño|propietario|cliente|no contesta|no responde/)) {
-    return '📞 Si el dueño no contesta al llegar:\n\n1. Espera 10 minutos en el punto de recogida\n2. Envíale un mensaje por el chat de la app\n3. Si después de 15 min no responde, escríbenos por WhatsApp para que te asignemos otro paseo o liberemos la reserva';
-  }
-  if (msg.match(/error|bug|falla|no funciona|crashea|se cierra/)) {
-    return '🔧 Prueba:\n\n1. Cierra la app y vuelve a abrir\n2. Verifica permisos de ubicación (Ajustes → Apps → HappiWalk → Ubicación → "Siempre")\n3. Activa GPS de alta precisión\n4. Si persiste, escríbenos por WhatsApp con el modelo de tu celular';
-  }
-  if (msg.match(/zona|área|trabajo|cambiar ciudad/)) {
-    return '📍 Para cambiar tu zona:\n\nPerfil → "Editar Información Personal" → actualiza la dirección.\n\nLa app usa esa dirección para mostrarte paseos cercanos. Si te mudas, los paseos disponibles cambiarán automáticamente.';
-  }
-  if (msg.match(/humano|persona|agente|llamar|teléfono|whatsapp|supervisor/)) {
-    return '👨‍💼 Para hablar con una persona real:\n\nToca el botón de WhatsApp al final. Respondemos rápido entre 7am y 9pm. Fuera de ese horario, te contestamos al día siguiente.';
-  }
-  if (msg.match(/ranking|calificación|estrellas|puntuación/)) {
-    return '⭐ Tu ranking sube con:\n\n• Paseos completados (sin cancelar)\n• Ratings de 5 estrellas\n• GPS activo durante todo el recorrido\n• Respuestas rápidas (aceptar en <2 min)\n\nRanking alto = más paseos y mejores dueños.';
-  }
-  return '🤔 No entendí bien. Cuéntame más. Por ejemplo:\n\n• "Cómo acepto un paseo"\n• "No me activan el GPS"\n• "Cuándo me pagan"\n• "Cómo me verifico"\n\nO escríbenos por WhatsApp.';
-};
 
 export default function HelpCenterScreen() {
   const router = useRouter();
@@ -283,7 +203,6 @@ export default function HelpCenterScreen() {
   const isWalker = userRole === 'walker';
   const faqs = isWalker ? WALKER_FAQS : OWNER_FAQS;
   const categories = isWalker ? WALKER_CATEGORIES : OWNER_CATEGORIES;
-  const botResponses = isWalker ? walkerBotResponses : ownerBotResponses;
 
   const filteredFaqs = faqs.filter((faq) => {
     const matchesCategory = selectedCategory === 'Todos' || faq.category === selectedCategory;
