@@ -31,6 +31,7 @@ const AdminPayouts = lazy(() => import('./pages/AdminPayouts.jsx'));
 const Terms = lazy(() => import('./pages/Terms.jsx'));
 const Privacy = lazy(() => import('./pages/Privacy.jsx'));
 const BookingDetails = lazy(() => import('./pages/BookingDetails.jsx'));
+const HelpCenter = lazy(() => import('./pages/HelpCenter.jsx'));
 
 const APP_NAME = "HappiWalk";
 
@@ -230,6 +231,7 @@ const App = () => {
           <Route path="/manage-cards" element={<ManageCards />} />
           <Route path="/notifications" element={<Notifications onBack={() => navigate(-1)} />} />
           <Route path="/booking-details" element={<BookingDetails />} />
+          <Route path="/help-center" element={<HelpCenter />} />
           
           {/* Rutas Admin */}
           <Route path="/admin/verifications" element={<AdminVerifications />} />
