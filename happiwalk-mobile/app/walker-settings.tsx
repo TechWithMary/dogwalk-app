@@ -109,7 +109,11 @@ export default function WalkerSettingsScreen() {
         <Text style={styles.headerSubtitle}>Gestiona tu cuenta</Text>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Servicio</Text>
           {menuItems.map((item, index) => (
@@ -148,17 +152,16 @@ export default function WalkerSettingsScreen() {
             />
           </View>
         </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Cuenta</Text>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.7}>
-            <LogOut size={20} color="#EF4444" />
-            <Text style={styles.logoutText}>Cerrar Sesión</Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.version}>Versión 1.0.0</Text>
       </ScrollView>
+
+      <View style={styles.footer}>
+        <Text style={styles.sectionTitle}>Cuenta</Text>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.7}>
+          <LogOut size={20} color="#EF4444" />
+          <Text style={styles.logoutText}>Cerrar Sesión</Text>
+        </TouchableOpacity>
+        <Text style={styles.version}>Versión 1.0.0</Text>
+      </View>
 
       {showServiceArea && walkerId && (
         <ServiceAreaManager walkerId={walkerId} onClose={() => setShowServiceArea(false)} />
@@ -195,7 +198,17 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  contentContainer: {
     padding: 20,
+  },
+  footer: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
   },
   section: {
     marginBottom: 24,
@@ -266,7 +279,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#9CA3AF',
     fontSize: 12,
-    marginTop: 20,
-    marginBottom: 40,
+    marginTop: 12,
   },
 });
