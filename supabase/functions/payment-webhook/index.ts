@@ -205,6 +205,9 @@ serve(async (req) => {
               scheduled_date: bookingData.scheduled_date,
               scheduled_time: bookingData.scheduled_time,
               pet_ids: bookingData.pet_ids,
+              is_paid: true,
+              payment_method: 'credit_card',
+              payment_completed_at: new Date().toISOString(),
             })
             .select()
             .single();
