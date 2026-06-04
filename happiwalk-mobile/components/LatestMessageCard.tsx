@@ -155,7 +155,7 @@ export default function LatestMessageCard({ currentUserId, bookingId, partnerUse
       if (!user) return;
 
       channel = supabase
-        .channel(`latest-msg-${user.id}`)
+        .channel(`latest-msg-${user.id}-${Math.random().toString(36).slice(2, 8)}`)
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` },

@@ -251,7 +251,7 @@ export default function HomeScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user?.id) return;
       bookingChannel = supabase
-        .channel('owner-bookings')
+        .channel(`owner-bookings-${Math.random().toString(36).slice(2, 10)}`)
         .on(
           'postgres_changes',
           { event: 'UPDATE', schema: 'public', table: 'bookings', filter: `user_id=eq.${user.id}` },
@@ -259,7 +259,7 @@ export default function HomeScreen() {
         )
         .subscribe();
       notifChannel = supabase
-        .channel('owner-notifications')
+        .channel(`owner-notifications-${Math.random().toString(36).slice(2, 10)}`)
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },

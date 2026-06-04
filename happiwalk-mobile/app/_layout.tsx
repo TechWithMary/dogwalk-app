@@ -73,7 +73,7 @@ export default function RootLayout() {
     if (!currentUserId) return;
 
     const channel = supabase
-      .channel('notifications-push')
+      .channel(`notifications-push-${Math.random().toString(36).slice(2, 10)}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${currentUserId}` },
