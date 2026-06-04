@@ -2,6 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, ChevronDown, MessageCircle, HelpCircle, Search, X, Send } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import {
+  matchBotPattern,
+  getFallbackResponse,
+  buildContextMessage,
+  OWNER_PATTERNS,
+  WALKER_PATTERNS,
+  OWNER_QUICK_REPLIES,
+  WALKER_QUICK_REPLIES,
+} from '../lib/supportBot';
 
 const OWNER_FAQS = [
   {
@@ -177,82 +186,35 @@ export default function HelpCenter() {
     return matchesCategory && matchesSearch;
   });
 
-  const ownerBotResponses = (msg) => {
-    if (msg.match(/hola|buenas|hey|hi|hello/)) {
-      return '¡Hola! 👋 Soy el asistente para dueños. Puedo ayudarte con reservas, ubicación de tu mascota, pagos y problemas técnicos. ¿Qué necesitás?';
-    }
-    if (msg.match(/paseador|walker|disponible/)) {
-      return '🐕 Para ver paseadores disponibles: Reserva un Paseo → selecciona mascotas y horario → lista de paseadores. Si no hay, probá con otra fecha.';
-    }
-    if (msg.match(/reservar|agendar|pedir/)) {
-      return '📅 Para reservar: "Reservar un Paseo" → mascotas → fecha/hora → paseador → confirmar pago. Recibirás confirmación al instante.';
-    }
-    if (msg.match(/cancelar|devolver|reembolso/)) {
-      return '❌ Política: >2h antes reembolso 100%, <2h antes cargo 50%, paseo iniciado sin reembolso. Para cancelar: Mis Reservas → seleccionar → Cancelar.';
-    }
-    if (msg.match(/precio|cuánto|costo|pago|billetera/)) {
-      return '💳 El precio varía por duración y mascotas. Métodos: Mercado Pago, Nequi, tarjeta. Para agregar fondos: Perfil → Mi Billetera → Agregar Fondos.';
-    }
-    if (msg.match(/ubicación|dónde|gps|rastrear|en vivo/)) {
-      return '🗺️ Una vez el dueño confirma la recogida, abrís el mapa en vivo. Verás ruta, distancia y tiempo. El paseador también sube fotos.';
-    }
-    if (msg.match(/mascota|perro|gato|agregar/)) {
-      return '🐾 Mis Mascotas → Agregar Mascota. Datos útiles: raza, edad, comportamiento (tímido, sociable, etc.) y foto.';
-    }
-    if (msg.match(/error|bug|falla|no funciona/)) {
-      return '🔧 Probá: 1) refrescar la página, 2) cerrar sesión y volver a entrar, 3) otro navegador. Si persiste, escribinos por WhatsApp.';
-    }
-    if (msg.match(/humano|persona|agente|whatsapp/)) {
-      return '👨‍💼 Tocá el botón de WhatsApp al final. Respondemos rápido entre 7am y 9pm.';
-    }
-    return '🤔 No entendí bien. Contame más, por ejemplo: "Cómo reservo", "No hay paseadores", "Necesito un reembolso". O escribinos por WhatsApp.';
-  };
+  const [noMatchCount, setNoMatchCount] = useState(0);
+  const [showQuickReplies, setShowQuickReplies] = useState(true);
 
-  const walkerBotResponses = (msg) => {
-    if (msg.match(/hola|buenas|hey|hi|hello/)) {
-      return '¡Hola! 👋 Soy el asistente para paseadores. Puedo ayudarte con aceptar paseos, GPS, ganancias y verificación. ¿Qué necesitás?';
-    }
-    if (msg.match(/aceptar|nuevo paseo/)) {
-      return '✅ Para aceptar: "Por Aceptar" → revisar datos → "Aceptar Paseo". Tenés 5 minutos o se libera al siguiente.';
-    }
-    if (msg.match(/gps|ubicación|activar|tracking/)) {
-      return '📡 GPS automático: cuando el dueño confirma la recogida, la app móvil activa GPS después de 4 segundos. También podés tocar "Iniciar Paseo GPS" manualmente.';
-    }
-    if (msg.match(/pago|cuándo pagan|ganancia|retiro|saldo/)) {
-      return '💰 80% del paseo es para vos. Se acumula en "Mis Ganancias" al completar. Retiro mínimo $20.000 COP a Nequi, Bancolombia o Davivienda.';
-    }
-    if (msg.match(/verificacion|verificar|documento|cedula/)) {
-      return '✅ Verificación: Perfil → Verificación → subir cédula (frontal y trasera) + selfie. Revisamos en 24-48h hábiles.';
-    }
-    if (msg.match(/cancelar|no puedo/)) {
-      return '❌ Cancelá solo en emergencias reales. 2+ cancelaciones al mes reducen tu prioridad en reservas.';
-    }
-    if (msg.match(/finalizar|terminar/)) {
-      return '🏁 Para finalizar: reserva activa → "Finalizar Paseo" → confirmar. La app guarda duración, distancia y notifica al dueño.';
-    }
-    if (msg.match(/dueño|cliente|no contesta/)) {
-      return '📞 Esperá 10 minutos en el punto de recogida. Escribile por el chat. Si después de 15 min no responde, contactanos por WhatsApp.';
-    }
-    if (msg.match(/error|bug|falla|no funciona/)) {
-      return '🔧 Probá: 1) refrescar, 2) cerrar sesión, 3) otro navegador. Si persiste, escribinos por WhatsApp con el modelo del equipo.';
-    }
-    if (msg.match(/humano|persona|agente|whatsapp/)) {
-      return '👨‍💼 Tocá el botón de WhatsApp. Respondemos entre 7am y 9pm.';
-    }
-    return '🤔 No entendí bien. Por ejemplo: "Cómo acepto", "GPS no se activa", "Cuándo me pagan", "Cómo me verifico".';
-  };
-
-  const botResponses = isWalker ? walkerBotResponses : ownerBotResponses;
-
-  const handleSendMessage = () => {
-    if (!chatInput.trim()) return;
-    const userMessage = chatInput.trim();
+  const handleSendMessage = (overrideMessage) => {
+    const userMessage = (overrideMessage ?? chatInput).trim();
+    if (!userMessage) return;
     setChatMessages(prev => [...prev, { text: userMessage, isUser: true }]);
     setChatInput('');
+    setShowQuickReplies(false);
     setTimeout(() => {
-      const botResponse = botResponses(userMessage.toLowerCase());
-      setChatMessages(prev => [...prev, { text: botResponse, isUser: false }]);
+      const response = matchBotPattern(userMessage, isWalker ? WALKER_PATTERNS : OWNER_PATTERNS);
+      if (response) {
+        setNoMatchCount(0);
+        setChatMessages(prev => [...prev, { text: response, isUser: false }]);
+      } else {
+        const next = noMatchCount + 1;
+        setNoMatchCount(next);
+        setChatMessages(prev => [...prev, { text: getFallbackResponse(next - 1), isUser: false }]);
+      }
     }, 600);
+  };
+
+  const handleQuickReply = (qr) => {
+    handleSendMessage(qr.message);
+  };
+
+  const handleWhatsAppWithContext = () => {
+    const contextMsg = buildContextMessage(chatMessages, isWalker ? 'walker' : 'owner');
+    handleWhatsApp(contextMsg);
   };
 
   const handleWhatsApp = (presetMessage) => {
@@ -413,15 +375,46 @@ export default function HelpCenter() {
               </div>
             ))}
 
-            <button
-              onClick={() => handleWhatsApp()}
-              className="mx-auto mt-4 bg-emerald-500 text-white font-bold text-sm px-5 py-2.5 rounded-xl flex items-center gap-2 hover:bg-emerald-600"
-            >
-              <svg viewBox="0 0 24 24" className="w-5 h-5 fill-white">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z" />
-              </svg>
-              Hablar con una persona
-            </button>
+            {showQuickReplies && (
+              <div className="mt-4 pt-3 border-t border-gray-200">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Preguntas frecuentes</p>
+                <div className="flex flex-wrap gap-2">
+                  {(isWalker ? WALKER_QUICK_REPLIES : OWNER_QUICK_REPLIES).map((qr, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleQuickReply(qr)}
+                      className="bg-white border-2 border-sky-500 text-sky-500 text-xs font-bold px-3 py-1.5 rounded-full hover:bg-sky-50"
+                    >
+                      {qr.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {noMatchCount >= 1 && (
+              <button
+                onClick={handleWhatsAppWithContext}
+                className="mx-auto mt-4 bg-emerald-500 text-white font-bold text-sm px-5 py-2.5 rounded-xl flex items-center gap-2 hover:bg-emerald-600"
+              >
+                <svg viewBox="0 0 24 24" className="w-5 h-5 fill-white">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z" />
+                </svg>
+                {noMatchCount >= 2 ? 'Ir a WhatsApp con contexto' : 'Hablar con una persona'}
+              </button>
+            )}
+
+            {noMatchCount === 0 && (
+              <button
+                onClick={() => handleWhatsApp()}
+                className="mx-auto mt-3 bg-emerald-50 border-2 border-emerald-500 text-emerald-700 font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-emerald-100"
+              >
+                <svg viewBox="0 0 24 24" className="w-4 h-4 fill-emerald-700">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z" />
+                </svg>
+                ¿Preferís WhatsApp? Tocá acá
+              </button>
+            )}
           </div>
 
           <div className="bg-white border-t border-gray-200 p-3 flex items-center gap-2">

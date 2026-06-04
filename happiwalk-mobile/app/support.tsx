@@ -15,6 +15,16 @@ import {
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
+import {
+  matchBotPattern,
+  getFallbackResponse,
+  buildContextMessage,
+  OWNER_PATTERNS,
+  WALKER_PATTERNS,
+  OWNER_QUICK_REPLIES,
+  WALKER_QUICK_REPLIES,
+  type QuickReply,
+} from '../lib/supportBot';
 import { ChevronRight, ChevronDown, MessageCircle, Phone, HelpCircle, Search, X, Send, Whatsapp } from '../components/Icons';
 
 interface FAQItem {
@@ -287,17 +297,37 @@ export default function HelpCenterScreen() {
     setExpandedItem(expandedItem === index ? null : index);
   };
 
-  const handleSendMessage = () => {
-    if (!chatInput.trim()) return;
+  const [noMatchCount, setNoMatchCount] = useState(0);
+  const [showQuickReplies, setShowQuickReplies] = useState(true);
 
-    const userMessage = chatInput.trim();
+  const handleSendMessage = (overrideMessage?: string) => {
+    const userMessage = (overrideMessage ?? chatInput).trim();
+    if (!userMessage) return;
+
     setChatMessages(prev => [...prev, { text: userMessage, isUser: true }]);
     setChatInput('');
+    setShowQuickReplies(false);
 
     setTimeout(() => {
-      const botResponse = botResponses(userMessage.toLowerCase());
-      setChatMessages(prev => [...prev, { text: botResponse, isUser: false }]);
-    }, 700);
+      const response = matchBotPattern(userMessage, isWalker ? WALKER_PATTERNS : OWNER_PATTERNS);
+      if (response) {
+        setNoMatchCount(0);
+        setChatMessages(prev => [...prev, { text: response, isUser: false }]);
+      } else {
+        const next = noMatchCount + 1;
+        setNoMatchCount(next);
+        setChatMessages(prev => [...prev, { text: getFallbackResponse(next - 1), isUser: false }]);
+      }
+    }, 600);
+  };
+
+  const handleQuickReply = (reply: QuickReply) => {
+    handleSendMessage(reply.message);
+  };
+
+  const handleWhatsAppWithContext = () => {
+    const contextMsg = buildContextMessage(chatMessages, isWalker ? 'walker' : 'owner');
+    handleWhatsApp(contextMsg);
   };
 
   const handleWhatsApp = async (presetMessage?: string) => {
@@ -349,14 +379,49 @@ export default function HelpCenterScreen() {
             </View>
           ))}
 
-          <TouchableOpacity
-            style={styles.chatWhatsappCta}
-            onPress={() => handleWhatsApp()}
-            activeOpacity={0.8}
-          >
-            <Whatsapp size={20} color="#FFFFFF" />
-            <Text style={styles.chatWhatsappCtaText}>Hablar con una persona</Text>
-          </TouchableOpacity>
+          {showQuickReplies && (
+            <View style={styles.quickRepliesContainer}>
+              <Text style={styles.quickRepliesLabel}>Preguntas frecuentes:</Text>
+              <View style={styles.quickRepliesWrap}>
+                {(isWalker ? WALKER_QUICK_REPLIES : OWNER_QUICK_REPLIES).map((qr, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={styles.quickReplyChip}
+                    onPress={() => handleQuickReply(qr)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.quickReplyChipText}>{qr.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {noMatchCount >= 1 && (
+            <TouchableOpacity
+              style={styles.chatWhatsappCta}
+              onPress={handleWhatsAppWithContext}
+              activeOpacity={0.8}
+            >
+              <Whatsapp size={20} color="#FFFFFF" />
+              <Text style={styles.chatWhatsappCtaText}>
+                {noMatchCount >= 2 ? 'Ir a WhatsApp con contexto' : 'Hablar con una persona'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {noMatchCount === 0 && (
+            <TouchableOpacity
+              style={styles.chatWhatsappCtaSecondary}
+              onPress={() => handleWhatsApp()}
+              activeOpacity={0.8}
+            >
+              <Whatsapp size={18} color="#25D366" />
+              <Text style={styles.chatWhatsappCtaSecondaryText}>
+                ¿Preferís WhatsApp? Tocá acá
+              </Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
 
         <KeyboardAvoidingView
@@ -370,11 +435,11 @@ export default function HelpCenterScreen() {
             placeholder="Escribe tu pregunta..."
             placeholderTextColor="#9CA3AF"
             multiline
-            onSubmitEditing={handleSendMessage}
+            onSubmitEditing={() => handleSendMessage()}
           />
           <TouchableOpacity
             style={[styles.sendButton, !chatInput.trim() && styles.sendButtonDisabled]}
-            onPress={handleSendMessage}
+            onPress={() => handleSendMessage()}
             disabled={!chatInput.trim()}
           >
             <Send size={20} color={chatInput.trim() ? '#FFFFFF' : '#9CA3AF'} />
@@ -846,6 +911,57 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
+  },
+  chatWhatsappCtaSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1.5,
+    borderColor: '#25D366',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    marginTop: 12,
+    gap: 8,
+    alignSelf: 'center',
+  },
+  chatWhatsappCtaSecondaryText: {
+    color: '#15803D',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  quickRepliesContainer: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  quickRepliesLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  quickRepliesWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  quickReplyChip: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#0EA5E9',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+  },
+  quickReplyChipText: {
+    color: '#0EA5E9',
+    fontSize: 12,
+    fontWeight: '700',
   },
   chatInputContainer: {
     flexDirection: 'row',
