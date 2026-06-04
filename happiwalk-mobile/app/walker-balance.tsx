@@ -222,41 +222,11 @@ export default function WalkerBalanceScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <ArrowUpCircle size={20} color="#9CA3AF" />
-            <Text style={styles.sectionTitle}>Retiros</Text>
-          </View>
-
-          {payouts.length === 0 ? (
-            <EmptyState
-              icon={<ArrowUpCircle size={36} color="#0EA5E9" />}
-              title="No hay retiros solicitados"
-              description="Tus retiros aparecerán aquí cuando los solicites."
-              variant="dark"
-            />
-          ) : (
-            <View style={styles.list}>
-              {payouts.map((payout) => (
-                <View key={payout.id} style={styles.item}>
-                  <View style={styles.itemInfo}>
-                    <Text style={styles.itemTitle}>Retiro</Text>
-                    <Text style={styles.itemDate}>
-                      {new Date(payout.created_at).toLocaleDateString('es-CO')}
-                    </Text>
-                  </View>
-                  <View style={styles.itemRight}>
-                    <Text style={styles.itemAmount}>-{formatMoney(payout.amount)}</Text>
-                    {getPayoutStatusBadge(payout.status)}
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
             <Clock size={20} color="#9CA3AF" />
             <Text style={styles.sectionTitle}>Ganancias</Text>
+            {transactions.length > 0 && (
+              <Text style={styles.sectionMeta}>{transactions.length} paseo{transactions.length !== 1 ? 's' : ''}</Text>
+            )}
           </View>
 
           {transactions.length === 0 ? (
@@ -281,6 +251,43 @@ export default function WalkerBalanceScreen() {
                     <View style={[styles.badge, styles.earnedBadge]}>
                       <Text style={[styles.badgeText, styles.earnedBadgeText]}>Acreditado</Text>
                     </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <ArrowUpCircle size={20} color="#9CA3AF" />
+            <Text style={styles.sectionTitle}>Retiros</Text>
+            {payouts.length > 0 && (
+              <Text style={styles.sectionMeta}>
+                {payouts.filter(p => p.status === 'pending').length > 0
+                  ? `${payouts.filter(p => p.status === 'pending').length} pendiente${payouts.filter(p => p.status === 'pending').length !== 1 ? 's' : ''}`
+                  : `${payouts.length} realizado${payouts.length !== 1 ? 's' : ''}`}
+              </Text>
+            )}
+          </View>
+
+          {payouts.length === 0 ? (
+            <View style={styles.compactEmpty}>
+              <Text style={styles.compactEmptyText}>Sin retiros aún. Cuando solicites uno, aparecerá acá.</Text>
+            </View>
+          ) : (
+            <View style={styles.list}>
+              {payouts.map((payout) => (
+                <View key={payout.id} style={styles.item}>
+                  <View style={styles.itemInfo}>
+                    <Text style={styles.itemTitle}>Retiro</Text>
+                    <Text style={styles.itemDate}>
+                      {new Date(payout.created_at).toLocaleDateString('es-CO')}
+                    </Text>
+                  </View>
+                  <View style={styles.itemRight}>
+                    <Text style={styles.itemAmount}>-{formatMoney(payout.amount)}</Text>
+                    {getPayoutStatusBadge(payout.status)}
                   </View>
                 </View>
               ))}
@@ -441,6 +448,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: '#9CA3AF',
+  },
+  sectionMeta: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6B7280',
+    marginLeft: 'auto',
+  },
+  compactEmpty: {
+    backgroundColor: '#1F2937',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
+    borderStyle: 'dashed',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  compactEmptyText: {
+    fontSize: 12,
+    color: '#6B7280',
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
   list: {
     gap: 12,
