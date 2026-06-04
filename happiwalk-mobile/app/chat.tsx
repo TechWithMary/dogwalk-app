@@ -131,24 +131,44 @@ export default function ChatScreen() {
   };
 
   const handleSend = async () => {
-    if (!inputText.trim() || !currentUser || !partner) return;
+    console.log('[Chat] handleSend called', { inputText, currentUser: currentUser?.id, partner: partner?.id, conversationId });
+
+    if (!inputText.trim()) {
+      console.log('[Chat] handleSend: no text');
+      return;
+    }
+    if (!currentUser) {
+      console.log('[Chat] handleSend: no currentUser');
+      return;
+    }
+    if (!partner) {
+      console.log('[Chat] handleSend: no partner');
+      return;
+    }
+    if (!conversationId) {
+      console.log('[Chat] handleSend: no conversationId');
+      return;
+    }
 
     const text = inputText.trim();
     setInputText('');
 
     try {
-      const { error } = await supabase.from('messages').insert({
+      console.log('[Chat] Inserting message...');
+      const { data, error } = await supabase.from('messages').insert({
         conversation_id: conversationId,
         sender_id: currentUser.id,
         receiver_id: partner.id,
         message_text: text,
         message_type: 'text',
-      });
+      }).select();
+
+      console.log('[Chat] Insert result:', data, 'error:', error);
 
       if (error) throw error;
-    } catch (err) {
-      console.error('Error sending message:', err);
-      Alert.alert('Error', 'No se pudo enviar el mensaje. Intenta de nuevo.');
+    } catch (err: any) {
+      console.error('[Chat] Error sending message:', err);
+      Alert.alert('Error', 'No se pudo enviar el mensaje: ' + (err.message || err));
       setInputText(text);
     }
   };
