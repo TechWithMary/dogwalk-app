@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ActivityIndicator, RefreshControl, Platform, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase, getSignedAvatarUrl } from '../lib/supabase';
-import { ChevronLeft, Clock, Calendar, Dog } from '../components/Icons';
+import { ChevronLeft, Clock, Calendar, Dog, Heart } from '../components/Icons';
 import EmptyState from '../components/EmptyState';
 import { SkeletonCard } from '../components/Skeleton';
 
@@ -48,6 +48,7 @@ interface Booking {
   walker_id: string | null;
   pet_ids: string[];
   created_at: string;
+  tip_amount?: number;
   walkers: Walker | null;
 }
 
@@ -266,7 +267,15 @@ export default function BookingHistoryScreen() {
         </View>
 
         <View style={styles.cardBottom}>
-          <Text style={styles.priceLabel}>Total</Text>
+          <View>
+            <Text style={styles.priceLabel}>Total</Text>
+            {(item.tip_amount ?? 0) > 0 && (
+              <View style={styles.tipLine}>
+                <Heart size={11} color="#EF4444" fill="#EF4444" />
+                <Text style={styles.tipLineText}>+{formatMoney(item.tip_amount || 0)} propina</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.priceValue}>{formatMoney(item.total_price)}</Text>
         </View>
       </TouchableOpacity>
@@ -562,6 +571,17 @@ skeletonContainer: {
     fontSize: 16,
     fontWeight: '900',
     color: '#052e05',
+  },
+  tipLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  tipLineText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#EF4444',
   },
   loadMoreBtn: {
     backgroundColor: '#FFFFFF',
