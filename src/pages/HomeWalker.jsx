@@ -20,6 +20,7 @@ const HomeWalker = ({ currentUser }) => {
   const [isOnline, setIsOnline] = useState(true);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('pending');
+  const initialTabSetRef = useRef(false);
   const [balance, setBalance] = useState(0);
   const [data, setData] = useState({ 
     stats: { monthlyEarnings: 0, completedWalks: 0, rating: 5.0 }, 
@@ -482,6 +483,7 @@ const HomeWalker = ({ currentUser }) => {
 
       const totalEarned = statsData?.reduce((acc, curr) => acc + curr.total_price, 0) || 0;
 
+      const activeList = bookings?.filter(b => ['accepted', 'pickup_requested', 'picked_up', 'in_progress'].includes(b.status)) || [];
       setData({
         stats: {
           monthlyEarnings: totalEarned,
@@ -489,8 +491,13 @@ const HomeWalker = ({ currentUser }) => {
           rating: 5.0
         },
         newRequests: bookings?.filter(b => b.status === 'pending' || b.status === 'confirmed') || [],
-        activeWalks: bookings?.filter(b => ['accepted', 'pickup_requested', 'picked_up', 'in_progress'].includes(b.status)) || []
+        activeWalks: activeList,
       });
+
+      if (!initialTabSetRef.current) {
+        initialTabSetRef.current = true;
+        setActiveTab(activeList.length > 0 ? 'active' : 'pending');
+      }
     } catch (error) {
       console.error(error);
     } finally {
