@@ -1,25 +1,17 @@
 import { useState, useEffect } from 'react';
-
-let NetInfo: any = null;
-try {
-  NetInfo = require('@react-native-community/netinfo').default;
-} catch (e) {
-  console.warn('NetInfo not available, using fallback');
-}
+import NetInfo from '@react-native-community/netinfo';
 
 export function useNetworkStatus() {
   const [isConnected, setIsConnected] = useState(true);
   const [isInternetReachable, setIsInternetReachable] = useState(true);
 
   useEffect(() => {
-    if (!NetInfo) return;
-
-    const unsubscribe = NetInfo.addEventListener((state: any) => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
       setIsConnected(state.isConnected ?? false);
       setIsInternetReachable(state.isInternetReachable ?? false);
     });
 
-    NetInfo.fetch().then((state: any) => {
+    NetInfo.fetch().then((state) => {
       setIsConnected(state.isConnected ?? false);
       setIsInternetReachable(state.isInternetReachable ?? false);
     }).catch(() => {});
