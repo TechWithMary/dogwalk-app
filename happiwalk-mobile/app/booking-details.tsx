@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, Platform, Linking } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -55,6 +55,36 @@ export default function BookingDetailsScreen() {
     if (bookingId) {
       fetchBooking();
     }
+  }, [bookingId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (bookingId) {
+        fetchBooking();
+      }
+    }, [bookingId]),
+  );
+
+  useEffect(() => {
+    if (!bookingId) return;
+
+    const channel = supabase
+      .channel(`booking-details-${bookingId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'bookings', filter: `id=eq.${bookingId}` },
+        (payload) => {
+          if (payload.new) {
+            const updated = payload.new as Booking;
+            setBooking((prev) => prev ? { ...prev, ...updated } : updated);
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [bookingId]);
 
   const fetchBooking = async () => {
