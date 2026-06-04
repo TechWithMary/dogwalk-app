@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Search, ArrowLeft, Send, MoreVertical, Phone, Loader2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import toast from 'react-hot-toast';
+import Avatar from '../components/Avatar';
 
 const Messages = () => {
   const [activeChat, setActiveChat] = useState(null);
@@ -43,7 +44,7 @@ const Messages = () => {
           id: c.id,
           otherUserId: isP1 ? c.participant_two_id : c.participant_one_id,
           name: 'Usuario',
-          img: 'https://via.placeholder.com/150',
+          photoUrl: null,
           lastMsg: '...',
           time: new Date(c.updated_at).toLocaleDateString(),
           unread: 0
@@ -67,10 +68,11 @@ const Messages = () => {
           .limit(1)
           .single();
 
+        const fullName = profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : 'Usuario';
         return {
           ...chat,
-          name: profile ? `${profile.first_name} ${profile.last_name}` : 'Usuario',
-          img: profile?.profile_photo_url || 'https://via.placeholder.com/150',
+          name: fullName || 'Usuario',
+          photoUrl: profile?.profile_photo_url || null,
           lastMsg: lastMsg?.message_text || 'Inicia la conversación',
           time: lastMsg ? new Date(lastMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
         };
@@ -176,7 +178,7 @@ const Messages = () => {
             conversations.map(chat => (
               <div key={chat.id} onClick={() => setActiveChat(chat)} className="flex items-center gap-4 px-5 py-4 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer active:bg-gray-100">
                 <div className="relative shrink-0">
-                  <img src={chat.img} className="w-14 h-14 rounded-full object-cover shadow-sm border border-gray-100" alt={chat.name} />
+                  <Avatar photoUrl={chat.photoUrl} fallbackInitial={chat.name} size={56} className="shadow-sm border border-gray-100" />
                   {chat.unread > 0 && <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold text-white">{chat.unread}</div>}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -204,7 +206,7 @@ const Messages = () => {
           <button onClick={() => setActiveChat(null)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
             <ArrowLeft className="w-6 h-6 text-gray-700" />
           </button>
-          <img src={activeChat.img} className="w-10 h-10 rounded-full object-cover border border-gray-100" alt="Avatar" />
+          <Avatar photoUrl={activeChat.photoUrl} fallbackInitial={activeChat.name} size={40} className="border border-gray-100" />
           <div>
             <h3 className="font-bold text-sm text-gray-900 leading-tight">{activeChat.name}</h3>
             <p className="text-emerald-600 text-[10px] font-bold">En línea</p>
