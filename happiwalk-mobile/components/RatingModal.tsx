@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Modal,
   View,
@@ -6,9 +6,15 @@ import {
   TextInput,
   Pressable,
   StyleSheet,
-  Animated,
   TouchableWithoutFeedback,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSequence,
+  withTiming,
+  withSpring,
+} from 'react-native-reanimated';
 import { Star, X } from './Icons';
 import AvatarImage from './AvatarImage';
 
@@ -26,6 +32,47 @@ const STAR_SIZE = 36;
 const FILLED_COLOR = '#FBBF24';
 const EMPTY_COLOR = '#D1D5DB';
 
+function StarButton({
+  value,
+  isFilled,
+  onPress,
+}: {
+  value: number;
+  isFilled: boolean;
+  onPress: (v: number) => void;
+}) {
+  const scale = useSharedValue(1);
+
+  const handlePress = () => {
+    scale.value = withSequence(
+      withTiming(1.3, { duration: 100 }),
+      withSpring(1, { damping: 3, stiffness: 400 })
+    );
+    onPress(value);
+  };
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <Pressable
+      onPress={handlePress}
+      hitSlop={4}
+      accessibilityLabel={`${value} estrella${value > 1 ? 's' : ''}`}
+    >
+      <Animated.View style={animatedStyle}>
+        <Star
+          size={STAR_SIZE}
+          color={isFilled ? FILLED_COLOR : EMPTY_COLOR}
+          fill={isFilled ? FILLED_COLOR : 'none'}
+          strokeWidth={isFilled ? 0 : 1.5}
+        />
+      </Animated.View>
+    </Pressable>
+  );
+}
+
 export default function RatingModal({
   visible,
   walkerName,
@@ -37,34 +84,10 @@ export default function RatingModal({
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const starScales = useRef(
-    Array.from({ length: STAR_COUNT }, () => new Animated.Value(1))
-  ).current;
 
-  const animateStar = useCallback((index: number) => {
-    const scale = starScales[index];
-    Animated.sequence([
-      Animated.timing(scale, {
-        toValue: 1.3,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scale, {
-        toValue: 1,
-        friction: 3,
-        tension: 400,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [starScales]);
-
-  const handleStarPress = useCallback(
-    (star: number) => {
-      setRating(star);
-      animateStar(star - 1);
-    },
-    [animateStar]
-  );
+  const handleStarPress = useCallback((star: number) => {
+    setRating(star);
+  }, []);
 
   const handleSubmit = useCallback(async () => {
     if (rating === 0 || submitting) return;
@@ -117,23 +140,13 @@ export default function RatingModal({
               <View style={styles.starsRow}>
                 {Array.from({ length: STAR_COUNT }, (_, i) => {
                   const starValue = i + 1;
-                  const isFilled = starValue <= rating;
                   return (
-                    <Pressable
+                    <StarButton
                       key={starValue}
-                      onPress={() => handleStarPress(starValue)}
-                      hitSlop={4}
-                      accessibilityLabel={`${starValue} estrella${starValue > 1 ? 's' : ''}`}
-                    >
-                      <Animated.View style={{ transform: [{ scale: starScales[i] }] }}>
-                        <Star
-                          size={STAR_SIZE}
-                          color={isFilled ? FILLED_COLOR : EMPTY_COLOR}
-                          fill={isFilled ? FILLED_COLOR : 'none'}
-                          strokeWidth={isFilled ? 0 : 1.5}
-                        />
-                      </Animated.View>
-                    </Pressable>
+                      value={starValue}
+                      isFilled={starValue <= rating}
+                      onPress={handleStarPress}
+                    />
                   );
                 })}
               </View>

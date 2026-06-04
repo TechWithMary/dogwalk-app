@@ -1,5 +1,13 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native';
+import React, { createContext, useContext, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSequence,
+  withDelay,
+  withTiming,
+  runOnJS,
+} from 'react-native-reanimated';
 
 interface Toast {
   id: string;
@@ -21,27 +29,29 @@ export function useToast() {
   return context;
 }
 
-export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const [fadeAnim] = useState(new Animated.Value(0));
+const FADE_IN_DURATION = 200;
+const VISIBLE_DURATION = 3000;
+const FADE_OUT_DURATION = 200;
 
-  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    const id = Math.random().toString(36).substring(7);
-    const newToast = { id, message, type };
-    
-    setToasts(prev => [...prev, newToast]);
-    
-    Animated.sequence([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
-      Animated.delay(3000),
-      Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
-    ]).start(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-    });
-  }, [fadeAnim]);
+function ToastItem({ toast, onDone }: { toast: Toast; onDone: (id: string) => void }) {
+  const opacity = useSharedValue(0);
 
-  const getToastColor = (type: string) => {
-    switch (type) {
+  React.useEffect(() => {
+    opacity.value = withSequence(
+      withTiming(1, { duration: FADE_IN_DURATION }),
+      withDelay(
+        VISIBLE_DURATION,
+        withTiming(0, { duration: FADE_OUT_DURATION }, (finished) => {
+          if (finished) runOnJS(onDone)(toast.id);
+        })
+      )
+    );
+  }, [opacity, toast.id, onDone]);
+
+  const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  const getToastColor = () => {
+    switch (toast.type) {
       case 'success': return '#13ec13';
       case 'error': return '#EF4444';
       case 'info': return '#3B82F6';
@@ -50,16 +60,33 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
+    <Animated.View style={[styles.toast, { backgroundColor: getToastColor() }, animatedStyle]}>
+      <Text style={styles.toastText}>{toast.message}</Text>
+    </Animated.View>
+  );
+}
+
+export function ToastProvider({ children }: { children: React.ReactNode }) {
+  const [toasts, setToasts] = React.useState<Toast[]>([]);
+
+  const removeToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    const id = Math.random().toString(36).substring(7);
+    setToasts(prev => [...prev, { id, message, type }]);
+  }, []);
+
+  return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
       {toasts.length > 0 && (
-        <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+        <View style={styles.container} pointerEvents="box-none">
           {toasts.map(toast => (
-            <View key={toast.id} style={[styles.toast, { backgroundColor: getToastColor(toast.type) }]}>
-              <Text style={styles.toastText}>{toast.message}</Text>
-            </View>
+            <ToastItem key={toast.id} toast={toast} onDone={removeToast} />
           ))}
-        </Animated.View>
+        </View>
       )}
     </ToastContext.Provider>
   );

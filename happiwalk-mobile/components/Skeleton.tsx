@@ -1,9 +1,17 @@
-import { useEffect, useRef } from 'react';
-import { Animated, View, StyleSheet, type ViewStyle, type DimensionValue } from 'react-native';
+import { useEffect } from 'react';
+import { View, StyleSheet, type ViewStyle, type DimensionValue } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
 
 const SKELETON_BG = '#E5E7EB';
 const SKELETON_SHIMMER = '#F3F4F6';
 const SHIMMER_DURATION = 1000;
+const SHIMMER_WIDTH = 120;
 
 export interface SkeletonProps {
   width?: number | string;
@@ -22,26 +30,19 @@ export default function Skeleton({
   count = 1,
   style,
 }: SkeletonProps) {
-  const translateX = useRef(new Animated.Value(-1)).current;
+  const translateX = useSharedValue(-SHIMMER_WIDTH);
 
   useEffect(() => {
-    const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(translateX, {
-          toValue: 1,
-          duration: SHIMMER_DURATION,
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateX, {
-          toValue: -1,
-          duration: SHIMMER_DURATION,
-          useNativeDriver: true,
-        }),
-      ])
+    translateX.value = withRepeat(
+      withTiming(SHIMMER_WIDTH, { duration: SHIMMER_DURATION, easing: Easing.linear }),
+      -1,
+      false
     );
-    animation.start();
-    return () => animation.stop();
   }, [translateX]);
+
+  const shimmerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
 
   const resolvedBorderRadius = circle ? (typeof height === 'number' ? height / 2 : 9999) : borderRadius;
   const resolvedWidth = circle ? height : width;
@@ -55,6 +56,7 @@ export default function Skeleton({
           width: resolvedWidth as DimensionValue,
           height,
           borderRadius: resolvedBorderRadius,
+          overflow: 'hidden',
         },
         style,
       ]}
@@ -62,9 +64,8 @@ export default function Skeleton({
       <Animated.View
         style={[
           styles.shimmer,
-          {
-            transform: [{ translateX }],
-          },
+          { width: SHIMMER_WIDTH },
+          shimmerStyle,
         ]}
       />
     </View>
@@ -156,10 +157,11 @@ export function SkeletonProfile({ style }: SkeletonProfileProps) {
 const styles = StyleSheet.create({
   base: {
     backgroundColor: SKELETON_BG,
-    overflow: 'hidden',
   },
   shimmer: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
     backgroundColor: SKELETON_SHIMMER,
     opacity: 0.6,
   },

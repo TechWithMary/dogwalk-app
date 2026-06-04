@@ -1,5 +1,10 @@
-import { useEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet } from 'react-native';
+import { useEffect } from 'react';
+import { Pressable, StyleSheet } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from 'react-native-reanimated';
 
 interface SwitchProps {
   value: boolean;
@@ -10,20 +15,22 @@ interface SwitchProps {
 const TRACK_WIDTH = 44;
 const TRACK_HEIGHT = 24;
 const THUMB_SIZE = 20;
-const THUMB_OFFSET = (TRACK_HEIGHT - THUMB_SIZE) / 2; // 2px vertical centering
-const ACTIVE_TRANSLATE_X = TRACK_WIDTH - THUMB_SIZE - THUMB_OFFSET; // 22px
+const THUMB_OFFSET = (TRACK_HEIGHT - THUMB_SIZE) / 2;
+const ACTIVE_TRANSLATE_X = TRACK_WIDTH - THUMB_SIZE - THUMB_OFFSET;
 
 export default function Switch({ value, onValueChange, disabled = false }: SwitchProps) {
-  const translateX = useRef(new Animated.Value(value ? ACTIVE_TRANSLATE_X : THUMB_OFFSET)).current;
+  const translateX = useSharedValue(value ? ACTIVE_TRANSLATE_X : THUMB_OFFSET);
 
   useEffect(() => {
-    Animated.spring(translateX, {
-      toValue: value ? ACTIVE_TRANSLATE_X : THUMB_OFFSET,
-      useNativeDriver: true,
-      friction: 7,
-      tension: 40,
-    }).start();
-  }, [value]);
+    translateX.value = withSpring(value ? ACTIVE_TRANSLATE_X : THUMB_OFFSET, {
+      damping: 15,
+      stiffness: 120,
+    });
+  }, [value, translateX]);
+
+  const thumbStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
 
   return (
     <Pressable
@@ -37,17 +44,10 @@ export default function Switch({ value, onValueChange, disabled = false }: Switc
       <Animated.View
         style={[
           styles.track,
-          {
-            backgroundColor: value ? '#13ec13' : '#374151',
-          },
+          { backgroundColor: value ? '#13ec13' : '#374151' },
         ]}
       >
-        <Animated.View
-          style={[
-            styles.thumb,
-            { transform: [{ translateX }] },
-          ]}
-        />
+        <Animated.View style={[styles.thumb, thumbStyle]} />
       </Animated.View>
     </Pressable>
   );
