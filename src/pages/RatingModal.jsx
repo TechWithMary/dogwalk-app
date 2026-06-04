@@ -23,31 +23,35 @@ const RatingModal = ({ booking, onClose, onSuccess }) => {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No hay usuario');
 
-      // Obtener el user_id del paseador desde la tabla walkers
-      const { data: walkerData } = await supabase
+      console.log('[RatingModal] Booking:', booking);
+      console.log('[RatingModal] booking.id type:', typeof booking.id, booking.id);
+
+      const { data: walkerData, error: walkerError } = await supabase
         .from('walkers')
         .select('user_id')
         .eq('id', booking.walker_id)
-        .single();
+        .maybeSingle();
+
+      console.log('[RatingModal] Walker data:', walkerData, 'error:', walkerError);
 
       const revieweeId = walkerData?.user_id;
-
       if (!revieweeId) {
-        throw new Error('No se encontró el usuario del paseador');
+        throw new Error('No se encontró el usuario del paseador (walker_id=' + booking.walker_id + ')');
       }
 
-      console.log('Guardando reseña:', {
-        booking_id: booking.id,
-        reviewer_id: user.id,
-        reviewee_id: revieweeId,
-        rating: rating
-      });
+      const numericBookingId = Number(booking.id);
+      if (!numericBookingId || isNaN(numericBookingId)) {
+        throw new Error('booking.id inválido: ' + booking.id);
+      }
+
+      console.log('[RatingModal] Inserting review with booking_id:', numericBookingId, 'reviewee:', revieweeId);
 
       const { error: reviewError } = await supabase
         .from('booking_reviews')
         .insert([{
-          booking_id: booking.id,
+          booking_id: numericBookingId,
           reviewer_id: user.id,
           reviewee_id: revieweeId,
           rating: rating,
@@ -56,25 +60,28 @@ const RatingModal = ({ booking, onClose, onSuccess }) => {
         }]);
 
       if (reviewError) {
-        console.error('Review error:', reviewError);
-        throw reviewError;
+        console.error('[RatingModal] Review error:', reviewError);
+        throw new Error('Error insertando reseña: ' + reviewError.message);
       }
 
-      const { error: updateError } = await supabase
+      const { data: updateData, error: updateError } = await supabase
         .from('bookings')
         .update({ rating: rating, review_text: comment || null })
-        .eq('id', booking.id);
+        .eq('id', numericBookingId)
+        .select();
+
+      console.log('[RatingModal] Booking update result:', updateData, 'error:', updateError);
 
       if (updateError) {
-        console.error('Update error:', updateError);
+        console.error('[RatingModal] Update error:', updateError);
         throw new Error('No se pudo guardar la calificación: ' + updateError.message);
       }
 
       toast.success('¡Gracias por tu calificación!');
-      onSuccess(booking.id);
+      onSuccess(numericBookingId);
     } catch (error) {
-      console.error(error);
-      toast.error('Error al guardar: ' + error.message);
+      console.error('[RatingModal] ERROR:', error);
+      toast.error('Error: ' + error.message);
     } finally {
       setLoading(false);
     }

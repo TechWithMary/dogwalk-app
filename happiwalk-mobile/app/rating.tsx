@@ -57,24 +57,34 @@ export default function RatingScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No hay usuario');
 
+      console.log('[Rating] Booking:', JSON.stringify(booking, null, 2));
+      console.log('[Rating] bookingId param:', bookingId, typeof bookingId);
+
       let revieweeId = '';
 
       if (booking?.walker_id) {
-        const { data: walkerData } = await supabase
+        const { data: walkerData, error: walkerError } = await supabase
           .from('walkers')
           .select('user_id')
           .eq('id', booking.walker_id)
-          .single();
+          .maybeSingle();
+
+        console.log('[Rating] Walker data:', walkerData, 'error:', walkerError);
         revieweeId = walkerData?.user_id || '';
       }
 
       if (!revieweeId) {
-        throw new Error('No se encontró el paseador');
+        throw new Error('No se encontró el paseador (booking.walker_id=' + booking?.walker_id + ')');
       }
 
       const numericBookingId = Number(bookingId);
+      if (!numericBookingId || isNaN(numericBookingId)) {
+        throw new Error('bookingId inválido: ' + bookingId);
+      }
 
-      const { error: reviewError } = await supabase
+      console.log('[Rating] Inserting review with booking_id:', numericBookingId, 'reviewee:', revieweeId);
+
+      const { data: reviewData, error: reviewError } = await supabase
         .from('booking_reviews')
         .insert([{
           booking_id: numericBookingId,
@@ -83,14 +93,23 @@ export default function RatingScreen() {
           rating: rating,
           comment: comment.trim() || null,
           overall_experience_rating: rating,
-        }]);
+        }])
+        .select();
 
-      if (reviewError) throw reviewError;
+      console.log('[Rating] Review insert result:', reviewData, 'error:', reviewError);
 
-      const { error: updateError } = await supabase
+      if (reviewError) {
+        throw new Error('Error insertando reseña: ' + reviewError.message);
+      }
+
+      console.log('[Rating] Updating booking rating...');
+      const { data: updateData, error: updateError } = await supabase
         .from('bookings')
         .update({ rating: rating, review_text: comment.trim() || null })
-        .eq('id', numericBookingId);
+        .eq('id', numericBookingId)
+        .select();
+
+      console.log('[Rating] Booking update result:', updateData, 'error:', updateError);
 
       if (updateError) {
         throw new Error('No se pudo guardar la calificación: ' + updateError.message);
@@ -98,6 +117,7 @@ export default function RatingScreen() {
 
       router.back();
     } catch (err: any) {
+      console.error('[Rating] ERROR:', err);
       setError(err.message || 'Error al guardar');
     } finally {
       setLoading(false);
