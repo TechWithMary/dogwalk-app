@@ -29,11 +29,7 @@ const Messages = () => {
       // Fetch conversations where user is participant 1 or 2
       const { data, error } = await supabase
         .from('conversations')
-        .select(`
-            *,
-            p1:participant_one_id(first_name, last_name, profile_photo_url),
-            p2:participant_two_id(first_name, last_name, profile_photo_url)
-        `)
+        .select('*')
         .or(`participant_one_id.eq.${user.id},participant_two_id.eq.${user.id}`)
         .order('updated_at', { ascending: false });
 
@@ -42,19 +38,10 @@ const Messages = () => {
       // Format data for display
       const formatted = data.map(c => {
         const isP1 = c.participant_one_id === user.id;
-        // If join failed or specific structure needs adjustment:
-        // Note: Supabase usually returns arrays for foreign keys or objects if 1:1. 
-        // With auth.users it might be tricky as valid FK. 
-        // Let's assume user_profiles is linked via 'user_id' in profile table, 
-        // but typically schemas link to auth.users directly. 
-        // If the 'conversations' table has FK to auth.users, we can't select * fields from auth.users easily via client 
-        // without a public profile view/table.
-        // We will try to fetch profiles manually if the join doesn't work as expected or simply use a "Profile fetch helper".
 
         return {
           id: c.id,
           otherUserId: isP1 ? c.participant_two_id : c.participant_one_id,
-          // Placeholder logic until profile fetch confirmed
           name: 'Usuario',
           img: 'https://via.placeholder.com/150',
           lastMsg: '...',
