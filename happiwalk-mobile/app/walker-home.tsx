@@ -258,25 +258,48 @@ export default function WalkerHomeScreen() {
 
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
+      if (status !== 'granted') {
+        console.warn('[GPS] Permiso de ubicación denegado');
+        if (!locationErrorShownRef.current) {
+          locationErrorShownRef.current = true;
+          Alert.alert(
+            'Permiso requerido',
+            Platform.OS === 'web'
+              ? 'Tu navegador bloqueó la ubicación. Haz clic en el ícono de candado junto a la URL y permite el acceso a tu ubicación.'
+              : 'Activa el permiso de ubicación en los ajustes de tu teléfono para usar GPS durante el paseo.'
+          );
+        }
+        return;
+      }
 
       const location = await Location.getCurrentPositionAsync({});
+      const { latitude, longitude, accuracy } = location.coords;
+      console.log('[GPS] Enviando:', latitude.toFixed(6), longitude.toFixed(6), '±' + (accuracy?.toFixed(0) || '?') + 'm');
 
-      await supabase.from('locations').insert({
+      const { error: insertError } = await supabase.from('locations').insert({
         booking_id: bookingId,
         walker_id: walkerIdRef.current,
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        accuracy: location.coords.accuracy,
+        latitude,
+        longitude,
+        accuracy,
         timestamp: new Date().toISOString(),
         activity_type: 'walking',
-        location_source: 'gps',
+        location_source: Platform.OS === 'web' ? 'browser' : 'gps',
       });
-    } catch (err) {
-      console.error('Location error:', err);
+
+      if (insertError) {
+        console.error('[GPS] Error insertando en Supabase:', insertError.message);
+      }
+    } catch (err: any) {
+      console.error('[GPS] Error:', err?.message || err);
       if (!locationErrorShownRef.current) {
         locationErrorShownRef.current = true;
-        Alert.alert('Error de ubicación', 'No se pudo enviar tu ubicación en tiempo real. Verifica que el GPS esté activo.');
+        Alert.alert(
+          'Error de ubicación',
+          Platform.OS === 'web'
+            ? 'El navegador no pudo obtener tu ubicación. Mantén esta pestaña activa y visible durante el paseo.'
+            : 'No se pudo enviar tu ubicación en tiempo real. Verifica que el GPS esté activo.'
+        );
       }
     }
   };
@@ -285,6 +308,10 @@ export default function WalkerHomeScreen() {
     if (locationIntervalRef.current) return;
 
     locationErrorShownRef.current = false;
+    console.log('[GPS] Tracking iniciado para booking', bookingId, 'en', Platform.OS);
+    if (Platform.OS === 'web') {
+      console.warn('[GPS] ⚠️ Estás en navegador web. El GPS se detendrá si la pestaña pierde foco. Para mejor precisión, usa la app móvil.');
+    }
     sendLocation(bookingId);
     locationIntervalRef.current = setInterval(() => {
       sendLocation(bookingId);
