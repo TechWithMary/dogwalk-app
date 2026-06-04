@@ -361,8 +361,15 @@ export default function LiveWalkScreen() {
             coordinate={pickupLocation}
             title="Punto de recogida"
             description={booking?.address || 'Donde se recogió la mascota'}
-            pinColor="#F59E0B"
-          />
+            anchor={{ x: 0.5, y: 1 }}
+          >
+            <View style={styles.pickupMarker}>
+              <View style={styles.pickupMarkerDot} />
+              <View style={styles.pickupMarkerLabel}>
+                <Text style={styles.pickupMarkerLabelText}>Recogida</Text>
+              </View>
+            </View>
+          </Marker>
         )}
 
         {route.length > 0 && (
@@ -397,6 +404,20 @@ export default function LiveWalkScreen() {
           />
         )}
       </MapView>
+
+      {!walkerLocation && showMapTimeout && (
+        <View style={styles.gpsWarningBanner}>
+          <View style={styles.gpsWarningIcon}>
+            <Text style={styles.gpsWarningIconText}>📡</Text>
+          </View>
+          <View style={styles.gpsWarningText}>
+            <Text style={styles.gpsWarningTitle}>Sin señal del paseador</Text>
+            <Text style={styles.gpsWarningSubtitle}>
+              {booking?.walkers?.name || 'El paseador'} aún no activó el GPS o perdió la señal
+            </Text>
+          </View>
+        </View>
+      )}
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -597,6 +618,86 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '800',
+  },
+  gpsWarningBanner: {
+    position: 'absolute',
+    top: 100,
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  gpsWarningIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F59E0B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gpsWarningIconText: {
+    fontSize: 18,
+  },
+  gpsWarningText: {
+    flex: 1,
+  },
+  gpsWarningTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#78350F',
+  },
+  gpsWarningSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#92400E',
+    marginTop: 2,
+  },
+  pickupMarker: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  pickupMarkerDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#F59E0B',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  pickupMarkerLabel: {
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginBottom: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  pickupMarkerLabelText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   statsCard: {
     position: 'absolute',
