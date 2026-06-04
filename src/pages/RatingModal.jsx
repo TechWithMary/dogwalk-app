@@ -28,6 +28,10 @@ const RatingModal = ({ booking, onClose, onSuccess }) => {
       console.log('[RatingModal] Booking:', booking);
       console.log('[RatingModal] booking.id type:', typeof booking.id, booking.id);
 
+      if (!booking?.id) {
+        throw new Error('booking.id no proporcionado');
+      }
+
       const { data: walkerData, error: walkerError } = await supabase
         .from('walkers')
         .select('user_id')
@@ -41,17 +45,14 @@ const RatingModal = ({ booking, onClose, onSuccess }) => {
         throw new Error('No se encontró el usuario del paseador (walker_id=' + booking.walker_id + ')');
       }
 
-      const numericBookingId = Number(booking.id);
-      if (!numericBookingId || isNaN(numericBookingId)) {
-        throw new Error('booking.id inválido: ' + booking.id);
-      }
-
-      console.log('[RatingModal] Inserting review with booking_id:', numericBookingId, 'reviewee:', revieweeId);
+      const isUuid = String(booking.id).includes('-');
+      const queryBookingId = isUuid ? booking.id : Number(booking.id);
+      console.log('[RatingModal] Using bookingId as:', isUuid ? 'UUID string' : 'bigint', queryBookingId);
 
       const { error: reviewError } = await supabase
         .from('booking_reviews')
         .insert([{
-          booking_id: numericBookingId,
+          booking_id: queryBookingId,
           reviewer_id: user.id,
           reviewee_id: revieweeId,
           rating: rating,
@@ -67,7 +68,7 @@ const RatingModal = ({ booking, onClose, onSuccess }) => {
       const { data: updateData, error: updateError } = await supabase
         .from('bookings')
         .update({ rating: rating, review_text: comment || null })
-        .eq('id', numericBookingId)
+        .eq('id', queryBookingId)
         .select();
 
       console.log('[RatingModal] Booking update result:', updateData, 'error:', updateError);
@@ -78,7 +79,7 @@ const RatingModal = ({ booking, onClose, onSuccess }) => {
       }
 
       toast.success('¡Gracias por tu calificación!');
-      onSuccess(numericBookingId);
+      onSuccess(queryBookingId);
     } catch (error) {
       console.error('[RatingModal] ERROR:', error);
       toast.error('Error: ' + error.message);

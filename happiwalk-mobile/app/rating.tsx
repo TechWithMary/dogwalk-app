@@ -60,6 +60,10 @@ export default function RatingScreen() {
       console.log('[Rating] Booking:', JSON.stringify(booking, null, 2));
       console.log('[Rating] bookingId param:', bookingId, typeof bookingId);
 
+      if (!bookingId) {
+        throw new Error('bookingId no proporcionado');
+      }
+
       let revieweeId = '';
 
       if (booking?.walker_id) {
@@ -77,17 +81,14 @@ export default function RatingScreen() {
         throw new Error('No se encontró el paseador (booking.walker_id=' + booking?.walker_id + ')');
       }
 
-      const numericBookingId = Number(bookingId);
-      if (!numericBookingId || isNaN(numericBookingId)) {
-        throw new Error('bookingId inválido: ' + bookingId);
-      }
-
-      console.log('[Rating] Inserting review with booking_id:', numericBookingId, 'reviewee:', revieweeId);
+      const isUuid = String(bookingId).includes('-');
+      const queryBookingId = isUuid ? bookingId : Number(bookingId);
+      console.log('[Rating] Using bookingId as:', isUuid ? 'UUID string' : 'bigint', queryBookingId);
 
       const { data: reviewData, error: reviewError } = await supabase
         .from('booking_reviews')
         .insert([{
-          booking_id: numericBookingId,
+          booking_id: queryBookingId,
           reviewer_id: user.id,
           reviewee_id: revieweeId,
           rating: rating,
@@ -106,7 +107,7 @@ export default function RatingScreen() {
       const { data: updateData, error: updateError } = await supabase
         .from('bookings')
         .update({ rating: rating, review_text: comment.trim() || null })
-        .eq('id', numericBookingId)
+        .eq('id', queryBookingId)
         .select();
 
       console.log('[Rating] Booking update result:', updateData, 'error:', updateError);
