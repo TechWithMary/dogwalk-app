@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import { supabase } from '../../lib/supabase';
+import { supabase, getSignedAvatarUrl } from '../../lib/supabase';
+import { prefetchSignedUrl } from '../../lib/avatarCache';
 import AvatarImage from '../../components/AvatarImage';
 import EmptyState from '../../components/EmptyState';
 import { MessageSquare } from '../../components/Icons';
@@ -85,6 +86,15 @@ export default function MessagesScreen() {
       }));
 
       setConversations(formatted);
+
+      (data || []).forEach((conv) => {
+        const isP1 = conv.participant_one_id === currentUser.id;
+        const otherUserId = isP1 ? conv.participant_two_id : conv.participant_one_id;
+        const photoUrl = formatted.find(f => f.otherUserId === otherUserId)?.profile_photo_url;
+        if (photoUrl) {
+          prefetchSignedUrl('avatars', photoUrl, () => getSignedAvatarUrl(photoUrl));
+        }
+      });
     } catch (error) {
       console.error('Error fetching conversations:', error);
       Alert.alert('Error', 'No se pudieron cargar las conversaciones. Desliza para reintentar.');

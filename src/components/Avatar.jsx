@@ -1,46 +1,84 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { getCachedSignedUrlSync } from '../lib/avatarCache';
+
+async function fetchSignedUrl(bucket, cleanPath) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(cleanPath, 3600);
+      if (error) {
+        if (attempt < 2) {
+          await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+          continue;
+        }
+        console.error(`Error generating signed URL for ${bucket}:`, error);
+        return null;
+      }
+      if (data?.signedUrl) return data.signedUrl;
+    } catch (err) {
+      if (attempt < 2) {
+        await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+        continue;
+      }
+      console.error(`Exception generating signed URL for ${bucket}:`, err);
+      return null;
+    }
+  }
+  return null;
+}
+
+export function resolveSignedAvatarUrl(path) {
+  if (!path) return Promise.resolve(null);
+  if (path.startsWith('http') && !path.includes('/sign/avatars/')) {
+    return Promise.resolve(path);
+  }
+  const match = path.match(/\/storage\/v1\/object\/(?:public|sign)\/avatars\/(.+?)(?:\?|$)/);
+  const cleanPath = match ? match[1] : path.replace(/^avatars\//, '');
+  const { getCachedSignedUrl } = require('../lib/avatarCache');
+  return getCachedSignedUrl('avatars', cleanPath, () => fetchSignedUrl('avatars', cleanPath));
+}
+
+export function resolveSignedPetPhotoUrl(path) {
+  if (!path) return Promise.resolve(null);
+  if (path.startsWith('http') && !path.includes('/sign/pet-photos/')) {
+    return Promise.resolve(path);
+  }
+  const match = path.match(/\/storage\/v1\/object\/(?:public|sign)\/pet-photos\/(.+?)(?:\?|$)/);
+  const cleanPath = match ? match[1] : path.replace(/^pet-photos\//, '');
+  const { getCachedSignedUrl } = require('../lib/avatarCache');
+  return getCachedSignedUrl('pet-photos', cleanPath, () => fetchSignedUrl('pet-photos', cleanPath));
+}
 
 export default function Avatar({ photoUrl, fallbackInitial, size = 40, className = '', shape = 'full' }) {
-  const [resolvedUrl, setResolvedUrl] = useState(null);
+  const initialSync = photoUrl ? getCachedSignedUrlSync('avatars', photoUrl) : null;
+  const [resolvedUrl, setResolvedUrl] = useState(initialSync);
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    const resolve = async () => {
-      if (!photoUrl) {
-        setResolvedUrl(null);
-        return;
-      }
+    if (!photoUrl) {
+      setResolvedUrl(null);
+      return;
+    }
 
-      if (photoUrl.startsWith('http')) {
-        setResolvedUrl(photoUrl);
-        return;
-      }
+    const sync = getCachedSignedUrlSync('avatars', photoUrl);
+    if (sync) {
+      setResolvedUrl(sync);
+      return;
+    }
 
-      const cleanPath = photoUrl.replace(/^avatars\//, '');
+    if (photoUrl.startsWith('http') && !photoUrl.includes('/sign/avatars/')) {
+      setResolvedUrl(photoUrl);
+      return;
+    }
 
-      try {
-        const { data, error } = await supabase.storage
-          .from('avatars')
-          .createSignedUrl(cleanPath, 3600);
+    resolveSignedAvatarUrl(photoUrl).then((url) => {
+      if (!cancelled) setResolvedUrl(url);
+    });
 
-        if (cancelled) return;
-        if (error) {
-          console.error('Avatar signed URL error:', error);
-          setResolvedUrl(null);
-          return;
-        }
-        setResolvedUrl(data?.signedUrl || null);
-      } catch (err) {
-        if (cancelled) return;
-        console.error('Avatar exception:', err);
-        setResolvedUrl(null);
-      }
-    };
-
-    resolve();
     return () => { cancelled = true; };
   }, [photoUrl]);
 
@@ -69,6 +107,8 @@ export default function Avatar({ photoUrl, fallbackInitial, size = 40, className
       alt={`Avatar de ${fallbackInitial || 'usuario'}`}
       className={`${shapeClass} object-cover shrink-0 ${className}`}
       style={useExplicitSize ? { width: size, height: size } : undefined}
+      loading="lazy"
+      decoding="async"
       onError={() => setHasError(true)}
     />
   );

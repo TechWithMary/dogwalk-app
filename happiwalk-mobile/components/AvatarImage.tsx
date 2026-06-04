@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Image, View, Text, StyleSheet } from 'react-native';
 import { getSignedAvatarUrl, getSignedPetPhotoUrl } from '../lib/supabase';
+import { getCachedSignedUrlSync } from '../lib/avatarCache';
 
 interface Props {
   photoUrl: string | null | undefined;
@@ -11,17 +12,25 @@ interface Props {
 }
 
 export default function AvatarImage({ photoUrl, fallbackInitial, size = 96, style, bucket = 'avatars' }: Props) {
-  const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+  const initialSync = photoUrl ? getCachedSignedUrlSync(bucket, photoUrl) : null;
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(initialSync);
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
+    if (!photoUrl) {
+      setResolvedUrl(null);
+      return;
+    }
+
+    const sync = getCachedSignedUrlSync(bucket, photoUrl);
+    if (sync) {
+      setResolvedUrl(sync);
+      return;
+    }
+
     const resolve = async () => {
-      if (!photoUrl) {
-        setResolvedUrl(null);
-        return;
-      }
       const url = bucket === 'pet-photos'
         ? await getSignedPetPhotoUrl(photoUrl)
         : await getSignedAvatarUrl(photoUrl);
@@ -42,7 +51,7 @@ export default function AvatarImage({ photoUrl, fallbackInitial, size = 96, styl
 
   return (
     <Image
-      source={{ uri: resolvedUrl }}
+      source={{ uri: resolvedUrl, cache: 'force-cache' }}
       style={[{ width: size, height: size, borderRadius: size / 2 }, style]}
       resizeMode="cover"
       onError={(err) => {
