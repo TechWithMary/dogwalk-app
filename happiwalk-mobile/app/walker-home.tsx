@@ -181,7 +181,12 @@ export default function WalkerHomeScreen() {
           }
         },
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        // Suppress "cannot add postgres_changes callbacks after subscribe()"
+        // which is a known dev-mode race when StrictMode re-runs effects.
+        if (err && err.message?.includes('postgres_changes')) return;
+        if (err) console.warn('[realtime] walker-bookings:', err.message);
+      });
     return () => { supabase.removeChannel(channel); };
   }, []);
 
