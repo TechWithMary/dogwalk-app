@@ -6,11 +6,12 @@ import * as Location from 'expo-location';
 import { File } from 'expo-file-system';
 import { supabase, getSignedAvatarUrl, getAvatarUploadPath } from '../lib/supabase';
 import { searchAddressSuggestions, getPlaceDetails } from '../lib/addressSearch';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, User, Phone, MapPin, Save, Camera, Loader2 } from '../components/Icons';
 
 export default function EditProfileScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);

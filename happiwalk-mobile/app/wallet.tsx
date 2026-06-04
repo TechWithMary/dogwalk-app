@@ -15,6 +15,10 @@ export default function WalletScreen() {
   const [balance, setBalance] = useState(0);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
+  const [transactions, setTransactions] = useState<any[]>([]);
 
   const fetchWalletData = useCallback(async (pageNum: number, append: boolean = false) => {
     if (append) setLoadingMore(true);

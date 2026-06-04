@@ -57,7 +57,7 @@ const OWNER_FAQS: FAQItem[] = [
   {
     category: 'Pagos',
     question: '¿Cómo agrego fondos a mi billetera?',
-    answer: 'Ve a "Mi Billetera" en tu perfil, toca "Agregar Fondos" y elige tu método de pago (Mercado Pago, Nequi o tarjeta).',
+    answer: 'Ve a "Mi Billetera" en tu perfil, toca "Recargar" y elige tu método de pago (Mercado Pago, Nequi o tarjeta).',
   },
   {
     category: 'Pagos',

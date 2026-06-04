@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet, Platform, type DimensionValue } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { GOOGLE_MAPS_API_KEY } from '../lib/config';
 
@@ -7,7 +7,7 @@ interface Props {
   latitude: number;
   longitude: number;
   onMarkerDragEnd?: (lat: number, lng: number) => void;
-  height?: number | string;
+  height?: DimensionValue;
   draggable?: boolean;
 }
 

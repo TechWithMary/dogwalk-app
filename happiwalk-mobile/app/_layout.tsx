@@ -94,9 +94,9 @@ export default function RootLayout() {
       const url = event.url;
       
       
-      // Parsear la URL
-      const parsed = Linking.parse(url);
-      const path = parsed.path || '';
+      // Parsear la URL manualmente (Linking.parse no existe en RN)
+      // Formato esperado: happiwalk://payment/success o happiwalk://payment/failure
+      const path = url.split('://').pop() || '';
       
       // Verificar si es una respuesta de pago
       if (path.startsWith('payment/')) {
