@@ -175,6 +175,20 @@ export default function LiveWalkScreen() {
     return () => clearInterval(updateFreshness);
   }, [lastUpdate]);
 
+  const pickupLocation = booking?.lat != null && booking?.lng != null
+    ? { latitude: booking.lat, longitude: booking.lng }
+    : null;
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+    if (walkerLocation && pickupLocation) {
+      mapRef.current.fitToCoordinates([walkerLocation, pickupLocation], {
+        edgePadding: { top: 120, right: 60, bottom: 280, left: 60 },
+        animated: true,
+      });
+    }
+  }, [walkerLocation, pickupLocation]);
+
   const fetchBooking = async () => {
     try {
       console.log('[LiveWalk] Fetching booking:', bookingId);
@@ -284,17 +298,28 @@ export default function LiveWalkScreen() {
     );
   }
 
-  if (!walkerLocation && !showMapTimeout) {
+  const isWaitingForGPS =
+    (booking?.status === 'picked_up' || booking?.status === 'in_progress') &&
+    !walkerLocation &&
+    !showMapTimeout;
+
+  const isWaitingToStart =
+    booking?.status !== 'picked_up' &&
+    booking?.status !== 'in_progress' &&
+    !walkerLocation &&
+    !showMapTimeout;
+
+  if (isWaitingForGPS || isWaitingToStart) {
     return (
       <View style={styles.centerContainer}>
         <View style={styles.waitingIcon}>
           <Dog size={48} color="#0EA5E9" />
         </View>
         <Text style={styles.waitingTitle}>
-          {booking?.status === 'picked_up' ? 'Esperando GPS...' : 'Esperando inicio del paseo'}
+          {isWaitingForGPS ? 'Esperando GPS...' : 'Esperando inicio del paseo'}
         </Text>
         <Text style={styles.waitingSubtitle}>
-          {booking?.status === 'picked_up'
+          {isWaitingForGPS
             ? `${booking?.walkers?.name || 'El paseador'} aún no activó el GPS del paseo`
             : `${booking?.walkers?.name || 'El paseador'} está por iniciar el paseo`}
         </Text>
@@ -311,10 +336,6 @@ export default function LiveWalkScreen() {
     );
   }
 
-  const pickupLocation = booking?.lat != null && booking?.lng != null
-    ? { latitude: booking.lat, longitude: booking.lng }
-    : null;
-
   const fallbackCenter = walkerLocation || pickupLocation || {
     latitude: 6.2476,
     longitude: -75.5658,
@@ -326,16 +347,6 @@ export default function LiveWalkScreen() {
     latitudeDelta: 0.01,
     longitudeDelta: 0.01,
   };
-
-  useEffect(() => {
-    if (!mapRef.current) return;
-    if (walkerLocation && pickupLocation) {
-      mapRef.current.fitToCoordinates([walkerLocation, pickupLocation], {
-        edgePadding: { top: 120, right: 60, bottom: 280, left: 60 },
-        animated: true,
-      });
-    }
-  }, [walkerLocation, pickupLocation]);
 
   return (
     <View style={styles.container}>
