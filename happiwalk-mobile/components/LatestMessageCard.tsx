@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'rea
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import AvatarImage from './AvatarImage';
-import { MessageSquare } from './Icons';
+import { MessageSquare, X } from './Icons';
 
 interface LatestMessage {
   id: string;
@@ -14,18 +14,43 @@ interface LatestMessage {
   created_at: string;
 }
 
+interface ConversationMeta {
+  id: string;
+  participant_one_id: string;
+  participant_two_id: string;
+  participant_one_unread_count: number;
+  participant_two_unread_count: number;
+}
+
 interface Props {
   currentUserId: string;
   bookingId?: string;
   partnerUserId?: string;
 }
 
+const DISMISSED_KEY = (userId: string) => `dismissed_latest_msg_${userId}`;
+
 export default function LatestMessageCard({ currentUserId, bookingId, partnerUserId }: Props) {
   const router = useRouter();
   const [message, setMessage] = useState<LatestMessage | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [partnerName, setPartnerName] = useState<string>('');
   const [partnerPhoto, setPartnerPhoto] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dismissedConvId, setDismissedConvId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadDismissed = async () => {
+      try {
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const value = await AsyncStorage.getItem(DISMISSED_KEY(currentUserId));
+        if (value) setDismissedConvId(value);
+      } catch (err) {
+        console.warn('[LatestMessageCard] AsyncStorage error:', err);
+      }
+    };
+    loadDismissed();
+  }, [currentUserId]);
 
   const fetchLatest = async () => {
     try {
@@ -65,8 +90,23 @@ export default function LatestMessageCard({ currentUserId, bookingId, partnerUse
 
       if (convIds.length === 0) {
         setMessage(null);
+        setUnreadCount(0);
         setLoading(false);
         return;
+      }
+
+      const { data: convData } = await supabase
+        .from('conversations')
+        .select('id, participant_one_id, participant_two_id, participant_one_unread_count, participant_two_unread_count')
+        .in('id', convIds)
+        .maybeSingle();
+
+      if (convData) {
+        const conv = convData as ConversationMeta;
+        const myUnread = conv.participant_one_id === currentUserId
+          ? (conv.participant_one_unread_count || 0)
+          : (conv.participant_two_unread_count || 0);
+        setUnreadCount(myUnread);
       }
 
       const { data: msgs } = await supabase
@@ -123,6 +163,19 @@ export default function LatestMessageCard({ currentUserId, bookingId, partnerUse
             fetchLatest();
           },
         )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'conversations' },
+          (payload) => {
+            const updated = payload.new as any;
+            if (
+              updated.participant_one_id === user.id ||
+              updated.participant_two_id === user.id
+            ) {
+              fetchLatest();
+            }
+          },
+        )
         .subscribe();
     };
     setupSub();
@@ -132,30 +185,21 @@ export default function LatestMessageCard({ currentUserId, bookingId, partnerUse
     };
   }, []);
 
-  if (loading) {
-    return (
-      <View style={[styles.card, styles.loadingCard]}>
-        <ActivityIndicator size="small" color="#052e05" />
-      </View>
-    );
-  }
+  const handleDismiss = async () => {
+    if (!message) return;
+    setDismissedConvId(message.conversation_id);
+    try {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      await AsyncStorage.setItem(DISMISSED_KEY(currentUserId), message.conversation_id);
+    } catch (err) {
+      console.warn('[LatestMessageCard] Could not save dismissed state:', err);
+    }
+  };
 
-  if (!message) {
-    return (
-      <TouchableOpacity
-        style={[styles.card, styles.emptyCard]}
-        onPress={() => router.push('/(tabs)/messages')}
-        activeOpacity={0.7}
-      >
-        <View style={styles.emptyIcon}>
-          <MessageSquare size={20} color="#6B7280" />
-        </View>
-        <View style={styles.cardInfo}>
-          <Text style={styles.emptyTitle}>Mensajes</Text>
-          <Text style={styles.emptySubtitle}>Toca para ver tus conversaciones</Text>
-        </View>
-      </TouchableOpacity>
-    );
+  if (loading) return null;
+
+  if (!message || unreadCount === 0 || dismissedConvId === message.conversation_id) {
+    return null;
   }
 
   const isMine = message.sender_id === currentUserId;
@@ -167,7 +211,10 @@ export default function LatestMessageCard({ currentUserId, bookingId, partnerUse
       onPress={() => router.push({ pathname: '/chat', params: { conversationId: message.conversation_id } })}
       activeOpacity={0.7}
     >
-      <AvatarImage photoUrl={partnerPhoto} fallbackInitial={partnerName} size={44} style={styles.avatar} />
+      <View style={styles.avatarWrapper}>
+        <AvatarImage photoUrl={partnerPhoto} fallbackInitial={partnerName} size={44} style={styles.avatar} />
+        {unreadCount > 0 && <View style={styles.unreadDot} />}
+      </View>
       <View style={styles.cardInfo}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardName} numberOfLines={1}>
@@ -175,10 +222,17 @@ export default function LatestMessageCard({ currentUserId, bookingId, partnerUse
           </Text>
           <Text style={styles.cardTime}>{time}</Text>
         </View>
-        <Text style={styles.cardPreview} numberOfLines={1}>
-          {isMine ? `${message.message_text}` : message.message_text}
+        <Text style={[styles.cardPreview, unreadCount > 0 && !isMine && styles.cardPreviewUnread]} numberOfLines={1}>
+          {message.message_text}
         </Text>
       </View>
+      <TouchableOpacity
+        style={styles.dismissBtn}
+        onPress={handleDismiss}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <X size={18} color="#9CA3AF" />
+      </TouchableOpacity>
     </TouchableOpacity>
   );
 }
@@ -197,25 +251,21 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 1,
   },
-  loadingCard: {
-    height: 72,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyCard: {
-    opacity: 0.8,
-  },
-  emptyIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
+  avatarWrapper: {
+    position: 'relative',
     marginRight: 12,
   },
-  avatar: {
-    marginRight: 12,
+  avatar: {},
+  unreadDot: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#10B981',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   cardInfo: {
     flex: 1,
@@ -241,14 +291,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6B7280',
   },
-  emptyTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#374151',
+  cardPreviewUnread: {
+    color: '#111827',
+    fontWeight: '600',
   },
-  emptySubtitle: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 2,
+  dismissBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
   },
 });
