@@ -41,9 +41,30 @@ export default function ChatScreen() {
     if (!currentUser || !conversationId) return;
     fetchMessages();
     fetchPartner();
+    markConversationRead();
     const unsubscribe = subscribeToMessages();
     return unsubscribe;
   }, [currentUser, conversationId]);
+
+  const markConversationRead = async () => {
+    if (!currentUser) return;
+    try {
+      const { data: conv } = await supabase
+        .from('conversations')
+        .select('participant_one_id, participant_two_id')
+        .eq('id', conversationId)
+        .maybeSingle();
+
+      if (!conv) return;
+      const isP1 = conv.participant_one_id === currentUser.id;
+      const updateField = isP1
+        ? { participant_one_unread_count: 0 }
+        : { participant_two_unread_count: 0 };
+      await supabase.from('conversations').update(updateField).eq('id', conversationId);
+    } catch (err) {
+      console.error('[Chat] Error marking read:', err);
+    }
+  };
 
   useEffect(() => {
     scrollToBottom();
@@ -131,30 +152,12 @@ export default function ChatScreen() {
   };
 
   const handleSend = async () => {
-    console.log('[Chat] handleSend called', { inputText, currentUser: currentUser?.id, partner: partner?.id, conversationId });
-
-    if (!inputText.trim()) {
-      console.log('[Chat] handleSend: no text');
-      return;
-    }
-    if (!currentUser) {
-      console.log('[Chat] handleSend: no currentUser');
-      return;
-    }
-    if (!partner) {
-      console.log('[Chat] handleSend: no partner');
-      return;
-    }
-    if (!conversationId) {
-      console.log('[Chat] handleSend: no conversationId');
-      return;
-    }
+    if (!inputText.trim() || !currentUser || !partner || !conversationId) return;
 
     const text = inputText.trim();
     setInputText('');
 
     try {
-      console.log('[Chat] Inserting message...');
       const { data, error } = await supabase.from('messages').insert({
         conversation_id: conversationId,
         sender_id: currentUser.id,
@@ -163,9 +166,14 @@ export default function ChatScreen() {
         message_type: 'text',
       }).select();
 
-      console.log('[Chat] Insert result:', data, 'error:', error);
-
       if (error) throw error;
+
+      if (data && data[0]) {
+        setMessages((prev) => {
+          if (prev.find(m => m.id === data[0].id)) return prev;
+          return [...prev, data[0] as Message];
+        });
+      }
     } catch (err: any) {
       console.error('[Chat] Error sending message:', err);
       Alert.alert('Error', 'No se pudo enviar el mensaje: ' + (err.message || err));

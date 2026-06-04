@@ -8,6 +8,7 @@ import { Bell, Star, Clock, CreditCard, MapPin, ChevronRight, Dog } from '../../
 import AvatarImage from '../../components/AvatarImage';
 import EmptyState from '../../components/EmptyState';
 import { SkeletonCard } from '../../components/Skeleton';
+import LatestMessageCard from '../../components/LatestMessageCard';
 
 interface Walker {
   id: string;
@@ -68,6 +69,7 @@ export default function HomeScreen() {
   const [petCount, setPetCount] = useState(0);
   const [displayName, setDisplayName] = useState('Amigo');
   const [ratedBookingIds, setRatedBookingIds] = useState<Set<string>>(new Set());
+  const [userId, setUserId] = useState<string>('');
 
   const [roleChecking, setRoleChecking] = useState(true);
 
@@ -109,6 +111,7 @@ export default function HomeScreen() {
           setRoleChecking(false);
           return;
         }
+        setUserId(user.id);
         const { data: profile } = await supabase
           .from('user_profiles')
           .select('role')
@@ -368,6 +371,8 @@ export default function HomeScreen() {
               <Text style={styles.petsCardText}>Mis Mascotas</Text>
             </TouchableOpacity>
           </View>
+
+          {userId ? <LatestMessageCard currentUserId={userId} /> : null}
 
           {showRatingModal && bookingToRate && (
             <TouchableOpacity style={styles.ratingBanner} onPress={handleRate}>

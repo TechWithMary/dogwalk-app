@@ -14,6 +14,7 @@ import {
 } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
 import { useNetworkStatus } from '../lib/network';
+import { useChatNotifications } from '../lib/chatNotifications';
 import { ToastProvider } from '../components/Toast';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { COLORS } from '../lib/theme';
@@ -31,6 +32,18 @@ export default function RootLayout() {
       if (user?.id) setCurrentUserId(user.id);
     });
 
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUserId(session?.user?.id || null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useChatNotifications(currentUserId);
+
+  useEffect(() => {
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {
         const route = resolveNotificationRoute(response);

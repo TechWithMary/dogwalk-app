@@ -205,9 +205,6 @@ export default function BookingDetailsScreen() {
       if (!user) return;
 
       const walkerUserId = booking?.walkers?.user_id;
-      console.log('[Chat] Current user:', user.id);
-      console.log('[Chat] Walker user_id:', walkerUserId);
-      console.log('[Chat] Booking:', booking?.id);
 
       if (!walkerUserId) {
         Alert.alert('Error', 'No se pudo identificar al paseador. El booking no tiene walker con user_id.');
@@ -220,21 +217,17 @@ export default function BookingDetailsScreen() {
       }
 
       const [p1, p2] = [user.id, walkerUserId].sort();
-      console.log('[Chat] Looking for conversation with p1:', p1, 'p2:', p2);
 
-      const { data: existing, error: searchError } = await supabase
+      const { data: existing } = await supabase
         .from('conversations')
         .select('id')
         .eq('participant_one_id', p1)
         .eq('participant_two_id', p2)
         .maybeSingle();
 
-      console.log('[Chat] Existing conversation:', existing, 'error:', searchError);
-
       let conversationId = existing?.id;
 
       if (!conversationId) {
-        console.log('[Chat] Creating new conversation...');
         const { data: created, error: createError } = await supabase
           .from('conversations')
           .insert({
@@ -245,7 +238,6 @@ export default function BookingDetailsScreen() {
           .select('id')
           .single();
 
-        console.log('[Chat] Create result:', created, 'error:', createError);
         if (createError) throw createError;
         conversationId = created.id;
       }

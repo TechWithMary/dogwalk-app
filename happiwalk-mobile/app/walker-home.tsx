@@ -8,6 +8,7 @@ import { sendLocalNotification } from '../lib/notifications';
 import { Dog, MapPin, ChevronRight, Loader2, Star, TrendingUp, Power, Wallet, House, MessageSquare, User, Calendar, MapPin as MapPinIcon, Settings } from '../components/Icons';
 import EmptyState from '../components/EmptyState';
 import { SkeletonCard } from '../components/Skeleton';
+import LatestMessageCard from '../components/LatestMessageCard';
 
 interface Booking {
   id: string;
@@ -59,6 +60,7 @@ export default function WalkerHomeScreen() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState('Paseador');
+  const [userId, setUserId] = useState<string>('');
 
   const [activeNav, setActiveNav] = useState('home');
 
@@ -81,6 +83,7 @@ export default function WalkerHomeScreen() {
         setLoading(false);
         return;
       }
+      setUserId(user.id);
 
       walkerIdRef.current = walkerData.id;
       setIsOnline(walkerData.is_online ?? true);
@@ -613,6 +616,8 @@ export default function WalkerHomeScreen() {
             </View>
             <ChevronRight size={24} color="#D1D5DB" />
           </TouchableOpacity>
+
+          <LatestMessageCard currentUserId={userId} />
 
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
