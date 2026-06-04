@@ -489,42 +489,28 @@ export default function HelpCenterScreen() {
           )}
         </View>
 
-        <View style={styles.contactSection}>
-          <Text style={styles.sectionTitle}>¿Necesitas más ayuda?</Text>
-
-          <TouchableOpacity style={styles.contactButton} onPress={() => setShowChat(true)}>
-            <View style={[styles.contactIconBg, { backgroundColor: '#D1FAE5' }]}>
-              <MessageCircle size={24} color="#0EA5E9" />
-            </View>
-            <View style={styles.contactInfo}>
-              <Text style={styles.contactTitle}>Chat con Asistente</Text>
-              <Text style={styles.contactSubtitle}>
-                {isWalker ? 'Preguntas sobre paseos, GPS o ganancias' : 'Preguntas sobre reservas o pagos'}
-              </Text>
-            </View>
-            <ChevronRight size={20} color="#9CA3AF" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.contactButton, styles.whatsappContactButton]}
-            onPress={() => handleWhatsApp()}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.contactIconBg, { backgroundColor: '#25D366' }]}>
-              <Whatsapp size={24} color="#FFFFFF" />
-            </View>
-            <View style={styles.contactInfo}>
-              <Text style={styles.contactTitle}>WhatsApp Soporte</Text>
-              <Text style={styles.contactSubtitle}>
-                {WHATSAPP_DISPLAY} · {isWalker ? 'Lun-Sáb 7am-9pm' : 'Lun-Sáb 7am-9pm'}
-              </Text>
-            </View>
-            <ChevronRight size={20} color="#9CA3AF" />
-          </TouchableOpacity>
-        </View>
-
-        <View style={{ height: 40 }} />
+        <View style={{ height: 100 }} />
       </ScrollView>
+
+      <View style={styles.stickyFooter}>
+        <TouchableOpacity
+          style={[styles.stickyBtn, styles.stickyChatBtn]}
+          onPress={() => setShowChat(true)}
+          activeOpacity={0.85}
+        >
+          <MessageCircle size={20} color="#0EA5E9" />
+          <Text style={styles.stickyChatText}>Chat</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.stickyBtn, styles.stickyWhatsappBtn]}
+          onPress={() => handleWhatsApp()}
+          activeOpacity={0.85}
+        >
+          <Whatsapp size={20} color="#FFFFFF" />
+          <Text style={styles.stickyWhatsappText}>WhatsApp</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -710,6 +696,52 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#F3F4F6',
+  },
+  stickyFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 24,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 12,
+  },
+  stickyBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 14,
+    gap: 8,
+  },
+  stickyChatBtn: {
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1.5,
+    borderColor: '#0EA5E9',
+  },
+  stickyChatText: {
+    color: '#0EA5E9',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  stickyWhatsappBtn: {
+    backgroundColor: '#25D366',
+  },
+  stickyWhatsappText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
   },
   whatsappContactButton: {
     borderColor: '#25D366',
