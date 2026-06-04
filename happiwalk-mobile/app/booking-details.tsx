@@ -199,10 +199,47 @@ export default function BookingDetailsScreen() {
     }
   };
 
-  const handleWhatsApp = () => {
-    if (walkerProfile?.phone) {
-      const phone = walkerProfile.phone.replace(/\D/g, '');
-      Linking.openURL(`https://wa.me/57${phone}`);
+  const handleOpenChat = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const walkerUserId = booking?.walkers?.user_id;
+      if (!walkerUserId) {
+        Alert.alert('Error', 'No se pudo identificar al paseador');
+        return;
+      }
+
+      const [p1, p2] = [user.id, walkerUserId].sort();
+
+      const { data: existing } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('participant_one_id', p1)
+        .eq('participant_two_id', p2)
+        .maybeSingle();
+
+      let conversationId = existing?.id;
+
+      if (!conversationId) {
+        const { data: created, error: createError } = await supabase
+          .from('conversations')
+          .insert({
+            participant_one_id: p1,
+            participant_two_id: p2,
+            booking_id: bookingId,
+          })
+          .select('id')
+          .single();
+
+        if (createError) throw createError;
+        conversationId = created.id;
+      }
+
+      router.push({ pathname: '/chat', params: { conversationId } });
+    } catch (error: any) {
+      console.error('Error opening chat:', error);
+      Alert.alert('Error', 'No se pudo abrir el chat');
     }
   };
 
@@ -345,16 +382,16 @@ export default function BookingDetailsScreen() {
                 <Text style={styles.walkerRating}>⭐ {booking.walkers.rating || 'Nuevo'}</Text>
                 {walkerProfile?.phone && <Text style={styles.walkerPhone}>{walkerProfile.phone}</Text>}
               </View>
-              {walkerProfile?.phone && (
-                <View style={styles.walkerActions}>
+              <View style={styles.walkerActions}>
+                {walkerProfile?.phone && (
                   <TouchableOpacity style={styles.actionBtn} onPress={handleCall}>
                     <Text style={styles.actionIcon}>📞</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.actionBtn, styles.whatsappBtn]} onPress={handleWhatsApp}>
-                    <Text style={styles.actionIcon}>💬</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+                )}
+                <TouchableOpacity style={[styles.actionBtn, styles.whatsappBtn]} onPress={handleOpenChat}>
+                  <Text style={styles.actionIcon}>💬</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         )}
