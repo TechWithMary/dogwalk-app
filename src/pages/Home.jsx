@@ -5,7 +5,8 @@ import { formatMoney } from '../utils/format';
 import { isWithinRadius } from '../utils/distance';
 import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from '../lib/mapsConfig';
 import RatingModal from './RatingModal';
-import WalkerProfileView from './WalkerProfileView'; 
+import WalkerProfileView from './WalkerProfileView';
+import Avatar from '../components/Avatar';
 import { useJsApiLoader } from '@react-google-maps/api';
 
 const Home = ({ currentUser, navigate, setView }) => {
@@ -319,16 +320,8 @@ const { isLoaded } = useJsApiLoader({
                   onClick={() => setSelectedWalker(walker)} 
                   className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex gap-4 cursor-pointer active:scale-[0.98] transition-all"
                 >
-                  <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-200 shrink-0 relative">
-                      {profile?.profile_photo_url ? (
-                        <img src={profile.profile_photo_url} alt={fullName} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full bg-emerald-100 flex items-center justify-center">
-                          <span className="text-emerald-600 font-black text-lg">
-                            {fullName?.charAt(0)?.toUpperCase() || '?'}
-                          </span>
-                        </div>
-                      )}
+                  <div className="w-16 h-16 shrink-0 relative">
+                      <Avatar photoUrl={profile?.profile_photo_url} fallbackInitial={fullName || '?'} size={64} shape="square" />
                       <div className="absolute bottom-0 bg-black/40 w-full flex items-center justify-center gap-1 py-0.5">
                           <Star className="w-2 h-2 text-yellow-400 fill-current" />
                           <span className="text-white text-[8px] font-bold">

@@ -4,6 +4,7 @@ import { supabase } from '../supabaseClient';
 import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from '../lib/mapsConfig';
 import toast from 'react-hot-toast';
+import Avatar from '../components/Avatar';
 
 const containerStyle = { width: '100%', height: '100%' };
 
@@ -214,7 +215,7 @@ const { isLoaded } = useJsApiLoader({
                             <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold">En vivo</span>
                         </div>
                         <div className="flex items-center gap-4 mb-6">
-                            <img src={walker.img || 'https://via.placeholder.com/150'} className="w-14 h-14 rounded-full object-cover border-2 border-emerald-500" />
+                            <Avatar photoUrl={walker.img} fallbackInitial={walker.name || 'Paseador'} size={56} className="border-2 border-emerald-500" />
                             <div className="flex-1">
                                 <h3 className="font-bold">{walker.name}</h3>
                                 <div className="flex items-center gap-1 text-yellow-500 text-sm"><Star size={14} fill="currentColor" /> {walker.rating || 'Nuevo'}</div>

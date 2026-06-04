@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, User, Wallet, LogOut, Loader2, Shield, Camera } from 'lucide-react';
 import toast from 'react-hot-toast';
+import Avatar from '../components/Avatar';
 
 const Profile = ({ onLogout, navigate: propNavigate }) => {
   const routerNavigate = useNavigate();
@@ -140,16 +141,16 @@ const Profile = ({ onLogout, navigate: propNavigate }) => {
       <div className="text-center mb-8">
         <div 
           onClick={() => !uploading && fileInputRef.current.click()}
-          className="relative w-24 h-24 rounded-full bg-gray-200 mx-auto mb-4 flex items-center justify-center overflow-hidden cursor-pointer group border-4 border-white shadow-md"
+          className="relative w-24 h-24 mx-auto mb-4 cursor-pointer group"
         >
           {uploading ? (
-            <Loader2 className="animate-spin text-emerald-500" />
-          ) : profile?.profile_photo_url ? (
-            <img src={profile.profile_photo_url} alt="Profile" className="w-full h-full object-cover" />
+            <div className="w-full h-full rounded-full bg-gray-200 flex items-center justify-center border-4 border-white shadow-md">
+              <Loader2 className="animate-spin text-emerald-500" />
+            </div>
           ) : (
-            <User className="w-12 h-12 text-gray-400" />
+            <Avatar photoUrl={profile?.profile_photo_url} fallbackInitial={displayName} size={96} className="border-4 border-white shadow-md" />
           )}
-          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
             <Camera className="text-white w-6 h-6" />
           </div>
         </div>

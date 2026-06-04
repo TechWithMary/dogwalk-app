@@ -1,6 +1,7 @@
 import React from 'react';
 import { MapPin, Star, Calendar, ShieldCheck, ArrowLeft, MessageCircle, Dog } from 'lucide-react';
 import { formatMoney } from '../utils/format';
+import Avatar from '../components/Avatar';
 
 const WalkerProfileView = ({ walker, onNavigate, onBack }) => {
 
@@ -11,10 +12,12 @@ const WalkerProfileView = ({ walker, onNavigate, onBack }) => {
     <div className="bg-white min-h-screen pb-24 relative animate-in fade-in slide-in-from-right duration-300">
       
       <div className="relative h-72 w-full bg-gray-200">
-        <img 
-          src={profile?.profile_photo_url || 'https://via.placeholder.com/400'} 
-          className="w-full h-full object-cover" 
-          alt={fullName}
+        <Avatar
+          photoUrl={profile?.profile_photo_url}
+          fallbackInitial={fullName}
+          size={288}
+          shape="square"
+          className="w-full h-full"
         />
         <button 
           onClick={onBack}

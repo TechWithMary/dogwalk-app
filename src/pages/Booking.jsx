@@ -7,6 +7,7 @@ import { GoogleMap, useJsApiLoader, Marker, Autocomplete } from '@react-google-m
 import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES, centerMedellin } from '../lib/mapsConfig';
 import MercadoPagoButton from '../components/MercadoPagoButton';
 import { isWithinRadius } from '../utils/distance';
+import Avatar from '../components/Avatar';
 
 const containerStyle = { width: '100%', height: '100%' };
 
@@ -472,7 +473,7 @@ const Booking = ({ setView, navigate }) => {
                         onClick={() => setSelectedWalker(walker)}
                         className={`w-full p-3 rounded-xl border flex items-center gap-3 transition-all ${selectedWalker?.id === walker.id ? 'border-emerald-500 bg-emerald-50' : 'border-gray-100 bg-white'}`}
                       >
-                        <img src={walker.img || 'https://via.placeholder.com/40'} className="w-10 h-10 rounded-full object-cover" />
+                        <Avatar photoUrl={walker.img} fallbackInitial={walker.name || walker.user_profiles?.first_name || 'Paseador'} size={40} />
                         <div className="flex-1 text-left">
                           <p className="font-bold text-sm text-gray-800">{walker.name || walker.user_profiles?.first_name || 'Paseador'}</p>
                           <p className="text-xs text-gray-500">⭐ {walker.rating || 'Nuevo'}</p>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 
-export default function Avatar({ photoUrl, fallbackInitial, size = 40, className = '' }) {
+export default function Avatar({ photoUrl, fallbackInitial, size = 40, className = '', shape = 'full' }) {
   const [resolvedUrl, setResolvedUrl] = useState(null);
   const [hasError, setHasError] = useState(false);
 
@@ -45,12 +45,17 @@ export default function Avatar({ photoUrl, fallbackInitial, size = 40, className
   }, [photoUrl]);
 
   const initial = (fallbackInitial || '?')[0]?.toUpperCase() || '?';
+  const shapeClass = shape === 'square' ? 'rounded-xl' : 'rounded-full';
+  const useExplicitSize = !className.includes('w-full') && !className.includes('h-full');
+  const inlineStyle = useExplicitSize
+    ? { width: size, height: size, fontSize: size * 0.4 }
+    : { fontSize: size * 0.4 };
 
   if (!resolvedUrl || hasError) {
     return (
       <div
-        className={`flex items-center justify-center rounded-full bg-emerald-100 text-emerald-700 font-black shrink-0 select-none ${className}`}
-        style={{ width: size, height: size, fontSize: size * 0.4 }}
+        className={`flex items-center justify-center ${shapeClass} bg-emerald-100 text-emerald-700 font-black shrink-0 select-none ${className}`}
+        style={inlineStyle}
         aria-label={`Avatar de ${fallbackInitial || 'usuario'}`}
       >
         {initial}
@@ -62,8 +67,8 @@ export default function Avatar({ photoUrl, fallbackInitial, size = 40, className
     <img
       src={resolvedUrl}
       alt={`Avatar de ${fallbackInitial || 'usuario'}`}
-      className={`rounded-full object-cover shrink-0 ${className}`}
-      style={{ width: size, height: size }}
+      className={`${shapeClass} object-cover shrink-0 ${className}`}
+      style={useExplicitSize ? { width: size, height: size } : undefined}
       onError={() => setHasError(true)}
     />
   );

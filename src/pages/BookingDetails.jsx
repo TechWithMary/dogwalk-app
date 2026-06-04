@@ -5,6 +5,7 @@ import { ArrowLeft, MapPin, Clock, Dog, Phone, MessageSquare, Navigation, CheckC
 import toast from 'react-hot-toast';
 import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from '../lib/mapsConfig';
+import Avatar from '../components/Avatar';
 
 const BookingDetails = () => {
   const location = useLocation();
@@ -272,9 +273,10 @@ const { isLoaded } = useJsApiLoader({
               <Dog size={18} className="text-emerald-500" /> Paseador
             </h3>
             <div className="flex items-center gap-3">
-              <img 
-                src={booking.walkers.img || 'https://via.placeholder.com/50'} 
-                className="w-12 h-12 rounded-full object-cover" 
+              <Avatar
+                photoUrl={booking.walkers.img}
+                fallbackInitial={booking.walkers.name || walker.first_name || 'Paseador'}
+                size={48}
               />
               <div className="flex-1">
                 <p className="font-bold">{booking.walkers.name || walker.first_name || 'Paseador'}</p>
