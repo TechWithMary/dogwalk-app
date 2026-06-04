@@ -68,6 +68,8 @@ export default function WalkerHomeScreen() {
   const walkerIdRef = useRef<string | null>(null);
   const locationErrorShownRef = useRef(false);
   const initialTabSetRef = useRef(false);
+  const processingIdRef = useRef<string | null>(null);
+  const autoStartBookingIdRef = useRef<string | null>(null);
 
   const fetchWalkerData = useCallback(async () => {
     try {
@@ -148,9 +150,14 @@ export default function WalkerHomeScreen() {
     }
   }, []);
 
+  const autoStartTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoStartIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [autoStartBookingId, setAutoStartBookingId] = useState<string | null>(null);
+  const [autoStartCountdown, setAutoStartCountdown] = useState<number>(0);
+
   useEffect(() => {
     fetchWalkerData();
-  }, [fetchWalkerData]);
+  }, []);
 
   useEffect(() => {
     const channel = supabase
@@ -160,14 +167,75 @@ export default function WalkerHomeScreen() {
         { event: 'UPDATE', schema: 'public', table: 'bookings' },
         (payload) => {
           const updated = payload.new as any;
+          const previous = payload.old as any;
           if (updated.walker_id === walkerIdRef.current) {
             fetchWalkerData();
+            if (
+              previous?.status === 'pickup_requested' &&
+              updated?.status === 'picked_up' &&
+              !autoStartBookingIdRef.current &&
+              !processingIdRef.current
+            ) {
+              triggerAutoStart(updated.id);
+            }
           }
         },
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
+
+  const cancelAutoStart = useCallback(() => {
+    if (autoStartTimeoutRef.current) {
+      clearTimeout(autoStartTimeoutRef.current);
+      autoStartTimeoutRef.current = null;
+    }
+    if (autoStartIntervalRef.current) {
+      clearInterval(autoStartIntervalRef.current);
+      autoStartIntervalRef.current = null;
+    }
+    setAutoStartBookingId(null);
+    setAutoStartCountdown(0);
+  }, []);
+
+  const triggerAutoStart = useCallback((bookingId: string) => {
+    setAutoStartBookingId(bookingId);
+    setAutoStartCountdown(4);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    if (autoStartIntervalRef.current) clearInterval(autoStartIntervalRef.current);
+    autoStartIntervalRef.current = setInterval(() => {
+      setAutoStartCountdown((prev) => {
+        if (prev <= 1) {
+          if (autoStartIntervalRef.current) {
+            clearInterval(autoStartIntervalRef.current);
+            autoStartIntervalRef.current = null;
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    autoStartTimeoutRef.current = setTimeout(() => {
+      autoStartTimeoutRef.current = null;
+      if (autoStartIntervalRef.current) {
+        clearInterval(autoStartIntervalRef.current);
+        autoStartIntervalRef.current = null;
+      }
+      setAutoStartBookingId(null);
+      setAutoStartCountdown(0);
+      startWalk(bookingId);
+    }, 4000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (autoStartTimeoutRef.current) clearTimeout(autoStartTimeoutRef.current);
+      if (autoStartIntervalRef.current) clearInterval(autoStartIntervalRef.current);
+    };
+  }, []);
+
+  useEffect(() => { processingIdRef.current = processingId; }, [processingId]);
+  useEffect(() => { autoStartBookingIdRef.current = autoStartBookingId; }, [autoStartBookingId]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
@@ -570,6 +638,28 @@ export default function WalkerHomeScreen() {
 
   return (
     <View style={styles.container}>
+      {autoStartBookingId && (
+        <View style={styles.autoStartBanner}>
+          <View style={styles.autoStartBannerLeft}>
+            <View style={styles.autoStartPulse}>
+              <Dog size={20} color="#FFFFFF" />
+            </View>
+            <View style={styles.autoStartBannerText}>
+              <Text style={styles.autoStartBannerTitle}>Recogida confirmada</Text>
+              <Text style={styles.autoStartBannerSubtitle}>
+                Activando GPS en {autoStartCountdown}s...
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.autoStartCancelBtn}
+            onPress={cancelAutoStart}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.autoStartCancelText}>Cancelar</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <ScrollView
         style={styles.scrollView}
         refreshControl={
@@ -1282,6 +1372,66 @@ const styles = StyleSheet.create({
   mapsBtnText: {
     color: '#3B82F6',
     fontSize: 13,
+    fontWeight: '700',
+  },
+  autoStartBanner: {
+    position: 'absolute',
+    top: 50,
+    left: 16,
+    right: 16,
+    zIndex: 1000,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0F172A',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 12,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+  },
+  autoStartBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  autoStartPulse: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#10B981',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  autoStartBannerText: {
+    flex: 1,
+  },
+  autoStartBannerTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  autoStartBannerSubtitle: {
+    color: '#94A3B8',
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  autoStartCancelBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#1E293B',
+  },
+  autoStartCancelText: {
+    color: '#F87171',
+    fontSize: 12,
     fontWeight: '700',
   },
 });
