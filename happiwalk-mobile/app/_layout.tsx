@@ -2,7 +2,7 @@ import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Linking, Alert, AppState, StyleSheet, Text, View } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { getPendingBooking, clearPendingBooking } from '../lib/paymentService';
@@ -23,6 +23,16 @@ export default function RootLayout() {
   const router = useRouter();
   const { isOffline } = useNetworkStatus();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const lastHandledNotificationId = useRef<string | null>(null);
+
+  const handleNotificationResponse = (response: Notifications.NotificationResponse) => {
+    const route = resolveNotificationRoute(response);
+    if (!route) return;
+    const id = response.notification.request.identifier;
+    if (id === lastHandledNotificationId.current) return;
+    lastHandledNotificationId.current = id;
+    router.push(route);
+  };
 
   useEffect(() => {
     setupAndroidChannel();
@@ -45,20 +55,12 @@ export default function RootLayout() {
 
   useEffect(() => {
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        const route = resolveNotificationRoute(response);
-        if (route) {
-          router.push(route);
-        }
-      },
+      handleNotificationResponse,
     );
 
     Notifications.getLastNotificationResponseAsync().then((response) => {
       if (response) {
-        const route = resolveNotificationRoute(response);
-        if (route) {
-          setTimeout(() => router.push(route), 600);
-        }
+        setTimeout(() => handleNotificationResponse(response), 600);
       }
     });
 
