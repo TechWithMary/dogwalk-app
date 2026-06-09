@@ -24,6 +24,22 @@ interface Payout {
   created_at: string;
 }
 
+function formatBankDisplay(info: { bank_account_type: string | null; bank_account_number: string | null; bank_name: string | null } | null): string {
+  const type = info?.bank_account_type;
+  const name = info?.bank_name;
+  const number = info?.bank_account_number;
+  if (!type && !name) return 'Nequi' + (number ? ' · ' + number : ' · Sin cuenta');
+  if (!name && type) {
+    return type.charAt(0).toUpperCase() + type.slice(1) + ' · ' + (number || 'Sin cuenta');
+  }
+  const parts: string[] = [];
+  if (name) parts.push(name.charAt(0).toUpperCase() + name.slice(1));
+  if (type && type.toLowerCase() !== name?.toLowerCase()) {
+    parts.push(type.charAt(0).toUpperCase() + type.slice(1));
+  }
+  return parts.join(' · ') + (number ? ' · ' + number : '');
+}
+
 export default function WalkerBalanceScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -34,7 +50,7 @@ export default function WalkerBalanceScreen() {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [requesting, setRequesting] = useState(false);
-  const [bankInfo, setBankInfo] = useState<{ bank_account_type: string | null; bank_account_number: string | null } | null>(null);
+  const [bankInfo, setBankInfo] = useState<{ bank_account_type: string | null; bank_account_number: string | null; bank_name: string | null } | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -43,7 +59,7 @@ export default function WalkerBalanceScreen() {
 
       const { data: profile } = await supabase
         .from('user_profiles')
-        .select('balance, bank_account_type, bank_account_number')
+        .select('balance, bank_account_type, bank_account_number, bank_name')
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -51,6 +67,7 @@ export default function WalkerBalanceScreen() {
       setBankInfo({
         bank_account_type: profile?.bank_account_type ?? null,
         bank_account_number: profile?.bank_account_number ?? null,
+        bank_name: profile?.bank_name ?? null,
       });
 
       const { data: walkerData } = await supabase
@@ -325,9 +342,7 @@ export default function WalkerBalanceScreen() {
 
             <View style={styles.bankInfoBox}>
               <Text style={styles.bankInfoLabel}>Transferiremos a:</Text>
-              <Text style={styles.bankInfoValue}>
-                {bankInfo?.bank_account_type || 'Nequi'} · {bankInfo?.bank_account_number || 'Sin cuenta'}
-              </Text>
+              <Text style={styles.bankInfoValue}>{formatBankDisplay(bankInfo)}</Text>
               {!bankInfo?.bank_account_number && (
                 <Text style={styles.bankInfoWarning}>
                   ⚠️ Configurá tu cuenta bancaria en tu perfil antes de retirar.
