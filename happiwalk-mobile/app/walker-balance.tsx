@@ -138,13 +138,28 @@ export default function WalkerBalanceScreen() {
         throw new Error(friendlyMsg);
       }
 
-      // Notify admin that a new payout request is waiting
+      // Notify walker
       await supabase.from('notifications').insert({
         user_id: user.id,
         title: '💰 Solicitud de Retiro Enviada',
         body: `Tu solicitud de retiro por ${formatMoney(amount)} está siendo procesada. Te avisaremos cuando se complete.`,
         link_to: '/walker-balance',
       });
+
+      // Notify all admins
+      const { data: admins } = await supabase
+        .from('user_profiles')
+        .select('user_id')
+        .eq('role', 'admin');
+      if (admins?.length) {
+        const adminNotifs = admins.map(a => ({
+          user_id: a.user_id,
+          title: '💳 Nuevo Retiro Pendiente',
+          body: `Un paseador solicita retiro de ${formatMoney(amount)} — Revisá datos bancarios y transferí.`,
+          link_to: '/admin/payouts',
+        }));
+        await supabase.from('notifications').insert(adminNotifs);
+      }
 
       Alert.alert(
         'Solicitud enviada',
