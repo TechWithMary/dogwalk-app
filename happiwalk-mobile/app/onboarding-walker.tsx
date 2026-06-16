@@ -178,7 +178,7 @@ export default function OnboardingWalkerScreen() {
     return clean.replace(/(\d{1,3})(\d{0,6})(\d{0,2})/, (_, a, b, c) => [a, b, c].filter(Boolean).join('-')).slice(0, 14);
   };
 
-  const BANKS = ['Bancolombia', 'Davivienda', 'Banco de Bogotá', 'BBVA', 'Banco Popular', 'Banco de Occidente', 'Scotiabank Colpatria', 'Itaú'];
+  const BANKS = ['Bancolombia', 'Davivienda'];
 
   const calculateAge = (birthday: string) => {
     if (!birthday) return null;
