@@ -6,6 +6,7 @@ import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { File } from 'expo-file-system';
 import { supabase, STORAGE_URL } from '../lib/supabase';
+import { Crosshair } from '../components/Icons';
 
 const TOTAL_STEPS = 7;
 
@@ -431,7 +432,7 @@ export default function OnboardingWalkerScreen() {
               <View style={styles.addressInput}>
                 <TextInput style={styles.addressTextInput} value={formData.address} onChangeText={t => setFormData(p => ({ ...p, address: t }))} placeholder="Tu dirección" placeholderTextColor="#9CA3AF" />
                 <TouchableOpacity onPress={handleCurrentLocation} disabled={gettingLocation}>
-                  <Text style={styles.locationIcon}>{gettingLocation ? '⏳' : '📍'}</Text>
+                  {gettingLocation ? <Text style={styles.locationIcon}>⏳</Text> : <Crosshair size={20} color="#13ec13" />}
                 </TouchableOpacity>
               </View>
 
