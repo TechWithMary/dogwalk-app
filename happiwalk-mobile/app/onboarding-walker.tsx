@@ -160,11 +160,12 @@ export default function OnboardingWalkerScreen() {
   };
 
   const getPriceFromExperience = (years: string): number => {
-    if (!years || years === '') return 25000;
+    if (!years || years === '0') return 25000;
     const y = parseInt(years);
-    if (y >= 2) return 40000;
-    if (y >= 1) return 35000;
-    return 30000;
+    if (y >= 3) return 40000;
+    if (y >= 2) return 35000;
+    if (y >= 1) return 30000;
+    return 25000;
   };
 
   const calculateAge = (birthday: string) => {
@@ -570,10 +571,10 @@ export default function OnboardingWalkerScreen() {
               <Text style={styles.label}>Años de Experiencia</Text>
               <View style={styles.optionsGrid}>
                 {[
-                  { value: '', label: 'Sin experiencia' },
-                  { value: '0', label: '6 meses - 1 año' },
-                  { value: '1', label: '1 - 2 años' },
-                  { value: '2', label: '2+ años' },
+                  { value: '0', label: 'Sin experiencia' },
+                  { value: '1', label: '6 meses - 1 año' },
+                  { value: '2', label: '1 - 2 años' },
+                  { value: '3', label: '2+ años' },
                 ].map(opt => (
                   <TouchableOpacity key={opt.value} style={[styles.optionChip, formData.experience_years === opt.value && styles.optionChipActive]} onPress={() => {
                     setFormData(prev => ({ ...prev, experience_years: opt.value, price: String(getPriceFromExperience(opt.value)) }));
