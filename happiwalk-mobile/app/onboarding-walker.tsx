@@ -72,6 +72,7 @@ export default function OnboardingWalkerScreen() {
   }, []);
   const [selectedDays, setSelectedDays] = useState<number[]>([1]);
   const [newSlot, setNewSlot] = useState({ start_time: '08:00', end_time: '17:00' });
+  const [showTimePicker, setShowTimePicker] = useState<'start' | 'end' | null>(null);
 
   useEffect(() => {
     const initData = async () => {
@@ -788,11 +789,35 @@ export default function OnboardingWalkerScreen() {
               <View style={styles.row}>
                 <View style={styles.half}>
                   <Text style={styles.label}>Inicio</Text>
-                  <TextInput style={styles.input} value={newSlot.start_time} onChangeText={t => setNewSlot(p => ({ ...p, start_time: t }))} placeholder="08:00" placeholderTextColor="#9CA3AF" />
+                  <TouchableOpacity style={styles.timePickerBtn} onPress={() => setShowTimePicker('start')}>
+                    <Text style={styles.timePickerText}>{newSlot.start_time}</Text>
+                  </TouchableOpacity>
+                  {showTimePicker === 'start' && (
+                    Platform.OS === 'ios' ? (
+                      <View>
+                        <DateTimePicker value={(() => { const [h, m] = newSlot.start_time.split(':'); const d = new Date(); d.setHours(+h, +m, 0, 0); return d; })()} mode="time" display="spinner" themeVariant="dark" onChange={(_e, d) => { if (d) { setNewSlot(p => ({ ...p, start_time: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` })); } }} />
+                        <TouchableOpacity style={styles.dateDoneBtn} onPress={() => setShowTimePicker(null)}><Text style={styles.dateDoneText}>Listo</Text></TouchableOpacity>
+                      </View>
+                    ) : (
+                      <DateTimePicker value={(() => { const [h, m] = newSlot.start_time.split(':'); const d = new Date(); d.setHours(+h, +m, 0, 0); return d; })()} mode="time" display="default" themeVariant="dark" onChange={(_e, d) => { setShowTimePicker(null); if (d) { setNewSlot(p => ({ ...p, start_time: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` })); } }} />
+                    )
+                  )}
                 </View>
                 <View style={styles.half}>
                   <Text style={styles.label}>Fin</Text>
-                  <TextInput style={styles.input} value={newSlot.end_time} onChangeText={t => setNewSlot(p => ({ ...p, end_time: t }))} placeholder="17:00" placeholderTextColor="#9CA3AF" />
+                  <TouchableOpacity style={styles.timePickerBtn} onPress={() => setShowTimePicker('end')}>
+                    <Text style={styles.timePickerText}>{newSlot.end_time}</Text>
+                  </TouchableOpacity>
+                  {showTimePicker === 'end' && (
+                    Platform.OS === 'ios' ? (
+                      <View>
+                        <DateTimePicker value={(() => { const [h, m] = newSlot.end_time.split(':'); const d = new Date(); d.setHours(+h, +m, 0, 0); return d; })()} mode="time" display="spinner" themeVariant="dark" onChange={(_e, d) => { if (d) { setNewSlot(p => ({ ...p, end_time: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` })); } }} />
+                        <TouchableOpacity style={styles.dateDoneBtn} onPress={() => setShowTimePicker(null)}><Text style={styles.dateDoneText}>Listo</Text></TouchableOpacity>
+                      </View>
+                    ) : (
+                      <DateTimePicker value={(() => { const [h, m] = newSlot.end_time.split(':'); const d = new Date(); d.setHours(+h, +m, 0, 0); return d; })()} mode="time" display="default" themeVariant="dark" onChange={(_e, d) => { setShowTimePicker(null); if (d) { setNewSlot(p => ({ ...p, end_time: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` })); } }} />
+                    )
+                  )}
                 </View>
               </View>
 
@@ -933,6 +958,8 @@ const styles = StyleSheet.create({
   dayBtnActive: { backgroundColor: '#4B5563', borderColor: '#13ec13' },
   dayText: { fontSize: 12, fontWeight: '700', color: '#9CA3AF' },
   dayTextActive: { color: '#13ec13' },
+  timePickerBtn: { backgroundColor: '#374151', borderRadius: 12, padding: 16, alignItems: 'center', borderWidth: 2, borderColor: '#4B5563' },
+  timePickerText: { fontSize: 18, fontWeight: '900', color: '#FFFFFF' },
   addBtn: { backgroundColor: '#111827', borderRadius: 16, padding: 16, alignItems: 'center', marginTop: 8 },
   addBtnText: { fontSize: 12, fontWeight: '900', color: '#FFFFFF', textTransform: 'uppercase' },
   slotList: { marginTop: 16, gap: 8 },
