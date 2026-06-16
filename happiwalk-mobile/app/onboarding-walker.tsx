@@ -403,7 +403,7 @@ export default function OnboardingWalkerScreen() {
     <View style={[styles.docCard, value && styles.docCardDone]}>
       <View style={styles.docHeader}>
         <Text style={styles.docLabel}>{label}</Text>
-        {value && <Check size={16} color="#13ec13" />}
+        {value && <ShieldCheck size={16} color="#13ec13" />}
       </View>
       {value ? (
         <View style={styles.docUploaded}>
