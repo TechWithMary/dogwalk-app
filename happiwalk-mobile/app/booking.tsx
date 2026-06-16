@@ -1319,7 +1319,7 @@ bottomPadding: {
     backgroundColor: '#0EA5E9',
   },
   paymentBtnMP: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#0EA5E9',
   },
   paymentText: {
     fontSize: 12,
