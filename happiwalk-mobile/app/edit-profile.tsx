@@ -307,13 +307,17 @@ export default function EditProfileScreen() {
     }
   };
 
-  const formatBankNumber = (text: string, type: string): string => {
+  const formatBankNumber = (text: string, type: string, bank?: string): string => {
     const digits = text.replace(/\D/g, '');
     if (type === 'nequi') {
       return digits.replace(/(\d{3})(\d{1,4})?(\d{0,4})?/, (_, a, b, c) => [a, b, c].filter(Boolean).join(' ')).slice(0, 13);
     }
-    return digits.replace(/(\d{1,3})(\d{0,8})(\d{0,2})/, (_, a, b, c) => [a, b, c].filter(Boolean).join('-')).slice(0, 14);
+    const maxDigits = bank === 'Davivienda' ? 10 : 11;
+    const clean = digits.slice(0, maxDigits);
+    return clean.replace(/(\d{1,3})(\d{0,6})(\d{0,2})/, (_, a, b, c) => [a, b, c].filter(Boolean).join('-')).slice(0, 14);
   };
+
+  const BANKS = ['Bancolombia', 'Davivienda', 'Banco de Bogotá', 'BBVA', 'Banco Popular', 'Banco de Occidente', 'Scotiabank Colpatria', 'Itaú'];
 
   const handleSave = async () => {
     if (!formData.first_name.trim()) {
@@ -542,16 +546,12 @@ export default function EditProfileScreen() {
               <>
                 <View style={[styles.field, { marginTop: 12 }]}>
                   <Text style={styles.label}>Banco</Text>
-                  <View style={styles.inputContainer}>
-                    <TextInput
-                      style={styles.input}
-                      value={formData.bank_name}
-                      onChangeText={t => setFormData(p => ({ ...p, bank_name: t }))}
-                      placeholder="Ej: Bancolombia"
-                      placeholderTextColor="#9CA3AF"
-                      returnKeyType="done"
-                      onSubmitEditing={Keyboard.dismiss}
-                    />
+                  <View style={styles.bankGrid}>
+                    {BANKS.map(bank => (
+                      <TouchableOpacity key={bank} style={[styles.bankChip, formData.bank_name === bank && styles.bankChipActive]} onPress={() => setFormData(p => ({ ...p, bank_name: bank, bank_account_number: '' }))}>
+                        <Text style={[styles.bankChipText, formData.bank_name === bank && styles.bankChipTextActive]}>{bank}</Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
                 </View>
                 <View style={styles.row}>
@@ -571,9 +571,9 @@ export default function EditProfileScreen() {
                 <TextInput
                   style={styles.input}
                   value={formData.bank_account_number}
-                  onChangeText={t => setFormData(p => ({ ...p, bank_account_number: formatBankNumber(t, formData.bank_account_type) }))}
-                  placeholder={formData.bank_account_type === 'nequi' ? '300 123 4567' : '007-123456-00'}
-                  keyboardType="phone-pad"
+                  onChangeText={t => setFormData(p => ({ ...p, bank_account_number: formatBankNumber(t, formData.bank_account_type, formData.bank_name) }))}
+                  placeholder={formData.bank_account_type === 'nequi' ? '300 123 4567' : `${formData.bank_name === 'Davivienda' ? '123-456789-0' : '007-1234567-01'}`}
+                  keyboardType="number-pad"
                   placeholderTextColor="#9CA3AF"
                   returnKeyType="done"
                   onSubmitEditing={Keyboard.dismiss}
@@ -783,6 +783,11 @@ const styles = StyleSheet.create({
   bankSubTypeBtnActive: { backgroundColor: '#E0E7FF', borderColor: '#6366F1' },
   bankSubTypeText: { fontSize: 11, fontWeight: '800', color: '#6B7280' },
   bankSubTypeTextActive: { color: '#6366F1' },
+  bankGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  bankChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: 2, borderColor: '#E5E7EB' },
+  bankChipActive: { backgroundColor: '#E0E7FF', borderColor: '#6366F1' },
+  bankChipText: { fontSize: 11, fontWeight: '700', color: '#6B7280' },
+  bankChipTextActive: { color: '#6366F1' },
   addressInputWrapper: {
     position: 'relative',
     zIndex: 100,
