@@ -292,7 +292,7 @@ export default function OnboardingWalkerScreen() {
         user_id: user.id,
         name: formData.name || 'Paseador',
         bio: formData.bio,
-        price: getPriceFromExperience(formData.experience_years),
+        price: parseInt(formData.price || '30000'),
         service_latitude: coords.lat,
         service_longitude: coords.lng,
         service_radius_km: parseInt(formData.serviceRadius || '3'),
@@ -575,15 +575,25 @@ export default function OnboardingWalkerScreen() {
                   { value: '1', label: '1 - 2 años' },
                   { value: '2', label: '2+ años' },
                 ].map(opt => (
-                  <TouchableOpacity key={opt.value} style={[styles.optionChip, formData.experience_years === opt.value && styles.optionChipActive]} onPress={() => setFormData(prev => ({ ...prev, experience_years: opt.value }))}>
+                  <TouchableOpacity key={opt.value} style={[styles.optionChip, formData.experience_years === opt.value && styles.optionChipActive]} onPress={() => {
+                    setFormData(prev => ({ ...prev, experience_years: opt.value, price: String(getPriceFromExperience(opt.value)) }));
+                  }}>
                     <Text style={[styles.optionChipText, formData.experience_years === opt.value && styles.optionChipTextActive]}>{opt.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
 
-              <View style={styles.priceBadge}>
-                <Text style={styles.priceBadgeLabel}>Tu precio por hora</Text>
-                <Text style={styles.priceBadgeValue}>${getPriceFromExperience(formData.experience_years).toLocaleString('es-CO')}</Text>
+              <View style={styles.priceSuggestion}>
+                <Text style={styles.priceSuggestionText}>Sugerido: ${getPriceFromExperience(formData.experience_years).toLocaleString('es-CO')}/hr</Text>
+              </View>
+
+              <Text style={styles.label}>Tu Precio por Hora</Text>
+              <View style={styles.optionsGrid}>
+                {['25000', '30000', '35000', '40000'].map(p => (
+                  <TouchableOpacity key={p} style={[styles.optionChipBig, formData.price === p && styles.optionChipBigActive]} onPress={() => setFormData(prev => ({ ...prev, price: p }))}>
+                    <Text style={[styles.optionChipBigText, formData.price === p && styles.optionChipBigTextActive]}>${parseInt(p).toLocaleString('es-CO')}</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
 
               <View style={styles.switchRow}>
@@ -863,9 +873,12 @@ const styles = StyleSheet.create({
   optionChipActive: { backgroundColor: '#052e05', borderColor: '#13ec13' },
   optionChipText: { fontSize: 12, fontWeight: '700', color: '#9CA3AF' },
   optionChipTextActive: { color: '#13ec13' },
-  priceBadge: { backgroundColor: '#052e05', borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 2, borderColor: '#13ec13' },
-  priceBadgeLabel: { fontSize: 10, fontWeight: '900', color: '#13ec13', textTransform: 'uppercase', letterSpacing: 1 },
-  priceBadgeValue: { fontSize: 28, fontWeight: '900', color: '#13ec13', marginTop: 4 },
+  optionChipBig: { flex: 1, paddingVertical: 16, borderRadius: 16, backgroundColor: '#374151', borderWidth: 2, borderColor: 'transparent', alignItems: 'center' },
+  optionChipBigActive: { backgroundColor: '#052e05', borderColor: '#13ec13' },
+  optionChipBigText: { fontSize: 13, fontWeight: '900', color: '#9CA3AF' },
+  optionChipBigTextActive: { color: '#13ec13' },
+  priceSuggestion: { backgroundColor: '#1F2937', borderRadius: 12, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: '#374151' },
+  priceSuggestionText: { fontSize: 11, fontWeight: '700', color: '#6B7280' },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#1F2937', borderRadius: 16, padding: 16 },
   switchLabel: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
   typeBtn: { flex: 1, paddingVertical: 16, borderRadius: 16, backgroundColor: '#374151', borderWidth: 2, borderColor: 'transparent', alignItems: 'center' },
