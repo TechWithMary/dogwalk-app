@@ -7,6 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { File } from 'expo-file-system';
 import { supabase, STORAGE_URL } from '../lib/supabase';
 import { Crosshair } from '../components/Icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const TOTAL_STEPS = 7;
 
@@ -47,6 +48,8 @@ export default function OnboardingWalkerScreen() {
     selfie_with_id: null as string | null,
   });
 
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
   const [coords, setCoords] = useState({ lat: null as number | null, lng: null as number | null });
   const [availability, setAvailability] = useState<any[]>([]);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -110,6 +113,7 @@ export default function OnboardingWalkerScreen() {
             bank_account_number: profile.bank_account_number || '',
             bank_name: profile.bank_name || '',
           }));
+          if (profile.date_of_birth) setDateOfBirth(new Date(profile.date_of_birth));
           if (profile.lat && profile.lng && !coords.lat) {
             setCoords({ lat: profile.lat, lng: profile.lng });
           }
@@ -426,7 +430,34 @@ export default function OnboardingWalkerScreen() {
               <TextInput style={styles.input} value={formData.id_number} onChangeText={t => setFormData(p => ({ ...p, id_number: t }))} placeholder="Número de documento" keyboardType="number-pad" placeholderTextColor="#9CA3AF" />
 
               <Text style={styles.label}>Fecha de Nacimiento *</Text>
-              <TextInput style={styles.input} value={formData.date_of_birth} onChangeText={t => setFormData(p => ({ ...p, date_of_birth: t }))} placeholder="YYYY-MM-DD" placeholderTextColor="#9CA3AF" />
+              <TouchableOpacity style={styles.input} onPress={() => setShowDatePicker(true)} activeOpacity={0.7}>
+                <Text style={[styles.dateText, !formData.date_of_birth && styles.datePlaceholder]}>
+                  {formData.date_of_birth || 'Selecciona tu fecha de nacimiento'}
+                </Text>
+              </TouchableOpacity>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={dateOfBirth || new Date(2000, 0, 1)}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  maximumDate={new Date()}
+                  onChange={(_event: any, selectedDate?: Date) => {
+                    if (Platform.OS === 'android') setShowDatePicker(false);
+                    if (selectedDate) {
+                      setDateOfBirth(selectedDate);
+                      const year = selectedDate.getFullYear();
+                      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+                      const day = String(selectedDate.getDate()).padStart(2, '0');
+                      setFormData(p => ({ ...p, date_of_birth: `${year}-${month}-${day}` }));
+                    }
+                  }}
+                />
+              )}
+              {Platform.OS === 'ios' && showDatePicker && (
+                <TouchableOpacity style={styles.dateDoneBtn} onPress={() => setShowDatePicker(false)}>
+                  <Text style={styles.dateDoneText}>Listo</Text>
+                </TouchableOpacity>
+              )}
 
               <Text style={styles.label}>Dirección (Usa el GPS) *</Text>
               <View style={styles.addressInput}>
@@ -731,6 +762,10 @@ const styles = StyleSheet.create({
   addressInput: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#374151', borderRadius: 16, padding: 16, borderWidth: 2, borderColor: 'transparent' },
   addressTextInput: { flex: 1, fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
   locationIcon: { fontSize: 20, marginLeft: 8 },
+  dateText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
+  datePlaceholder: { color: '#9CA3AF' },
+  dateDoneBtn: { backgroundColor: '#374151', borderRadius: 12, padding: 12, alignItems: 'center', marginTop: 8 },
+  dateDoneText: { fontSize: 13, fontWeight: '900', color: '#13ec13', textTransform: 'uppercase' },
   primaryBtn: { backgroundColor: '#13ec13', borderRadius: 24, paddingVertical: 18, alignItems: 'center', marginTop: 8 },
   primaryBtnText: { fontSize: 13, fontWeight: '900', color: '#052e05', textTransform: 'uppercase', letterSpacing: 1 },
   secondaryBtn: { backgroundColor: '#374151', borderRadius: 24, paddingVertical: 18, alignItems: 'center', flex: 1 },
