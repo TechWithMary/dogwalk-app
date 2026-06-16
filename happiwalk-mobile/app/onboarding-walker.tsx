@@ -843,16 +843,16 @@ export default function OnboardingWalkerScreen() {
               <Text style={styles.successText}>Tu perfil entró en revisión. Te notificaremos cuando puedas empezar a recibir paseos.</Text>
               <View style={styles.timeline}>
                 <View style={styles.timelineItem}>
-                  <View style={styles.timelineDot} />
-                  <Text style={styles.timelineText}>Revisión de documentos</Text>
+                  <View style={[styles.timelineDot, styles.timelineDotActive]} />
+                  <Text style={[styles.timelineText, styles.timelineTextActive]}>Revisión de documentos</Text>
                 </View>
                 <View style={styles.timelineItem}>
                   <View style={styles.timelineDot} />
                   <Text style={styles.timelineText}>Verificación de datos personales</Text>
                 </View>
                 <View style={styles.timelineItem}>
-                  <View style={[styles.timelineDot, styles.timelineDotActive]} />
-                  <Text style={[styles.timelineText, styles.timelineTextActive]}>Perfil activado — ¡a pasear!</Text>
+                  <View style={styles.timelineDot} />
+                  <Text style={styles.timelineText}>Perfil activado</Text>
                 </View>
               </View>
               <TouchableOpacity style={[styles.primaryBtn, { alignSelf: 'stretch' }]} onPress={handleComplete} disabled={loading}>
