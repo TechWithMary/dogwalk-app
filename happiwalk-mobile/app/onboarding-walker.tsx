@@ -424,7 +424,14 @@ export default function OnboardingWalkerScreen() {
               <TextInput style={styles.input} value={formData.name} onChangeText={t => setFormData(p => ({ ...p, name: t }))} placeholder="Tu nombre" placeholderTextColor="#9CA3AF" />
 
               <Text style={styles.label}>Teléfono *</Text>
-              <TextInput style={styles.input} value={formData.phone} onChangeText={t => setFormData(p => ({ ...p, phone: t }))} placeholder="300 123 4567" keyboardType="phone-pad" placeholderTextColor="#9CA3AF" />
+              <TextInput style={styles.input} value={formData.phone} onChangeText={t => setFormData(p => ({ ...p, phone: t }))} placeholder="300 123 4567" keyboardType="phone-pad" placeholderTextColor="#9CA3AF" inputAccessoryViewID="phoneDone" />
+              <InputAccessoryView nativeID="phoneDone">
+                <View style={styles.inputAccessory}>
+                  <TouchableOpacity onPress={() => Keyboard.dismiss()} style={styles.doneButton}>
+                    <Text style={styles.doneButtonText}>Listo</Text>
+                  </TouchableOpacity>
+                </View>
+              </InputAccessoryView>
 
               <Text style={styles.label}>Cédula de Ciudadanía *</Text>
               <TextInput style={styles.input} value={formData.id_number} onChangeText={t => setFormData(p => ({ ...p, id_number: t }))} placeholder="Número de documento" keyboardType="number-pad" placeholderTextColor="#9CA3AF" inputAccessoryViewID="cedulaDone" />
