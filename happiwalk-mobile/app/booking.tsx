@@ -13,9 +13,7 @@ import { Dog, MapPin, Clock, ChevronLeft, Loader2, Check, Wallet, CreditCard, Ar
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ADDITIONAL_PET_PRICE = 10000;
-const ADDITIONAL_PET_PRICE = 10000;
 const CENTER_MEDELLIN = { latitude: 6.2442, longitude: -75.5812 };
-const ADDITIONAL_PET_PRICE = 10000;
 const HOURS: Record<string, number> = { '1h': 1, '2h': 2, '3h': 3 };
 
 interface Walker {
