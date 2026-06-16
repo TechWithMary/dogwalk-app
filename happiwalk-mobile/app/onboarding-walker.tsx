@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Image, Switch, Platform, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Image, Switch, Platform, Keyboard, InputAccessoryView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
@@ -427,7 +427,14 @@ export default function OnboardingWalkerScreen() {
               <TextInput style={styles.input} value={formData.phone} onChangeText={t => setFormData(p => ({ ...p, phone: t }))} placeholder="300 123 4567" keyboardType="phone-pad" placeholderTextColor="#9CA3AF" />
 
               <Text style={styles.label}>Cédula de Ciudadanía *</Text>
-              <TextInput style={styles.input} value={formData.id_number} onChangeText={t => setFormData(p => ({ ...p, id_number: t }))} placeholder="Número de documento" keyboardType="number-pad" placeholderTextColor="#9CA3AF" />
+              <TextInput style={styles.input} value={formData.id_number} onChangeText={t => setFormData(p => ({ ...p, id_number: t }))} placeholder="Número de documento" keyboardType="number-pad" placeholderTextColor="#9CA3AF" inputAccessoryViewID="cedulaDone" />
+              <InputAccessoryView nativeID="cedulaDone">
+                <View style={styles.inputAccessory}>
+                  <TouchableOpacity onPress={() => Keyboard.dismiss()} style={styles.doneButton}>
+                    <Text style={styles.doneButtonText}>Listo</Text>
+                  </TouchableOpacity>
+                </View>
+              </InputAccessoryView>
 
               <Text style={styles.label}>Fecha de Nacimiento *</Text>
               <TouchableOpacity style={styles.input} onPress={() => setShowDatePicker(true)} activeOpacity={0.7}>
@@ -435,16 +442,15 @@ export default function OnboardingWalkerScreen() {
                   {formData.date_of_birth || 'Selecciona tu fecha de nacimiento'}
                 </Text>
               </TouchableOpacity>
-              {showDatePicker && (
+              {showDatePicker && Platform.OS === 'ios' && (
                 <View style={styles.datePickerContainer}>
                   <DateTimePicker
                     value={dateOfBirth || new Date(2000, 0, 1)}
                     mode="date"
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    display="spinner"
                     maximumDate={new Date()}
                     themeVariant="light"
                     onChange={(_event: any, selectedDate?: Date) => {
-                      if (Platform.OS === 'android') setShowDatePicker(false);
                       if (selectedDate) {
                         setDateOfBirth(selectedDate);
                         const year = selectedDate.getFullYear();
@@ -458,6 +464,24 @@ export default function OnboardingWalkerScreen() {
                     <Text style={styles.dateDoneText}>Listo</Text>
                   </TouchableOpacity>
                 </View>
+              )}
+              {showDatePicker && Platform.OS === 'android' && (
+                <DateTimePicker
+                  value={dateOfBirth || new Date(2000, 0, 1)}
+                  mode="date"
+                  display="default"
+                  maximumDate={new Date()}
+                  onChange={(_event: any, selectedDate?: Date) => {
+                    setShowDatePicker(false);
+                    if (selectedDate) {
+                      setDateOfBirth(selectedDate);
+                      const year = selectedDate.getFullYear();
+                      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+                      const day = String(selectedDate.getDate()).padStart(2, '0');
+                      setFormData(p => ({ ...p, date_of_birth: `${year}-${month}-${day}` }));
+                    }
+                  }}
+                />
               )}
 
               <Text style={styles.label}>Dirección (Usa el GPS) *</Text>
@@ -768,6 +792,9 @@ const styles = StyleSheet.create({
   datePickerContainer: { backgroundColor: '#FFFFFF', borderRadius: 16, overflow: 'hidden', marginTop: 4 },
   dateDoneBtn: { backgroundColor: '#13ec13', borderRadius: 12, padding: 12, alignItems: 'center', marginHorizontal: 12, marginBottom: 12 },
   dateDoneText: { fontSize: 13, fontWeight: '900', color: '#052e05', textTransform: 'uppercase' },
+  inputAccessory: { flexDirection: 'row', justifyContent: 'flex-end', backgroundColor: '#374151', paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#4B5563' },
+  doneButton: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#13ec13', borderRadius: 8 },
+  doneButtonText: { fontSize: 12, fontWeight: '900', color: '#052e05', textTransform: 'uppercase' },
   primaryBtn: { backgroundColor: '#13ec13', borderRadius: 24, paddingVertical: 18, alignItems: 'center', marginTop: 8 },
   primaryBtnText: { fontSize: 13, fontWeight: '900', color: '#052e05', textTransform: 'uppercase', letterSpacing: 1 },
   secondaryBtn: { backgroundColor: '#374151', borderRadius: 24, paddingVertical: 18, alignItems: 'center', flex: 1 },
