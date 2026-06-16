@@ -792,32 +792,12 @@ export default function OnboardingWalkerScreen() {
                   <TouchableOpacity style={styles.timePickerBtn} onPress={() => setShowTimePicker('start')}>
                     <Text style={styles.timePickerText}>{newSlot.start_time}</Text>
                   </TouchableOpacity>
-                  {showTimePicker === 'start' && (
-                    Platform.OS === 'ios' ? (
-                      <View>
-                        <DateTimePicker value={(() => { const [h, m] = newSlot.start_time.split(':'); const d = new Date(); d.setHours(+h, +m, 0, 0); return d; })()} mode="time" display="spinner" themeVariant="dark" onChange={(_e, d) => { if (d) { setNewSlot(p => ({ ...p, start_time: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` })); } }} />
-                        <TouchableOpacity style={styles.dateDoneBtn} onPress={() => setShowTimePicker(null)}><Text style={styles.dateDoneText}>Listo</Text></TouchableOpacity>
-                      </View>
-                    ) : (
-                      <DateTimePicker value={(() => { const [h, m] = newSlot.start_time.split(':'); const d = new Date(); d.setHours(+h, +m, 0, 0); return d; })()} mode="time" display="default" themeVariant="dark" onChange={(_e, d) => { setShowTimePicker(null); if (d) { setNewSlot(p => ({ ...p, start_time: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` })); } }} />
-                    )
-                  )}
                 </View>
                 <View style={styles.half}>
                   <Text style={styles.label}>Fin</Text>
                   <TouchableOpacity style={styles.timePickerBtn} onPress={() => setShowTimePicker('end')}>
                     <Text style={styles.timePickerText}>{newSlot.end_time}</Text>
                   </TouchableOpacity>
-                  {showTimePicker === 'end' && (
-                    Platform.OS === 'ios' ? (
-                      <View>
-                        <DateTimePicker value={(() => { const [h, m] = newSlot.end_time.split(':'); const d = new Date(); d.setHours(+h, +m, 0, 0); return d; })()} mode="time" display="spinner" themeVariant="dark" onChange={(_e, d) => { if (d) { setNewSlot(p => ({ ...p, end_time: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` })); } }} />
-                        <TouchableOpacity style={styles.dateDoneBtn} onPress={() => setShowTimePicker(null)}><Text style={styles.dateDoneText}>Listo</Text></TouchableOpacity>
-                      </View>
-                    ) : (
-                      <DateTimePicker value={(() => { const [h, m] = newSlot.end_time.split(':'); const d = new Date(); d.setHours(+h, +m, 0, 0); return d; })()} mode="time" display="default" themeVariant="dark" onChange={(_e, d) => { setShowTimePicker(null); if (d) { setNewSlot(p => ({ ...p, end_time: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` })); } }} />
-                    )
-                  )}
                 </View>
               </View>
 
@@ -869,12 +849,50 @@ export default function OnboardingWalkerScreen() {
         )}
 
       </ScrollView>
+
+      {showTimePicker && Platform.OS === 'ios' && (
+        <View style={styles.timePickerOverlay}>
+          <View style={styles.timePickerContainer}>
+            <DateTimePicker
+              value={(() => { const t = showTimePicker === 'start' ? newSlot.start_time : newSlot.end_time; const [h, m] = t.split(':'); const d = new Date(); d.setHours(+h, +m, 0, 0); return d; })()}
+              mode="time"
+              display="spinner"
+              themeVariant="dark"
+              onChange={(_e, date) => {
+                if (date) {
+                  const val = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+                  setNewSlot(p => ({ ...p, [showTimePicker === 'start' ? 'start_time' : 'end_time']: val }));
+                }
+              }}
+            />
+            <TouchableOpacity style={styles.dateDoneBtn} onPress={() => setShowTimePicker(null)}>
+              <Text style={styles.dateDoneText}>Listo</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+      {showTimePicker && Platform.OS === 'android' && (
+        <DateTimePicker
+          value={(() => { const t = showTimePicker === 'start' ? newSlot.start_time : newSlot.end_time; const [h, m] = t.split(':'); const d = new Date(); d.setHours(+h, +m, 0, 0); return d; })()}
+          mode="time"
+          display="default"
+          themeVariant="dark"
+          onChange={(_e, date) => {
+            setShowTimePicker(null);
+            if (date) {
+              const val = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+              setNewSlot(p => ({ ...p, [showTimePicker === 'start' ? 'start_time' : 'end_time']: val }));
+            }
+          }}
+        />
+      )}
+
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#111827' },
+  container: { flex: 1, backgroundColor: '#111827', position: 'relative' },
   content: { flex: 1, padding: 20 },
   progressContainer: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8, backgroundColor: '#111827', borderBottomWidth: 1, borderBottomColor: '#374151' },
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
@@ -973,4 +991,6 @@ const styles = StyleSheet.create({
   shortcutsRow: { flexDirection: 'row', gap: 6, marginTop: 8, marginBottom: 4, flexWrap: 'wrap' },
   shortcutBtn: { backgroundColor: '#374151', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#4B5563' },
   shortcutText: { color: '#9CA3AF', fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
+  timePickerOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
+  timePickerContainer: { backgroundColor: '#1F2937', borderRadius: 20, padding: 20, alignItems: 'center', width: '80%' },
 });
