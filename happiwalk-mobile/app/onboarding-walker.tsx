@@ -437,7 +437,7 @@ export default function OnboardingWalkerScreen() {
               </InputAccessoryView>
 
               <Text style={styles.label}>Fecha de Nacimiento *</Text>
-              <TouchableOpacity style={styles.input} onPress={() => setShowDatePicker(true)} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.input} onPress={() => { setShowDatePicker(true); setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 150); }} activeOpacity={0.7}>
                 <Text style={[styles.dateText, !formData.date_of_birth && styles.datePlaceholder]}>
                   {formData.date_of_birth || 'Selecciona tu fecha de nacimiento'}
                 </Text>
