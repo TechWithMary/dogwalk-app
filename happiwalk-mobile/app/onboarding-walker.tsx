@@ -403,7 +403,7 @@ export default function OnboardingWalkerScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
-        contentContainerStyle={{ padding: 20, paddingBottom: keyboardHeight + 100 }}
+        contentContainerStyle={{ padding: 20, paddingBottom: keyboardHeight + 200 }}
       >
 
         {step === 1 && (
