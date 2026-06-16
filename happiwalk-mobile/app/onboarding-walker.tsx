@@ -757,6 +757,14 @@ export default function OnboardingWalkerScreen() {
         )}
 
       </ScrollView>
+
+      {keyboardHeight > 0 && Platform.OS === 'ios' && (
+        <View style={[styles.keyboardToolbar, { bottom: keyboardHeight }]}>
+          <TouchableOpacity onPress={Keyboard.dismiss} style={styles.keyboardToolbarBtn}>
+            <Text style={styles.keyboardToolbarText}>Listo</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -846,4 +854,7 @@ const styles = StyleSheet.create({
   shortcutsRow: { flexDirection: 'row', gap: 6, marginTop: 8, marginBottom: 4, flexWrap: 'wrap' },
   shortcutBtn: { backgroundColor: '#374151', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#4B5563' },
   shortcutText: { color: '#9CA3AF', fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
+  keyboardToolbar: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', justifyContent: 'flex-end', backgroundColor: '#374151', paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#4B5563' },
+  keyboardToolbarBtn: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#13ec13', borderRadius: 8 },
+  keyboardToolbarText: { fontSize: 12, fontWeight: '900', color: '#052e05', textTransform: 'uppercase' },
 });
