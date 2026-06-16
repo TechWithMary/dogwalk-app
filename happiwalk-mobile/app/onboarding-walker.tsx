@@ -39,6 +39,7 @@ export default function OnboardingWalkerScreen() {
     serviceRadius: '3',
     bank_account_type: 'nequi',
     bank_account_number: '',
+    bank_name: '',
     id_document_front: null as string | null,
     id_document_back: null as string | null,
     criminal_record_cert: null as string | null,
@@ -106,6 +107,7 @@ export default function OnboardingWalkerScreen() {
             has_own_dogs: profile.has_own_dogs || false,
             bank_account_type: profile.bank_account_type || 'nequi',
             bank_account_number: profile.bank_account_number || '',
+            bank_name: profile.bank_name || '',
           }));
           if (profile.lat && profile.lng && !coords.lat) {
             setCoords({ lat: profile.lat, lng: profile.lng });
@@ -249,6 +251,7 @@ export default function OnboardingWalkerScreen() {
         has_own_dogs: formData.has_own_dogs,
         bank_account_type: formData.bank_account_type,
         bank_account_number: formData.bank_account_number,
+        bank_name: formData.bank_account_type === 'nequi' ? '' : formData.bank_name,
         role: 'walker',
       };
 
@@ -382,7 +385,9 @@ export default function OnboardingWalkerScreen() {
       case 1: return formData.name.trim() && formData.phone.trim() && formData.id_number.trim() && formData.date_of_birth && formData.address.trim() && coords.lat && coords.lng;
       case 2: return formData.id_document_front !== null;
       case 3: return formData.bio.trim();
-      case 4: return formData.bank_account_number.trim();
+      case 4:
+        if (formData.bank_account_type === 'nequi') return formData.bank_account_number.trim();
+        return formData.bank_account_number.trim() && formData.bank_name.trim();
       case 5: return true;
       case 6: return true;
       default: return true;
@@ -519,13 +524,29 @@ export default function OnboardingWalkerScreen() {
 
             <View style={styles.formCard}>
               <View style={styles.row}>
-                <TouchableOpacity style={[styles.typeBtn, formData.bank_account_type === 'nequi' && styles.typeBtnActive]} onPress={() => setFormData(p => ({ ...p, bank_account_type: 'nequi' }))}>
+                <TouchableOpacity style={[styles.typeBtn, formData.bank_account_type === 'nequi' && styles.typeBtnActive]} onPress={() => setFormData(p => ({ ...p, bank_account_type: 'nequi', bank_name: '' }))}>
                   <Text style={[styles.typeText, formData.bank_account_type === 'nequi' && styles.typeTextActive]}>Nequi</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.typeBtn, formData.bank_account_type === 'banco' && styles.typeBtnActive]} onPress={() => setFormData(p => ({ ...p, bank_account_type: 'banco' }))}>
-                  <Text style={[styles.typeText, formData.bank_account_type === 'banco' && styles.typeTextActive]}>Cuenta Banco</Text>
+                <TouchableOpacity style={[styles.typeBtn, (formData.bank_account_type === 'ahorros' || formData.bank_account_type === 'corriente') && styles.typeBtnActive]} onPress={() => setFormData(p => ({ ...p, bank_account_type: 'ahorros' }))}>
+                  <Text style={[styles.typeText, (formData.bank_account_type === 'ahorros' || formData.bank_account_type === 'corriente') && styles.typeTextActive]}>Cuenta Banco</Text>
                 </TouchableOpacity>
               </View>
+
+              {(formData.bank_account_type === 'ahorros' || formData.bank_account_type === 'corriente') && (
+                <>
+                  <Text style={styles.label}>Banco *</Text>
+                  <TextInput style={styles.input} value={formData.bank_name} onChangeText={t => setFormData(p => ({ ...p, bank_name: t }))} placeholder="Ej: Bancolombia, Davivienda, etc." placeholderTextColor="#9CA3AF" />
+
+                  <View style={styles.row}>
+                    <TouchableOpacity style={[styles.subTypeBtn, formData.bank_account_type === 'ahorros' && styles.subTypeBtnActive]} onPress={() => setFormData(p => ({ ...p, bank_account_type: 'ahorros' }))}>
+                      <Text style={[styles.subTypeText, formData.bank_account_type === 'ahorros' && styles.subTypeTextActive]}>Ahorros</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.subTypeBtn, formData.bank_account_type === 'corriente' && styles.subTypeBtnActive]} onPress={() => setFormData(p => ({ ...p, bank_account_type: 'corriente' }))}>
+                      <Text style={[styles.subTypeText, formData.bank_account_type === 'corriente' && styles.subTypeTextActive]}>Corriente</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
 
               <Text style={styles.label}>Número de Cuenta o Celular *</Text>
               <TextInput style={styles.input} value={formData.bank_account_number} onChangeText={t => setFormData(p => ({ ...p, bank_account_number: t }))} placeholder="Escribe el número" keyboardType="phone-pad" placeholderTextColor="#9CA3AF" />
@@ -737,6 +758,10 @@ const styles = StyleSheet.create({
   typeBtnActive: { backgroundColor: '#052e05', borderColor: '#13ec13' },
   typeText: { fontSize: 12, fontWeight: '900', color: '#9CA3AF', textTransform: 'uppercase' },
   typeTextActive: { color: '#13ec13' },
+  subTypeBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: '#374151', borderWidth: 2, borderColor: 'transparent', alignItems: 'center' },
+  subTypeBtnActive: { backgroundColor: '#1F2937', borderColor: '#13ec13' },
+  subTypeText: { fontSize: 12, fontWeight: '800', color: '#9CA3AF', textTransform: 'uppercase' },
+  subTypeTextActive: { color: '#13ec13' },
   radiusOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   radiusBtn: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, backgroundColor: '#374151', borderWidth: 2, borderColor: 'transparent' },
   radiusBtnActive: { backgroundColor: '#1F2937', borderColor: '#13ec13' },

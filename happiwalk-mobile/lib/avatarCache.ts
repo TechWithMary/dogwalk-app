@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 type CacheEntry = {
   url: string;
   expiresAt: number;
@@ -9,6 +11,54 @@ const cache = new Map<string, CacheEntry>();
 const pending = new Map<string, PendingEntry>();
 const CACHE_TTL_MS = 50 * 60 * 1000;
 const MAX_CACHE_SIZE = 200;
+const STORAGE_KEY = 'avatar_url_cache';
+
+let cacheLoaded: Promise<void> | null = null;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+function loadCacheFromStorage(): Promise<void> {
+  return (async () => {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const entries: Record<string, { url: string; expiresAt: number }> = JSON.parse(stored);
+        const now = Date.now();
+        for (const [key, entry] of Object.entries(entries)) {
+          if (entry.expiresAt > now) {
+            cache.set(key, entry);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[AvatarCache] Failed to load:', e);
+    }
+  })();
+}
+
+function persistCacheToStorage(): void {
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(async () => {
+    try {
+      const now = Date.now();
+      const entries: Record<string, { url: string; expiresAt: number }> = {};
+      for (const [key, entry] of cache.entries()) {
+        if (entry.expiresAt > now) {
+          entries[key] = entry;
+        }
+      }
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    } catch (e) {
+      console.error('[AvatarCache] Failed to persist:', e);
+    }
+  }, 300);
+}
+
+function ensureCacheLoaded(): Promise<void> {
+  if (!cacheLoaded) {
+    cacheLoaded = loadCacheFromStorage();
+  }
+  return cacheLoaded;
+}
 
 function evictIfNeeded() {
   if (cache.size <= MAX_CACHE_SIZE) return;
@@ -25,18 +75,20 @@ function evictIfNeeded() {
   }
 }
 
-export function getCachedSignedUrl(
+export async function getCachedSignedUrl(
   bucket: 'avatars' | 'pet-photos',
   path: string,
   fetcher: () => Promise<string | null>,
 ): Promise<string | null> {
+  await ensureCacheLoaded();
+
   const cleanPath = path.replace(/^(avatars|pet-photos)\//, '');
   const cacheKey = `${bucket}:${cleanPath}`;
   const now = Date.now();
 
   const cached = cache.get(cacheKey);
   if (cached && cached.expiresAt > now) {
-    return Promise.resolve(cached.url);
+    return cached.url;
   }
 
   const inFlight = pending.get(cacheKey);
@@ -48,6 +100,7 @@ export function getCachedSignedUrl(
       if (url) {
         cache.set(cacheKey, { url, expiresAt: Date.now() + CACHE_TTL_MS });
         evictIfNeeded();
+        persistCacheToStorage();
       }
       return url;
     })
@@ -84,4 +137,5 @@ export function prefetchSignedUrl(
 export function clearAvatarCache(): void {
   cache.clear();
   pending.clear();
+  AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
 }

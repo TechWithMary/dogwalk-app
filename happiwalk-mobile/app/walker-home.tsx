@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, RefreshControl, Linking, AppState } from 'react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../lib/supabase';
@@ -62,6 +63,12 @@ export default function WalkerHomeScreen() {
   const [displayName, setDisplayName] = useState('Paseador');
   const [userId, setUserId] = useState<string>('');
 
+  useEffect(() => {
+    AsyncStorage.getItem('cached_walker_name').then(cached => {
+      if (cached) setDisplayName(cached);
+    });
+  }, []);
+
   const [activeNav, setActiveNav] = useState('home');
 
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -94,7 +101,9 @@ export default function WalkerHomeScreen() {
       const cleanerName = (walkerData.name || 'Paseador')
         .replace(/\b(nuevo|usuario|walker)\b/gi, '')
         .trim() || 'Paseador';
-      setDisplayName(cleanerName.split(' ')[0]);
+      const finalName = cleanerName.split(' ')[0];
+      setDisplayName(finalName);
+      AsyncStorage.setItem('cached_walker_name', finalName);
 
       const { data: profile } = await supabase
         .from('user_profiles')
@@ -654,7 +663,7 @@ export default function WalkerHomeScreen() {
               </View>
               <View>
                 <Text style={styles.panelLabel}>Panel de Control</Text>
-                <Text style={styles.greeting}>Hola, Paseador!</Text>
+                <Text style={styles.greeting}>Hola, {displayName}!</Text>
               </View>
             </View>
           </View>

@@ -28,15 +28,17 @@ function formatBankDisplay(info: { bank_account_type: string | null; bank_accoun
   const type = info?.bank_account_type;
   const name = info?.bank_name;
   const number = info?.bank_account_number;
-  if (!type && !name) return 'Nequi' + (number ? ' · ' + number : ' · Sin cuenta');
-  if (!name && type) {
-    return type.charAt(0).toUpperCase() + type.slice(1) + ' · ' + (number || 'Sin cuenta');
+  if (type === 'nequi' || (!name && !type)) {
+    return 'Nequi' + (number ? ' · ' + number : ' · Sin cuenta');
+  }
+  if (type === 'banco' || (!name && type)) {
+    const label = name ? name.charAt(0).toUpperCase() + name.slice(1) : 'Cuenta Bancaria';
+    return label + (number ? ' · ' + number : '');
   }
   const parts: string[] = [];
   if (name) parts.push(name.charAt(0).toUpperCase() + name.slice(1));
-  if (type && type.toLowerCase() !== name?.toLowerCase()) {
-    parts.push(type.charAt(0).toUpperCase() + type.slice(1));
-  }
+  if (type === 'ahorros') parts.push('Ahorros');
+  else if (type === 'corriente') parts.push('Corriente');
   return parts.join(' · ') + (number ? ' · ' + number : '');
 }
 

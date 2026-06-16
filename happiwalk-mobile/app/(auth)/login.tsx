@@ -82,8 +82,6 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
-      await AsyncStorage.removeItem('oauth_role');
-
       console.log('[NAVIGATE] Querying profile...');
       const { data: profile, error } = await supabase
         .from('user_profiles')
@@ -107,17 +105,21 @@ export default function LoginScreen() {
       } else {
         const cachedRole = await AsyncStorage.getItem('cached_profile_role');
         const cachedComplete = await AsyncStorage.getItem('cached_profile_complete') === 'true';
-        if (cachedRole) {
-          console.log('[NAVIGATE] Using cached profile role:', cachedRole);
+        const oauthRole = await AsyncStorage.getItem('oauth_role');
+        const fallbackRole = oauthRole || cachedRole || 'owner';
+
+        if (oauthRole || cachedRole) {
+          console.log('[NAVIGATE] Using role from storage:', fallbackRole);
           route = cachedComplete
-            ? (cachedRole === 'walker' ? '/walker-home' : '/(tabs)')
-            : (cachedRole === 'walker' ? '/onboarding-walker' : '/onboarding-owner');
+            ? (fallbackRole === 'walker' ? '/walker-home' : '/(tabs)')
+            : (fallbackRole === 'walker' ? '/onboarding-walker' : '/onboarding-owner');
         } else {
           console.log('[NAVIGATE] No profile found, using default route');
           route = '/onboarding-owner';
         }
-        console.log('[NAVIGATE] Default route:', route);
       }
+      
+      await AsyncStorage.removeItem('oauth_role');
       
       console.log('[NAVIGATE] Navigating to:', route);
       setLoading(false);
@@ -323,17 +325,26 @@ export default function LoginScreen() {
         if (signUpError) throw signUpError;
 
         if (authData?.user) {
-          await supabase.from('user_profiles').insert({
+          const { error: insertError } = await supabase.from('user_profiles').insert({
             user_id: authData.user.id,
             first_name: firstName,
             last_name: lastName,
             role: roleMode,
             is_profile_complete: false
           });
+          if (insertError) {
+            console.error('[SIGNUP] Profile insert error:', insertError);
+          }
         }
 
-        Alert.alert('Éxito', '¡Registro exitoso! Revisa tu correo para verificar tu cuenta.');
-        setAuthMode('login');
+        await AsyncStorage.setItem('oauth_role', roleMode);
+
+        if (authData?.session) {
+          // Email confirm OFF — navigateAfterLogin (from auth event) handles onboarding redirect
+        } else {
+          Alert.alert('Éxito', '¡Registro exitoso! Revisa tu correo para verificar tu cuenta.');
+          setAuthMode('login');
+        }
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) throw signInError;

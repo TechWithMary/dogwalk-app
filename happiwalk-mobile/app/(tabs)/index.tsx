@@ -74,6 +74,12 @@ export default function HomeScreen() {
   const [roleChecking, setRoleChecking] = useState(true);
 
   useEffect(() => {
+    AsyncStorage.getItem('cached_owner_name').then(cached => {
+      if (cached) setDisplayName(cached);
+    });
+  }, []);
+
+  useEffect(() => {
     (async () => {
       try {
         const stored = await AsyncStorage.getItem('ratedBookings');
@@ -157,6 +163,7 @@ export default function HomeScreen() {
         finalName = metaName.trim().split(' ')[0];
       }
       setDisplayName(finalName);
+      AsyncStorage.setItem('cached_owner_name', finalName);
 
       const userLat = profile?.lat;
       const userLng = profile?.lng;

@@ -20,7 +20,10 @@ export default function EditProfileScreen() {
     last_name: '',
     phone: '',
     address: '',
-    bio: ''
+    bio: '',
+    bank_account_type: 'nequi',
+    bank_account_number: '',
+    bank_name: ''
   });
   const [addressSuggestions, setAddressSuggestions] = useState<any[]>([]);
   const [searchingAddress, setSearchingAddress] = useState(false);
@@ -161,12 +164,17 @@ export default function EditProfileScreen() {
 
       if (profileData) {
         setProfile(profileData);
+        const bt = profileData.bank_account_type || 'nequi';
+        const validBt = bt === 'nequi' || bt === 'ahorros' || bt === 'corriente' || bt === 'banco' ? bt : 'nequi';
         setFormData({
           first_name: profileData.first_name || '',
           last_name: profileData.last_name || '',
           phone: profileData.phone || '',
           address: profileData.address || '',
-          bio: profileData.bio || ''
+          bio: profileData.bio || '',
+          bank_account_type: validBt,
+          bank_account_number: profileData.bank_account_number || '',
+          bank_name: profileData.bank_name || ''
         });
         if (profileData.lat != null) setAddressLat(profileData.lat);
         if (profileData.lng != null) setAddressLng(profileData.lng);
@@ -315,7 +323,10 @@ export default function EditProfileScreen() {
           last_name: formData.last_name,
           phone: formData.phone,
           address: formData.address,
-          bio: formData.bio
+          bio: formData.bio,
+          bank_account_type: formData.bank_account_type,
+          bank_account_number: formData.bank_account_number,
+          bank_name: formData.bank_name
         };
         if (addressLat !== null) updateData.lat = addressLat;
         if (addressLng !== null) updateData.lng = addressLng;
@@ -502,6 +513,62 @@ export default function EditProfileScreen() {
               </View>
             </InputAccessoryView>
           </View>
+          </View>
+
+          <View style={[styles.formCard, { marginTop: 20 }]}>
+            <Text style={[styles.label, { marginBottom: 16 }]}>Información Bancaria</Text>
+
+            <View style={styles.row}>
+              <TouchableOpacity style={[styles.bankTypeBtn, formData.bank_account_type === 'nequi' && styles.bankTypeBtnActive]} onPress={() => setFormData(p => ({ ...p, bank_account_type: 'nequi', bank_name: '' }))}>
+                <Text style={[styles.bankTypeText, formData.bank_account_type === 'nequi' && styles.bankTypeTextActive]}>Nequi</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.bankTypeBtn, (formData.bank_account_type === 'ahorros' || formData.bank_account_type === 'corriente') && styles.bankTypeBtnActive]} onPress={() => setFormData(p => ({ ...p, bank_account_type: 'ahorros' }))}>
+                <Text style={[styles.bankTypeText, (formData.bank_account_type === 'ahorros' || formData.bank_account_type === 'corriente') && styles.bankTypeTextActive]}>Cuenta Banco</Text>
+              </TouchableOpacity>
+            </View>
+
+            {(formData.bank_account_type === 'ahorros' || formData.bank_account_type === 'corriente') && (
+              <>
+                <View style={[styles.field, { marginTop: 12 }]}>
+                  <Text style={styles.label}>Banco</Text>
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      style={styles.input}
+                      value={formData.bank_name}
+                      onChangeText={t => setFormData(p => ({ ...p, bank_name: t }))}
+                      placeholder="Ej: Bancolombia"
+                      placeholderTextColor="#9CA3AF"
+                      returnKeyType="done"
+                      onSubmitEditing={Keyboard.dismiss}
+                    />
+                  </View>
+                </View>
+                <View style={styles.row}>
+                  <TouchableOpacity style={[styles.bankSubTypeBtn, formData.bank_account_type === 'ahorros' && styles.bankSubTypeBtnActive]} onPress={() => setFormData(p => ({ ...p, bank_account_type: 'ahorros' }))}>
+                    <Text style={[styles.bankSubTypeText, formData.bank_account_type === 'ahorros' && styles.bankSubTypeTextActive]}>Ahorros</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.bankSubTypeBtn, formData.bank_account_type === 'corriente' && styles.bankSubTypeBtnActive]} onPress={() => setFormData(p => ({ ...p, bank_account_type: 'corriente' }))}>
+                    <Text style={[styles.bankSubTypeText, formData.bank_account_type === 'corriente' && styles.bankSubTypeTextActive]}>Corriente</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+
+            <View style={[styles.field, { marginTop: 12 }]}>
+              <Text style={styles.label}>Número de Cuenta o Celular</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  value={formData.bank_account_number}
+                  onChangeText={t => setFormData(p => ({ ...p, bank_account_number: t }))}
+                  placeholder="Número"
+                  keyboardType="phone-pad"
+                  placeholderTextColor="#9CA3AF"
+                  returnKeyType="done"
+                  onSubmitEditing={Keyboard.dismiss}
+                />
+              </View>
+            </View>
           </View>
 
           <View style={styles.bottomSpacer} />
@@ -696,6 +763,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0EA5E9',
   },
+  bankTypeBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: '#F9FAFB', borderWidth: 2, borderColor: '#E5E7EB', alignItems: 'center' },
+  bankTypeBtnActive: { backgroundColor: '#D1FAE5', borderColor: '#059669' },
+  bankTypeText: { fontSize: 12, fontWeight: '800', color: '#6B7280' },
+  bankTypeTextActive: { color: '#059669' },
+  bankSubTypeBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: 2, borderColor: '#E5E7EB', alignItems: 'center' },
+  bankSubTypeBtnActive: { backgroundColor: '#E0E7FF', borderColor: '#6366F1' },
+  bankSubTypeText: { fontSize: 11, fontWeight: '800', color: '#6B7280' },
+  bankSubTypeTextActive: { color: '#6366F1' },
   addressInputWrapper: {
     position: 'relative',
     zIndex: 100,

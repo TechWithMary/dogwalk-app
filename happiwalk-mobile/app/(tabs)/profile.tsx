@@ -86,7 +86,7 @@ export default function ProfileScreen() {
           first_name: finalFirstName,
           last_name: finalLastName,
           email: currentUser.email,
-          role: isWalker ? 'walker' : (userProfile?.role || 'owner'),
+          role: userProfile?.role === 'admin' ? 'admin' : (isWalker ? 'walker' : (userProfile?.role || 'owner')),
           profile_photo_url: photoPath,
           verification_status: walker?.overall_verification_status || 'pending'
       });

@@ -31,6 +31,24 @@ import { SkeletonList } from '../../components/Skeleton';
 
 const formatMoney = (val: number) => '$' + (val || 0).toLocaleString('es-CO');
 
+const formatBankDisplay = (profile: UserProfile | null): string => {
+  const type = profile?.bank_account_type;
+  const name = profile?.bank_name;
+  const number = profile?.bank_account_number;
+  if (type === 'nequi' || (!name && !type)) {
+    return 'Nequi' + (number ? ' · ' + number : ' · Sin cuenta');
+  }
+  if (type === 'banco' || (!name && type)) {
+    const label = name ? name.charAt(0).toUpperCase() + name.slice(1) : 'Cuenta Bancaria';
+    return label + (number ? ' · ' + number : '');
+  }
+  const parts: string[] = [];
+  if (name) parts.push(name.charAt(0).toUpperCase() + name.slice(1));
+  if (type === 'ahorros') parts.push('Ahorros');
+  else if (type === 'corriente') parts.push('Corriente');
+  return parts.join(' · ') + (number ? ' · ' + number : '');
+};
+
 type TabType = 'pending' | 'completed' | 'rejected';
 
 interface UserProfile {
@@ -39,6 +57,7 @@ interface UserProfile {
   phone: string | null;
   bank_account_type: string | null;
   bank_account_number: string | null;
+  bank_name: string | null;
 }
 
 interface Walker {
@@ -92,20 +111,6 @@ export default function AdminPayoutsScreen() {
     })();
   }, []);
 
-  useEffect(() => {
-    if (isAdmin) fetchPayouts();
-  }, [isAdmin, activeTab]);
-
-  if (isAdmin === null) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' }}>
-        <ActivityIndicator size="large" color="#0EA5E9" />
-      </View>
-    );
-  }
-
-  if (!isAdmin) return null;
-
   const fetchPayouts = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -116,7 +121,7 @@ export default function AdminPayoutsScreen() {
             id,
             name,
             user_id,
-            user_profiles (first_name, last_name, phone, bank_account_type, bank_account_number)
+            user_profiles (first_name, last_name, phone, bank_account_type, bank_account_number, bank_name)
           )`
         )
         .eq('status', activeTab)
@@ -133,15 +138,27 @@ export default function AdminPayoutsScreen() {
     }
   }, [activeTab]);
 
-  useEffect(() => {
-    setLoading(true);
-    fetchPayouts();
-  }, [fetchPayouts]);
-
   const onRefresh = () => {
     setRefreshing(true);
     fetchPayouts();
   };
+
+  useEffect(() => {
+    if (isAdmin) {
+      setLoading(true);
+      fetchPayouts();
+    }
+  }, [fetchPayouts, isAdmin]);
+
+  if (isAdmin === null) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' }}>
+        <ActivityIndicator size="large" color="#0EA5E9" />
+      </View>
+    );
+  }
+
+  if (!isAdmin) return null;
 
   const processPayout = async (payoutId: string, newStatus: 'completed' | 'rejected') => {
     const action = newStatus === 'completed' ? 'APROBAR' : 'RECHAZAR';
@@ -351,15 +368,8 @@ export default function AdminPayoutsScreen() {
                     <View style={styles.bankDetails}>
                       <View style={styles.bankDetailRow}>
                         <CreditCard size={14} color="#9CA3AF" />
-                        <Text style={styles.bankDetailLabel}>Tipo:</Text>
-                        <Text style={styles.bankDetailValue}>
-                          {profile?.bank_account_type || 'Nequi'}
-                        </Text>
-                      </View>
-                      <View style={styles.bankDetailRow}>
-                        <Text style={styles.bankDetailLabel}>Cuenta:</Text>
-                        <Text style={styles.bankDetailValue}>
-                          {profile?.bank_account_number || 'Sin registrar'}
+                        <Text style={styles.bankDetailValue} numberOfLines={2}>
+                          {formatBankDisplay(profile)}
                         </Text>
                         {profile?.bank_account_number ? (
                           <TouchableOpacity

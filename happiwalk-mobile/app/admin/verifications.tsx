@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, RefreshControl, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, RefreshControl, Platform, ActivityIndicator, TextInput, Modal, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { ShieldCheck, User, Check, X, Loader2, Phone, ChevronLeft } from '../../components/Icons';
@@ -31,6 +31,8 @@ export default function VerificationsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [rejectModal, setRejectModal] = useState<{ walkerId: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -94,30 +96,27 @@ export default function VerificationsScreen() {
 
   if (!isAdmin) return null;
 
-  const handleVerification = (walkerId: string, status: 'approved' | 'rejected') => {
-    const action = status === 'approved' ? 'APROBAR' : 'RECHAZAR';
+  const handleApprove = (walkerId: string) => {
     Alert.alert(
-      `¿${action}?`,
-      `¿Estás seguro de ${action.toLowerCase()} a este paseador?`,
+      'Aprobar',
+      '¿Estás seguro de aprobar a este paseador?',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: action === 'APROBAR' ? 'Aprobar' : 'Rechazar',
-          style: status === 'rejected' ? 'destructive' : 'default',
+          text: 'Aprobar',
           onPress: async () => {
             setProcessingId(walkerId);
             try {
-              const { error } = await supabase
-                .from('walkers')
-                .update({ overall_verification_status: status })
-                .eq('id', walkerId);
-
-              if (error) throw error;
-
-              Alert.alert(
-                status === 'approved' ? 'Aprobado' : 'Rechazado',
-                status === 'approved' ? 'Paseador aprobado exitosamente' : 'Paseador rechazado'
-              );
+              const { error } = await supabase.rpc('admin_verify_walker', {
+                p_walker_id: walkerId,
+                p_status: 'approved',
+                p_admin_note: null,
+              });
+              if (error) {
+                const msg = error.message.replace(/^admin_verify_walker: /, '');
+                throw new Error(msg);
+              }
+              Alert.alert('Aprobado', 'Paseador verificado exitosamente');
               fetchPendingWalkers();
             } catch (error: any) {
               console.error('Error:', error);
@@ -129,6 +128,36 @@ export default function VerificationsScreen() {
         },
       ]
     );
+  };
+
+  const openRejectModal = (walkerId: string) => {
+    setRejectReason('');
+    setRejectModal({ walkerId });
+  };
+
+  const confirmReject = async () => {
+    if (!rejectModal) return;
+    const walkerId = rejectModal.walkerId;
+    setRejectModal(null);
+    setProcessingId(walkerId);
+    try {
+      const { error } = await supabase.rpc('admin_verify_walker', {
+        p_walker_id: walkerId,
+        p_status: 'rejected',
+        p_admin_note: rejectReason.trim() || null,
+      });
+      if (error) {
+        const msg = error.message.replace(/^admin_verify_walker: /, '');
+        throw new Error(msg);
+      }
+      Alert.alert('Rechazado', 'Paseador rechazado');
+      fetchPendingWalkers();
+    } catch (error: any) {
+      console.error('Error:', error);
+      Alert.alert('Error', error.message || 'Error de base de datos');
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   const getSignedUrl = async (path: string | null): Promise<string | null> => {
@@ -253,7 +282,7 @@ export default function VerificationsScreen() {
                   <View style={styles.actionsRow}>
                     <TouchableOpacity
                       style={[styles.rejectBtn, processingId === walker.id && styles.actionBtnDisabled]}
-                      onPress={() => handleVerification(walker.id, 'rejected')}
+                      onPress={() => openRejectModal(walker.id)}
                       disabled={processingId === walker.id}
                     >
                       {processingId === walker.id ? (
@@ -267,7 +296,7 @@ export default function VerificationsScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.approveBtn, processingId === walker.id && styles.actionBtnDisabled]}
-                      onPress={() => handleVerification(walker.id, 'approved')}
+                      onPress={() => handleApprove(walker.id)}
                       disabled={processingId === walker.id}
                     >
                       {processingId === walker.id ? (
@@ -286,6 +315,33 @@ export default function VerificationsScreen() {
           )}
         </View>
       </ScrollView>
+
+      <Modal visible={rejectModal !== null} transparent animationType="fade" onRequestClose={() => setRejectModal(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Motivo del Rechazo</Text>
+            <Text style={styles.modalSubtitle}>Este motivo se notificará al paseador</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={rejectReason}
+              onChangeText={setRejectReason}
+              placeholder="Ej: Documento ilegible, selfie no coincide..."
+              placeholderTextColor="#6B7280"
+              multiline
+              numberOfLines={3}
+              autoFocus
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setRejectModal(null)}>
+                <Text style={styles.modalCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirmBtn} onPress={confirmReject}>
+                <Text style={styles.modalConfirmText}>Rechazar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -314,6 +370,12 @@ function DocumentPreview({ label, path, getSignedUrl }: { label: string; path: s
 
   const isPdf = path?.toLowerCase().includes('.pdf');
 
+  const handleOpen = () => {
+    if (signedUrl) {
+      Linking.openURL(signedUrl);
+    }
+  };
+
   if (loadingDoc) {
     return (
       <View style={styles.docPreview}>
@@ -335,21 +397,21 @@ function DocumentPreview({ label, path, getSignedUrl }: { label: string; path: s
 
   if (isPdf) {
     return (
-      <View style={styles.docPreview}>
+      <TouchableOpacity style={styles.docPreview} onPress={handleOpen} activeOpacity={0.7}>
         <Text style={styles.docPdfIcon}>PDF</Text>
         <Text style={styles.docPdfLabel}>Abrir PDF</Text>
         <Text style={styles.docLabel}>{label}</Text>
-      </View>
+      </TouchableOpacity>
     );
   }
 
   return (
-    <View style={styles.docPreview}>
+    <TouchableOpacity style={styles.docPreview} onPress={handleOpen} activeOpacity={0.9}>
       <Image source={{ uri: signedUrl }} style={styles.docImage} resizeMode="cover" />
       <View style={styles.docLabelOverlay}>
         <Text style={styles.docLabelOverlayText}>{label}</Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -594,5 +656,71 @@ const styles = StyleSheet.create({
   },
   actionBtnDisabled: {
     opacity: 0.5,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: '#1F2937',
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginBottom: 16,
+  },
+  modalInput: {
+    backgroundColor: '#374151',
+    borderRadius: 16,
+    padding: 16,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    minHeight: 80,
+    textAlignVertical: 'top',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: '#374151',
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  modalConfirmBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+  },
+  modalConfirmText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 });
