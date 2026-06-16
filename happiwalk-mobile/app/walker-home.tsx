@@ -54,7 +54,7 @@ export default function WalkerHomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'pending' | 'active'>('pending');
   const [balance, setBalance] = useState(0);
-  const [stats, setStats] = useState({ completedWalks: 0, rating: 5.0, monthlyEarnings: 0 });
+  const [stats, setStats] = useState({ completedWalks: 0, rating: null as number | null, monthlyEarnings: 0 });
   const [newRequests, setNewRequests] = useState<Booking[]>([]);
   const [activeWalks, setActiveWalks] = useState<Booking[]>([]);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
@@ -146,7 +146,7 @@ export default function WalkerHomeScreen() {
 
       setStats({
         completedWalks: completedBookings?.length || 0,
-        rating: 5.0,
+        rating: null,
         monthlyEarnings: totalEarned,
       });
 
@@ -768,7 +768,7 @@ export default function WalkerHomeScreen() {
                 <Star size={20} color="#F59E0B" />
               </View>
               <Text style={styles.statLabel}>Calificación</Text>
-              <Text style={styles.statValue}>{stats.rating.toFixed(1)}</Text>
+              <Text style={styles.statValue}>{stats.rating !== null ? stats.rating.toFixed(1) : '—'}</Text>
             </View>
           </View>
 
