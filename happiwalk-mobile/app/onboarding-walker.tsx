@@ -53,6 +53,7 @@ export default function OnboardingWalkerScreen() {
   const [coords, setCoords] = useState({ lat: null as number | null, lng: null as number | null });
   const [availability, setAvailability] = useState<any[]>([]);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
@@ -90,6 +91,10 @@ export default function OnboardingWalkerScreen() {
             criminal_record_cert: walker.criminal_record_cert || null,
             selfie_with_id: walker.selfie_with_id || null,
           }));
+          ['id_document_front', 'id_document_back', 'criminal_record_cert', 'selfie_with_id'].forEach(f => {
+            const path = (walker as any)[f];
+            if (path) refreshSignedUrl(path);
+          });
           if (walker.service_latitude && walker.service_longitude) {
             setCoords({ lat: walker.service_latitude, lng: walker.service_longitude });
           }
@@ -147,6 +152,11 @@ export default function OnboardingWalkerScreen() {
       console.error(err);
       Alert.alert('Error', 'No se pudo cargar la disponibilidad. Intenta de nuevo.');
     }
+  };
+
+  const refreshSignedUrl = async (path: string) => {
+    const { data } = await supabase.storage.from('walker_documents').createSignedUrl(path, 60 * 60);
+    if (data) setSignedUrls(prev => ({ ...prev, [path]: data.signedUrl }));
   };
 
   const calculateAge = (birthday: string) => {
@@ -226,6 +236,7 @@ export default function OnboardingWalkerScreen() {
       if (uploadError) throw uploadError;
 
       setFormData(prev => ({ ...prev, [field]: data.path }));
+      refreshSignedUrl(data.path);
       Alert.alert('Éxito', 'Documento subido');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'No se pudo subir el documento');
@@ -364,7 +375,7 @@ export default function OnboardingWalkerScreen() {
     </View>
   );
 
-  const getDocUrl = (path: string) => supabase.storage.from('walker_documents').getPublicUrl(path).data.publicUrl;
+  const getDocUrl = (path: string) => signedUrls[path] || '';
 
   const DocumentCard = ({ label, value, onCamera, onGallery }: { label: string; value: string | null; onCamera: () => void; onGallery: () => void }) => (
     <View style={[styles.docCard, value && styles.docCardDone]}>
