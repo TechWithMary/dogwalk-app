@@ -362,6 +362,7 @@ export default function OnboardingOwnerScreen() {
               {!loading && <Text style={styles.arrow}>→</Text>}
             </TouchableOpacity>
           </View>
+          <View style={{ height: 250 }} />
 
           {/* Breed Picker Modal */}
           <Modal visible={showBreedPicker} transparent animationType="fade" onRequestClose={() => setShowBreedPicker(false)}>
@@ -439,7 +440,6 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 24,
-    paddingBottom: 400,
   },
   header: {
     alignItems: 'center',
