@@ -519,7 +519,6 @@ export default function OnboardingWalkerScreen() {
                 </TouchableOpacity>
               </View>
 
-              <View style={{ flex: 1 }} />
               <TouchableOpacity style={[styles.primaryBtn, !canProceed() && styles.btnDisabled]} onPress={handleSaveStep} disabled={!canProceed() || loading}>
                 <Text style={styles.primaryBtnText}>{loading ? 'Guardando...' : 'Continuar →'}</Text>
               </TouchableOpacity>
@@ -541,7 +540,6 @@ export default function OnboardingWalkerScreen() {
               <DocumentCard label="Selfie con Cédula" value={formData.selfie_with_id} onCamera={() => pickDocument('selfie_with_id', 'camera')} onGallery={() => pickDocument('selfie_with_id', 'gallery')} />
               <DocumentCard label="Antecedentes Judiciales" value={formData.criminal_record_cert} onCamera={() => pickDocument('criminal_record_cert', 'camera')} onGallery={() => pickDocument('criminal_record_cert', 'gallery')} />
 
-              <View style={{ flex: 1 }} />
               <View style={styles.navButtons}>
                 <View style={{ flex: 1 }}>
                   <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(1)}>
@@ -604,7 +602,6 @@ export default function OnboardingWalkerScreen() {
                 <Switch value={formData.has_own_dogs} onValueChange={v => setFormData(p => ({ ...p, has_own_dogs: v }))} trackColor={{ false: '#E5E7EB', true: '#13ec13' }} thumbColor={formData.has_own_dogs ? '#FFFFFF' : '#FFFFFF'} />
               </View>
 
-              <View style={{ flex: 1 }} />
               <View style={styles.navButtons}>
                 <View style={{ flex: 1 }}>
                   <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(2)}>
@@ -701,7 +698,6 @@ export default function OnboardingWalkerScreen() {
                 <Text style={styles.coordsText}>Lat: {coords.lat?.toFixed(4)}, Lng: {coords.lng?.toFixed(4)}</Text>
               )}
 
-              <View style={{ flex: 1 }} />
               <View style={styles.navButtons}>
                 <View style={{ flex: 1 }}>
                   <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(4)}>
@@ -795,7 +791,6 @@ export default function OnboardingWalkerScreen() {
                 })}
               </View>
 
-              <View style={{ flex: 1 }} />
               <View style={styles.navButtons}>
                 <View style={{ flex: 1 }}>
                   <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(5)}>
