@@ -6,7 +6,7 @@ import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { File } from 'expo-file-system';
 import { supabase } from '../lib/supabase';
-import { Crosshair, Camera, ShieldCheck, Check, Trash2 } from '../components/Icons';
+import { Crosshair, Camera, ShieldCheck, Check, Trash2, CheckCircle } from '../components/Icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const TOTAL_STEPS = 7;
@@ -838,9 +838,23 @@ export default function OnboardingWalkerScreen() {
         {step === 7 && (
           <View style={styles.stepContainer}>
             <View style={styles.successBox}>
-              <Text style={styles.successEmoji}>✅</Text>
+              <CheckCircle size={64} color="#13ec13" strokeWidth={1.5} />
               <Text style={styles.successTitle}>¡Todo Listo!</Text>
-              <Text style={styles.successText}>Tu perfil entrará en revisión. Te notificaremos cuando puedas empezar a recibir paseos.</Text>
+              <Text style={styles.successText}>Tu perfil entró en revisión. Te notificaremos cuando puedas empezar a recibir paseos.</Text>
+              <View style={styles.timeline}>
+                <View style={styles.timelineItem}>
+                  <View style={styles.timelineDot} />
+                  <Text style={styles.timelineText}>Revisión de documentos</Text>
+                </View>
+                <View style={styles.timelineItem}>
+                  <View style={styles.timelineDot} />
+                  <Text style={styles.timelineText}>Verificación de datos personales</Text>
+                </View>
+                <View style={styles.timelineItem}>
+                  <View style={[styles.timelineDot, styles.timelineDotActive]} />
+                  <Text style={[styles.timelineText, styles.timelineTextActive]}>Perfil activado — ¡a pasear!</Text>
+                </View>
+              </View>
               <TouchableOpacity style={[styles.primaryBtn, { alignSelf: 'stretch' }]} onPress={handleComplete} disabled={loading}>
                 <Text style={styles.primaryBtnText}>{loading ? '...' : 'Ir a mi Panel'}</Text>
               </TouchableOpacity>
@@ -985,9 +999,14 @@ const styles = StyleSheet.create({
   slotText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
   slotDelete: { fontSize: 16 },
   successBox: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20 },
-  successEmoji: { fontSize: 48, marginBottom: 16 },
   successTitle: { fontSize: 28, fontWeight: '900', color: '#FFFFFF', marginBottom: 8 },
   successText: { fontSize: 14, color: '#9CA3AF', textAlign: 'center', marginBottom: 32, lineHeight: 22 },
+  timeline: { alignSelf: 'stretch', gap: 16, marginBottom: 32 },
+  timelineItem: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  timelineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#374151' },
+  timelineDotActive: { backgroundColor: '#13ec13' },
+  timelineText: { fontSize: 14, color: '#9CA3AF', fontWeight: '600' },
+  timelineTextActive: { color: '#13ec13' },
   shortcutsRow: { flexDirection: 'row', gap: 6, marginTop: 8, marginBottom: 4, flexWrap: 'wrap' },
   shortcutBtn: { backgroundColor: '#374151', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#4B5563' },
   shortcutText: { color: '#9CA3AF', fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
