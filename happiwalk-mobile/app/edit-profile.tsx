@@ -312,7 +312,7 @@ export default function EditProfileScreen() {
     if (type === 'nequi') {
       return digits.replace(/(\d{3})(\d{1,4})?(\d{0,4})?/, (_, a, b, c) => [a, b, c].filter(Boolean).join(' ')).slice(0, 13);
     }
-    return digits.replace(/(\d{1,3})(\d{0,6})(\d{0,2})/, (_, a, b, c) => [a, b, c].filter(Boolean).join('-')).slice(0, 12);
+    return digits.replace(/(\d{1,3})(\d{0,8})(\d{0,2})/, (_, a, b, c) => [a, b, c].filter(Boolean).join('-')).slice(0, 14);
   };
 
   const handleSave = async () => {
