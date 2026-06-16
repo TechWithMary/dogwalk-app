@@ -234,6 +234,8 @@ export default function OnboardingWalkerScreen() {
 
   const handleSaveStep = async () => {
     Keyboard.dismiss();
+    setShowDatePicker(false);
+    await new Promise(r => setTimeout(r, 400));
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
