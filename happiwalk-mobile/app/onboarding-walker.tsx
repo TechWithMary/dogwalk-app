@@ -233,6 +233,7 @@ export default function OnboardingWalkerScreen() {
   };
 
   const handleSaveStep = async () => {
+    Keyboard.dismiss();
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
