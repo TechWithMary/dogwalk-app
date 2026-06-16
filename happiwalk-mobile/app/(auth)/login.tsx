@@ -302,6 +302,8 @@ export default function LoginScreen() {
         const firstName = nameParts[0] || 'Usuario';
         const lastName = nameParts.slice(1).join(' ') || '';
 
+        console.log('[SIGNUP] roleMode:', roleMode, 'firstName:', firstName);
+
         const { data: authData, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
