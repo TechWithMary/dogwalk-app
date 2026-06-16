@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Image, Switch, Platform, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Image, Switch, Platform, Keyboard, InteractionManager } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
@@ -235,7 +235,7 @@ export default function OnboardingWalkerScreen() {
   const handleSaveStep = async () => {
     Keyboard.dismiss();
     setShowDatePicker(false);
-    await new Promise(r => setTimeout(r, 400));
+    await new Promise(resolve => InteractionManager.runAfterInteractions(resolve));
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -758,13 +758,7 @@ export default function OnboardingWalkerScreen() {
 
       </ScrollView>
 
-      {keyboardHeight > 0 && Platform.OS === 'ios' && (
-        <View style={[styles.keyboardToolbar, { bottom: keyboardHeight }]}>
-          <TouchableOpacity onPress={Keyboard.dismiss} style={styles.keyboardToolbarBtn}>
-            <Text style={styles.keyboardToolbarText}>Listo</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+
     </SafeAreaView>
   );
 }
@@ -854,7 +848,4 @@ const styles = StyleSheet.create({
   shortcutsRow: { flexDirection: 'row', gap: 6, marginTop: 8, marginBottom: 4, flexWrap: 'wrap' },
   shortcutBtn: { backgroundColor: '#374151', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#4B5563' },
   shortcutText: { color: '#9CA3AF', fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
-  keyboardToolbar: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', justifyContent: 'flex-end', backgroundColor: '#374151', paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#4B5563' },
-  keyboardToolbarBtn: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#13ec13', borderRadius: 8 },
-  keyboardToolbarText: { fontSize: 12, fontWeight: '900', color: '#052e05', textTransform: 'uppercase' },
 });
