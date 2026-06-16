@@ -515,6 +515,7 @@ export default function EditProfileScreen() {
           </View>
           </View>
 
+          {profile?.role === 'walker' && (
           <View style={[styles.formCard, { marginTop: 20 }]}>
             <Text style={[styles.label, { marginBottom: 16 }]}>Información Bancaria</Text>
 
@@ -570,6 +571,7 @@ export default function EditProfileScreen() {
               </View>
             </View>
           </View>
+          )}
 
           <View style={styles.bottomSpacer} />
         </ScrollView>
