@@ -28,6 +28,7 @@ export default function OnboardingOwnerScreen() {
   const [gettingLocation, setGettingLocation] = useState(false);
   const [showBreedPicker, setShowBreedPicker] = useState(false);
   const [showEnergyPicker, setShowEnergyPicker] = useState(false);
+  const [showAgePicker, setShowAgePicker] = useState(false);
   const [addressSuggestions, setAddressSuggestions] = useState<any[]>([]);
   const [searchingAddress, setSearchingAddress] = useState(false);
   const [addressError, setAddressError] = useState('');
@@ -322,16 +323,16 @@ export default function OnboardingOwnerScreen() {
               </View>
               <View style={styles.colRight}>
                 <Text style={styles.label}>Edad (Años)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={petData.age_years}
-                  onChangeText={(text) => setPetData({ ...petData, age_years: text })}
-                  placeholder="0"
-                  keyboardType="number-pad"
-                  placeholderTextColor="#9CA3AF"
-                  returnKeyType="done"
-                  onSubmitEditing={() => Keyboard.dismiss()}
-                />
+                <TouchableOpacity
+                  style={styles.selectInput}
+                  onPress={() => setShowAgePicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.selectText, !petData.age_years && styles.placeholder]}>
+                    {petData.age_years || '0'}
+                  </Text>
+                  <ChevronDown size={16} color="#9CA3AF" />
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -425,6 +426,32 @@ export default function OnboardingOwnerScreen() {
                     {petData.energy_level === level.value && <Text style={styles.modalCheck}>✓</Text>}
                   </TouchableOpacity>
                 ))}
+              </View>
+            </TouchableOpacity>
+          </Modal>
+
+          {/* Age Picker Modal */}
+          <Modal visible={showAgePicker} transparent animationType="fade" onRequestClose={() => setShowAgePicker(false)}>
+            <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowAgePicker(false)}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Edad de tu mascota</Text>
+                <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+                  {Array.from({ length: 21 }, (_, i) => i).map((age) => (
+                    <TouchableOpacity
+                      key={age}
+                      style={styles.modalOption}
+                      onPress={() => {
+                        setPetData({ ...petData, age_years: String(age) });
+                        setShowAgePicker(false);
+                      }}
+                    >
+                      <Text style={[styles.modalOptionText, petData.age_years === String(age) && styles.modalOptionTextActive]}>
+                        {age} {age === 1 ? 'año' : 'años'}
+                      </Text>
+                      {petData.age_years === String(age) && <Text style={styles.modalCheck}>✓</Text>}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
             </TouchableOpacity>
           </Modal>
