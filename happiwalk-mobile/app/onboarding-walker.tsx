@@ -6,7 +6,7 @@ import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { File } from 'expo-file-system';
 import { supabase } from '../lib/supabase';
-import { Crosshair, Camera, ShieldCheck, Check, MapPin } from '../components/Icons';
+import { Crosshair, Camera, ShieldCheck, Check } from '../components/Icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const TOTAL_STEPS = 7;
@@ -693,7 +693,7 @@ export default function OnboardingWalkerScreen() {
         {step === 5 && (
           <View style={styles.stepContainer}>
             <View style={styles.stepHeader}>
-              <MapPin size={40} color="#13ec13" />
+              <Crosshair size={40} color="#13ec13" />
               <Text style={styles.stepTitle}>Tu Zona</Text>
               <Text style={styles.stepSubtitle}>Define tu radio de cobertura</Text>
             </View>
