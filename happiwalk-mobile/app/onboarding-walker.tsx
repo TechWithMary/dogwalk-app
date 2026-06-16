@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { File } from 'expo-file-system';
-import { supabase, STORAGE_URL } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { Crosshair, Camera, ShieldCheck, Check } from '../components/Icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -216,11 +216,13 @@ export default function OnboardingWalkerScreen() {
       }
 
       const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
+      const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', heic: 'image/jpeg', webp: 'image/webp' };
+      const contentType = mimeMap[fileExt] || 'image/jpeg';
       const fileName = `${user.id}_${field}_${Date.now()}.${fileExt}`;
 
       const { error: uploadError, data } = await supabase.storage
         .from('walker_documents')
-        .upload(fileName, byteArray, { contentType: 'image/jpeg', cacheControl: '3600' });
+        .upload(fileName, byteArray, { contentType, cacheControl: '3600' });
 
       if (uploadError) throw uploadError;
 
@@ -363,6 +365,8 @@ export default function OnboardingWalkerScreen() {
     </View>
   );
 
+  const getDocUrl = (path: string) => supabase.storage.from('walker_documents').getPublicUrl(path).data.publicUrl;
+
   const DocumentCard = ({ label, value, onCamera, onGallery }: { label: string; value: string | null; onCamera: () => void; onGallery: () => void }) => (
     <View style={[styles.docCard, value && styles.docCardDone]}>
       <View style={styles.docHeader}>
@@ -371,9 +375,9 @@ export default function OnboardingWalkerScreen() {
       </View>
       {value ? (
         <View style={styles.docUploaded}>
-          <Image source={{ uri: `${STORAGE_URL}walker_documents/${value}` }} style={styles.docThumb} resizeMode="cover" />
+          <Image source={{ uri: getDocUrl(value) }} style={styles.docThumb} resizeMode="cover" />
           <View style={styles.docActions}>
-            <TouchableOpacity style={styles.docActionBtn} onPress={() => setPreviewImage(`${STORAGE_URL}walker_documents/${value}`)}>
+            <TouchableOpacity style={styles.docActionBtn} onPress={() => setPreviewImage(getDocUrl(value))}>
               <Text style={styles.docActionText}>Ver</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.docActionBtn} onPress={onCamera}>
