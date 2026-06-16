@@ -670,7 +670,7 @@ export default function OnboardingWalkerScreen() {
                 </>
               )}
 
-              <Text style={styles.label}>Número de Cuenta o Celular *</Text>
+              <Text style={styles.label}>{formData.bank_account_type === 'nequi' ? 'Número de Celular *' : 'Número de Cuenta *'}</Text>
               <TextInput style={styles.input} value={formData.bank_account_number} onChangeText={t => setFormData(p => ({ ...p, bank_account_number: formatBankNumber(t, formData.bank_account_type, formData.bank_name) }))} placeholder={formData.bank_account_type === 'nequi' ? '300 123 4567' : `${formData.bank_name === 'Davivienda' ? '123-456789-0' : '007-1234567-01'}`} keyboardType="number-pad" placeholderTextColor="#9CA3AF" />
 
               <View style={{ flex: 1 }} />

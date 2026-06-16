@@ -566,7 +566,7 @@ export default function EditProfileScreen() {
             )}
 
             <View style={[styles.field, { marginTop: 12 }]}>
-              <Text style={styles.label}>Número de Cuenta o Celular</Text>
+              <Text style={styles.label}>{formData.bank_account_type === 'nequi' ? 'Número de Celular' : 'Número de Cuenta'}</Text>
               <View style={styles.inputContainer}>
                 <TextInput
                   style={styles.input}
