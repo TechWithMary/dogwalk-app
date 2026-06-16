@@ -720,7 +720,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   bottomSpacer: {
-    height: 180,
+    height: 220,
   },
   avatarSection: {
     alignItems: 'center',
