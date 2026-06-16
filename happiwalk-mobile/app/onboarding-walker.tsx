@@ -792,7 +792,7 @@ const styles = StyleSheet.create({
   datePickerContainer: { backgroundColor: '#FFFFFF', borderRadius: 16, overflow: 'hidden', marginTop: 4 },
   dateDoneBtn: { backgroundColor: '#13ec13', borderRadius: 12, padding: 12, alignItems: 'center', marginHorizontal: 12, marginBottom: 12 },
   dateDoneText: { fontSize: 13, fontWeight: '900', color: '#052e05', textTransform: 'uppercase' },
-  primaryBtn: { backgroundColor: '#13ec13', borderRadius: 24, paddingVertical: 18, alignItems: 'center', marginTop: 8 },
+  primaryBtn: { flex: 1, backgroundColor: '#13ec13', borderRadius: 24, paddingVertical: 18, alignItems: 'center', marginTop: 8 },
   primaryBtnText: { fontSize: 13, fontWeight: '900', color: '#052e05', textTransform: 'uppercase', letterSpacing: 1 },
   secondaryBtn: { backgroundColor: '#374151', borderRadius: 24, paddingVertical: 18, alignItems: 'center', flex: 1 },
   secondaryBtnText: { fontSize: 12, fontWeight: '900', color: '#FFFFFF', textTransform: 'uppercase', letterSpacing: 1 },
