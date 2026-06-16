@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { supabase } from '../lib/supabase';
 import { searchAddressSuggestions, getPlaceDetails } from '../lib/addressSearch';
-import { Dog, MapPin, ChevronDown, AlertCircle } from '../components/Icons';
+import { Dog, MapPin, ChevronDown, AlertCircle, Crosshair } from '../components/Icons';
 import { PET_BREEDS, OTHER_BREED_OPTION } from '../constants/pet-breeds';
 
 const ENERGY_LEVELS = [
@@ -261,7 +261,7 @@ export default function OnboardingOwnerScreen() {
                     onPress={handleCurrentLocation}
                     disabled={gettingLocation}
                   >
-                    <Text style={styles.locationIcon}>{gettingLocation ? '⏳' : '📡'}</Text>
+                    {gettingLocation ? <Text style={styles.locationIcon}>⏳</Text> : <Crosshair size={18} color="#059669" />}
                   </TouchableOpacity>
                 </View>
                 {addressError ? (
