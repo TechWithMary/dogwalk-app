@@ -559,21 +559,29 @@ export default function OnboardingWalkerScreen() {
               <Text style={styles.label}>Sobre ti / Biografía *</Text>
               <TextInput style={[styles.input, styles.textArea]} value={formData.bio} onChangeText={t => setFormData(p => ({ ...p, bio: t }))} placeholder="Cuéntanos por qué eres el mejor paseador..." multiline numberOfLines={4} placeholderTextColor="#9CA3AF" />
 
-              <View style={styles.row}>
-                <View style={styles.half}>
-                  <Text style={styles.label}>Años Exp.</Text>
-                  <TextInput style={styles.input} value={formData.experience_years} onChangeText={t => setFormData(p => ({ ...p, experience_years: t }))} placeholder="0" keyboardType="number-pad" placeholderTextColor="#9CA3AF" />
-                </View>
-                <View style={styles.half}>
-                  <Text style={styles.label}>Precio x Hora</Text>
-                  <View style={styles.priceOptions}>
-                    {['25000', '30000', '35000', '40000'].map(p => (
-                      <TouchableOpacity key={p} style={[styles.priceBtn, formData.price === p && styles.priceBtnActive]} onPress={() => setFormData(prev => ({ ...prev, price: p }))}>
-                        <Text style={[styles.priceText, formData.price === p && styles.priceTextActive]}>${parseInt(p).toLocaleString('es-CO')}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
+              <Text style={styles.label}>Años de Experiencia</Text>
+              <View style={styles.optionsGrid}>
+                {[
+                  { value: '', label: 'Sin experiencia' },
+                  { value: '1', label: '1 año' },
+                  { value: '2', label: '2 años' },
+                  { value: '3', label: '3 años' },
+                  { value: '4', label: '4 años' },
+                  { value: '5', label: '5+ años' },
+                ].map(opt => (
+                  <TouchableOpacity key={opt.value} style={[styles.optionChip, formData.experience_years === opt.value && styles.optionChipActive]} onPress={() => setFormData(prev => ({ ...prev, experience_years: opt.value }))}>
+                    <Text style={[styles.optionChipText, formData.experience_years === opt.value && styles.optionChipTextActive]}>{opt.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.label}>Precio por Hora</Text>
+              <View style={styles.optionsGrid}>
+                {['25000', '30000', '35000', '40000'].map(p => (
+                  <TouchableOpacity key={p} style={[styles.optionChip, formData.price === p && styles.optionChipActive]} onPress={() => setFormData(prev => ({ ...prev, price: p }))}>
+                    <Text style={[styles.optionChipText, formData.price === p && styles.optionChipTextActive]}>${parseInt(p).toLocaleString('es-CO')}</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
 
               <View style={styles.switchRow}>
@@ -848,11 +856,11 @@ const styles = StyleSheet.create({
   docButtons: { flexDirection: 'row', gap: 10 },
   docBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#374151', borderRadius: 12, paddingVertical: 12 },
   docBtnText: { fontSize: 11, fontWeight: '700', color: '#FFFFFF' },
-  priceOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  priceBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: '#374151', borderWidth: 2, borderColor: 'transparent' },
-  priceBtnActive: { backgroundColor: '#1F2937', borderColor: '#13ec13' },
-  priceText: { fontSize: 13, fontWeight: '700', color: '#9CA3AF' },
-  priceTextActive: { color: '#052e05' },
+  optionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  optionChip: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14, backgroundColor: '#374151', borderWidth: 2, borderColor: 'transparent' },
+  optionChipActive: { backgroundColor: '#052e05', borderColor: '#13ec13' },
+  optionChipText: { fontSize: 12, fontWeight: '700', color: '#9CA3AF' },
+  optionChipTextActive: { color: '#13ec13' },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#1F2937', borderRadius: 16, padding: 16 },
   switchLabel: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
   typeBtn: { flex: 1, paddingVertical: 16, borderRadius: 16, backgroundColor: '#374151', borderWidth: 2, borderColor: 'transparent', alignItems: 'center' },
