@@ -403,7 +403,7 @@ export default function OnboardingWalkerScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
-        contentContainerStyle={{ padding: 20, paddingBottom: keyboardHeight + 200 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: keyboardHeight + 40 }}
       >
 
         {step === 1 && (
@@ -716,12 +716,12 @@ const styles = StyleSheet.create({
   progressText: { fontSize: 11, fontWeight: '800', color: '#6B7280', textTransform: 'uppercase' },
   progressBarBg: { height: 4, backgroundColor: '#374151', borderRadius: 2 },
   progressBarFill: { height: 4, backgroundColor: '#13ec13', borderRadius: 2 },
-  stepContainer: { paddingBottom: 40 },
-  stepHeader: { alignItems: 'center', marginVertical: 24 },
+  stepContainer: { paddingBottom: 20 },
+  stepHeader: { alignItems: 'center', marginVertical: 16 },
   stepEmoji: { fontSize: 40, marginBottom: 8 },
   stepTitle: { fontSize: 22, fontWeight: '900', color: '#FFFFFF', textTransform: 'uppercase', letterSpacing: 1 },
   stepSubtitle: { fontSize: 10, fontWeight: '900', color: '#9CA3AF', textTransform: 'uppercase', marginTop: 4, letterSpacing: 2 },
-  formCard: { backgroundColor: '#1F2937', borderRadius: 24, padding: 20, gap: 16 },
+  formCard: { backgroundColor: '#1F2937', borderRadius: 24, padding: 16, gap: 12 },
   label: { fontSize: 10, fontWeight: '900', color: '#6B7280', textTransform: 'uppercase', marginBottom: 6, marginLeft: 4 },
   input: { backgroundColor: '#374151', borderRadius: 16, padding: 16, fontSize: 14, fontWeight: '700', color: '#FFFFFF', borderWidth: 2, borderColor: 'transparent' },
   textArea: { height: 100, textAlignVertical: 'top' },
