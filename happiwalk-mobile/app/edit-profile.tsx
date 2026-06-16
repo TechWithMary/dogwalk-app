@@ -488,31 +488,33 @@ export default function EditProfileScreen() {
                 )}
               </View>
             </View>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Sobre ti</Text>
-            <TextInput
-              ref={bioInputRef}
-              style={[styles.input, styles.textArea]}
-              value={formData.bio}
-              onChangeText={(text) => setFormData({ ...formData, bio: text })}
-              placeholder="Cuéntanos un poco sobre ti..."
-              multiline
-              numberOfLines={3}
-              maxLength={500}
-              placeholderTextColor="#9CA3AF"
-              blurOnSubmit={false}
-              onFocus={() => scrollViewRef.current?.scrollTo({ y: 350, animated: true })}
-              inputAccessoryViewID="bioDone"
-            />
-            <InputAccessoryView nativeID="bioDone">
-              <View style={styles.inputAccessory}>
-                <TouchableOpacity onPress={() => Keyboard.dismiss()} style={styles.doneButton}>
-                  <Text style={styles.doneButtonText}>Listo</Text>
-                </TouchableOpacity>
-              </View>
-            </InputAccessoryView>
           </View>
+
+          <View style={[styles.formCard, { marginTop: 20 }]}>
+            <View style={styles.field}>
+              <Text style={styles.label}>Sobre ti</Text>
+              <TextInput
+                ref={bioInputRef}
+                style={[styles.input, styles.textArea]}
+                value={formData.bio}
+                onChangeText={(text) => setFormData({ ...formData, bio: text })}
+                placeholder="Cuéntanos un poco sobre ti..."
+                multiline
+                numberOfLines={3}
+                maxLength={500}
+                placeholderTextColor="#9CA3AF"
+                blurOnSubmit={false}
+                onFocus={() => scrollViewRef.current?.scrollTo({ y: 350, animated: true })}
+                inputAccessoryViewID="bioDone"
+              />
+              <InputAccessoryView nativeID="bioDone">
+                <View style={styles.inputAccessory}>
+                  <TouchableOpacity onPress={() => Keyboard.dismiss()} style={styles.doneButton}>
+                    <Text style={styles.doneButtonText}>Listo</Text>
+                  </TouchableOpacity>
+                </View>
+              </InputAccessoryView>
+            </View>
           </View>
 
           {profile?.role === 'walker' && (
