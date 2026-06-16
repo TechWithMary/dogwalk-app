@@ -388,7 +388,7 @@ export default function OnboardingWalkerScreen() {
 
   const canProceed = () => {
     switch (step) {
-      case 1: return formData.name.trim() && formData.phone.trim() && formData.id_number.trim() && formData.date_of_birth && formData.address.trim() && coords.lat && coords.lng;
+      case 1: return formData.name.trim() && formData.phone.trim() && formData.id_number.trim() && formData.date_of_birth && formData.address.trim();
       case 2: return formData.id_document_front !== null;
       case 3: return formData.bio.trim();
       case 4:
