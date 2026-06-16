@@ -439,6 +439,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 24,
+    paddingBottom: 100,
   },
   header: {
     alignItems: 'center',
