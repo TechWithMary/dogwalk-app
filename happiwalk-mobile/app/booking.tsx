@@ -12,15 +12,18 @@ import { createPaymentWithBooking } from '../lib/paymentService';
 import { Dog, MapPin, Clock, ChevronLeft, Loader2, Check, Wallet, CreditCard, ArrowLeft } from '../components/Icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const PRICES: Record<string, number> = { '1h': 30000, '2h': 55000, '3h': 75000 };
+const ADDITIONAL_PET_PRICE = 10000;
 const ADDITIONAL_PET_PRICE = 10000;
 const CENTER_MEDELLIN = { latitude: 6.2442, longitude: -75.5812 };
+const ADDITIONAL_PET_PRICE = 10000;
+const HOURS: Record<string, number> = { '1h': 1, '2h': 2, '3h': 3 };
 
 interface Walker {
   id: string;
   name: string;
   user_id?: string;
   rating: number;
+  price: number;
   img?: string;
   service_latitude?: number;
   service_longitude?: number;
@@ -92,7 +95,8 @@ export default function BookingScreen() {
     };
   }, []);
 
-  const basePrice = PRICES[duration];
+  const walkerPrice = selectedWalker?.price || nearbyWalkers[0]?.price || 30000;
+  const basePrice = walkerPrice * HOURS[duration];
   const petCount = selectedPets.length;
   const totalPrice = basePrice + (petCount > 1 ? (petCount - 1) * ADDITIONAL_PET_PRICE : 0);
   const isReadyForPayment = selectedPets.length > 0 && addressConfirmed && address.trim().length > 0 && (bookingType === 'now' || (date && time));
@@ -200,7 +204,7 @@ const checkAvailability = async () => {
       if (walkerIds.length > 0) {
         const { data: verifiedWalkers } = await supabase
           .from('walkers')
-          .select('id, user_id, name, img, rating, service_latitude, service_longitude, service_radius_km, user_profiles(first_name, last_name)')
+          .select('id, user_id, name, img, rating, price, service_latitude, service_longitude, service_radius_km, user_profiles(first_name, last_name)')
           .eq('overall_verification_status', 'approved')
           .eq('is_online', true)
           .in('id', walkerIds);
@@ -661,16 +665,19 @@ const checkAvailability = async () => {
 
           <Text style={styles.durationLabel}>Duración del Paseo</Text>
           <View style={styles.durationRow}>
-            {Object.entries(PRICES).map(([key, price]) => (
-              <TouchableOpacity
-                key={key}
-                style={[styles.durationBtn, duration === key && styles.durationBtnActive]}
-                onPress={() => setDuration(key)}
-              >
-                <Text style={[styles.durationText, duration === key && styles.durationTextActive]}>{key}</Text>
-                <Text style={[styles.durationPrice, duration === key && styles.durationPriceActive]}>${(Number(price) / 1000)}k</Text>
-              </TouchableOpacity>
-            ))}
+            {Object.entries(HOURS).map(([key, hours]) => {
+              const priceForDuration = walkerPrice * hours;
+              return (
+                <TouchableOpacity
+                  key={key}
+                  style={[styles.durationBtn, duration === key && styles.durationBtnActive]}
+                  onPress={() => setDuration(key)}
+                >
+                  <Text style={[styles.durationText, duration === key && styles.durationTextActive]}>{key}</Text>
+                  <Text style={[styles.durationPrice, duration === key && styles.durationPriceActive]}>${(priceForDuration / 1000)}k</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           {petCount > 1 && <Text style={styles.petCountText}>{petCount} mascotas</Text>}
