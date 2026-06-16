@@ -436,27 +436,28 @@ export default function OnboardingWalkerScreen() {
                 </Text>
               </TouchableOpacity>
               {showDatePicker && (
-                <DateTimePicker
-                  value={dateOfBirth || new Date(2000, 0, 1)}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  maximumDate={new Date()}
-                  onChange={(_event: any, selectedDate?: Date) => {
-                    if (Platform.OS === 'android') setShowDatePicker(false);
-                    if (selectedDate) {
-                      setDateOfBirth(selectedDate);
-                      const year = selectedDate.getFullYear();
-                      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-                      const day = String(selectedDate.getDate()).padStart(2, '0');
-                      setFormData(p => ({ ...p, date_of_birth: `${year}-${month}-${day}` }));
-                    }
-                  }}
-                />
-              )}
-              {Platform.OS === 'ios' && showDatePicker && (
-                <TouchableOpacity style={styles.dateDoneBtn} onPress={() => setShowDatePicker(false)}>
-                  <Text style={styles.dateDoneText}>Listo</Text>
-                </TouchableOpacity>
+                <View style={styles.datePickerContainer}>
+                  <DateTimePicker
+                    value={dateOfBirth || new Date(2000, 0, 1)}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    maximumDate={new Date()}
+                    themeVariant="light"
+                    onChange={(_event: any, selectedDate?: Date) => {
+                      if (Platform.OS === 'android') setShowDatePicker(false);
+                      if (selectedDate) {
+                        setDateOfBirth(selectedDate);
+                        const year = selectedDate.getFullYear();
+                        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+                        const day = String(selectedDate.getDate()).padStart(2, '0');
+                        setFormData(p => ({ ...p, date_of_birth: `${year}-${month}-${day}` }));
+                      }
+                    }}
+                  />
+                  <TouchableOpacity style={styles.dateDoneBtn} onPress={() => setShowDatePicker(false)}>
+                    <Text style={styles.dateDoneText}>Listo</Text>
+                  </TouchableOpacity>
+                </View>
               )}
 
               <Text style={styles.label}>Dirección (Usa el GPS) *</Text>
@@ -764,8 +765,9 @@ const styles = StyleSheet.create({
   locationIcon: { fontSize: 20, marginLeft: 8 },
   dateText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
   datePlaceholder: { color: '#9CA3AF' },
-  dateDoneBtn: { backgroundColor: '#374151', borderRadius: 12, padding: 12, alignItems: 'center', marginTop: 8 },
-  dateDoneText: { fontSize: 13, fontWeight: '900', color: '#13ec13', textTransform: 'uppercase' },
+  datePickerContainer: { backgroundColor: '#FFFFFF', borderRadius: 16, overflow: 'hidden', marginTop: 4 },
+  dateDoneBtn: { backgroundColor: '#13ec13', borderRadius: 12, padding: 12, alignItems: 'center', marginHorizontal: 12, marginBottom: 12 },
+  dateDoneText: { fontSize: 13, fontWeight: '900', color: '#052e05', textTransform: 'uppercase' },
   primaryBtn: { backgroundColor: '#13ec13', borderRadius: 24, paddingVertical: 18, alignItems: 'center', marginTop: 8 },
   primaryBtnText: { fontSize: 13, fontWeight: '900', color: '#052e05', textTransform: 'uppercase', letterSpacing: 1 },
   secondaryBtn: { backgroundColor: '#374151', borderRadius: 24, paddingVertical: 18, alignItems: 'center', flex: 1 },
