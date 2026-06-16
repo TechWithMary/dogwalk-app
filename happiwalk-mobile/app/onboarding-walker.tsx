@@ -168,6 +168,14 @@ export default function OnboardingWalkerScreen() {
     return 25000;
   };
 
+  const formatBankNumber = (text: string, type: string): string => {
+    const digits = text.replace(/\D/g, '');
+    if (type === 'nequi') {
+      return digits.replace(/(\d{3})(\d{1,4})?(\d{0,4})?/, (_, a, b, c) => [a, b, c].filter(Boolean).join(' ')).slice(0, 13);
+    }
+    return digits.replace(/(\d{1,3})(\d{0,6})(\d{0,2})/, (_, a, b, c) => [a, b, c].filter(Boolean).join('-')).slice(0, 12);
+  };
+
   const calculateAge = (birthday: string) => {
     if (!birthday) return null;
     const ageDifMs = Date.now() - new Date(birthday).getTime();
@@ -280,7 +288,7 @@ export default function OnboardingWalkerScreen() {
         experience_years: formData.experience_years ? parseInt(formData.experience_years) : 0,
         has_own_dogs: formData.has_own_dogs,
         bank_account_type: formData.bank_account_type,
-        bank_account_number: formData.bank_account_number,
+        bank_account_number: formData.bank_account_number.replace(/\D/g, ''),
         bank_name: formData.bank_account_type === 'nequi' ? '' : formData.bank_name,
         role: 'walker',
       };
@@ -653,7 +661,7 @@ export default function OnboardingWalkerScreen() {
               )}
 
               <Text style={styles.label}>Número de Cuenta o Celular *</Text>
-              <TextInput style={styles.input} value={formData.bank_account_number} onChangeText={t => setFormData(p => ({ ...p, bank_account_number: t }))} placeholder="Escribe el número" keyboardType="phone-pad" placeholderTextColor="#9CA3AF" />
+              <TextInput style={styles.input} value={formData.bank_account_number} onChangeText={t => setFormData(p => ({ ...p, bank_account_number: formatBankNumber(t, formData.bank_account_type) }))} placeholder={formData.bank_account_type === 'nequi' ? '300 123 4567' : '007-123456-00'} keyboardType="phone-pad" placeholderTextColor="#9CA3AF" />
 
               <View style={{ flex: 1 }} />
               <View style={styles.navButtons}>
