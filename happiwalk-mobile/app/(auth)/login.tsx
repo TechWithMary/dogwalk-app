@@ -103,20 +103,13 @@ export default function LoginScreen() {
           : (profile.role === 'walker' ? '/onboarding-walker' : '/onboarding-owner');
         console.log('[NAVIGATE] Existing profile, to:', route);
       } else {
-        const cachedRole = await AsyncStorage.getItem('cached_profile_role');
-        const cachedComplete = await AsyncStorage.getItem('cached_profile_complete') === 'true';
+        console.log('[NAVIGATE] Profile not found for user, query result:', profile, error?.message);
+        // No profile → user must complete onboarding regardless of cached data
         const oauthRole = await AsyncStorage.getItem('oauth_role');
+        const cachedRole = await AsyncStorage.getItem('cached_profile_role');
         const fallbackRole = oauthRole || cachedRole || 'owner';
-
-        if (oauthRole || cachedRole) {
-          console.log('[NAVIGATE] Using role from storage:', fallbackRole);
-          route = cachedComplete
-            ? (fallbackRole === 'walker' ? '/walker-home' : '/(tabs)')
-            : (fallbackRole === 'walker' ? '/onboarding-walker' : '/onboarding-owner');
-        } else {
-          console.log('[NAVIGATE] No profile found, using default route');
-          route = '/onboarding-owner';
-        }
+        console.log('[NAVIGATE] No profile, fallback role:', fallbackRole);
+        route = fallbackRole === 'walker' ? '/onboarding-walker' : '/onboarding-owner';
       }
       
       await AsyncStorage.removeItem('oauth_role');
