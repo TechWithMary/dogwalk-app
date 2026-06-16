@@ -512,12 +512,16 @@ export default function OnboardingWalkerScreen() {
               <DocumentCard label="Antecedentes Judiciales" value={formData.criminal_record_cert} onCamera={() => pickDocument('criminal_record_cert', 'camera')} onGallery={() => pickDocument('criminal_record_cert', 'gallery')} />
 
               <View style={styles.navButtons}>
-                <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(1)}>
-                  <Text style={styles.secondaryBtnText}>Atrás</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.primaryBtn, !canProceed() && styles.btnDisabled]} onPress={handleSaveStep} disabled={!canProceed() || loading}>
-                  <Text style={styles.primaryBtnText}>{loading ? 'Guardando...' : 'Continuar'}</Text>
-                </TouchableOpacity>
+                <View style={{ flex: 1 }}>
+                  <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(1)}>
+                    <Text style={styles.secondaryBtnText}>Atrás</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <TouchableOpacity style={[styles.primaryBtn, !canProceed() && styles.btnDisabled]} onPress={handleSaveStep} disabled={!canProceed() || loading}>
+                    <Text style={styles.primaryBtnText}>{loading ? 'Guardando...' : 'Continuar'}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           </View>
@@ -558,12 +562,16 @@ export default function OnboardingWalkerScreen() {
               </View>
 
               <View style={styles.navButtons}>
-                <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(2)}>
-                  <Text style={styles.secondaryBtnText}>Atrás</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.primaryBtn, !canProceed() && styles.btnDisabled]} onPress={handleSaveStep} disabled={!canProceed() || loading}>
-                  <Text style={styles.primaryBtnText}>{loading ? 'Guardando...' : 'Continuar'}</Text>
-                </TouchableOpacity>
+                <View style={{ flex: 1 }}>
+                  <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(2)}>
+                    <Text style={styles.secondaryBtnText}>Atrás</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <TouchableOpacity style={[styles.primaryBtn, !canProceed() && styles.btnDisabled]} onPress={handleSaveStep} disabled={!canProceed() || loading}>
+                    <Text style={styles.primaryBtnText}>{loading ? 'Guardando...' : 'Continuar'}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           </View>
@@ -607,12 +615,16 @@ export default function OnboardingWalkerScreen() {
               <TextInput style={styles.input} value={formData.bank_account_number} onChangeText={t => setFormData(p => ({ ...p, bank_account_number: t }))} placeholder="Escribe el número" keyboardType="phone-pad" placeholderTextColor="#9CA3AF" />
 
               <View style={styles.navButtons}>
-                <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(3)}>
-                  <Text style={styles.secondaryBtnText}>Atrás</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.primaryBtn, !canProceed() && styles.btnDisabled]} onPress={handleSaveStep} disabled={!canProceed() || loading}>
-                  <Text style={styles.primaryBtnText}>{loading ? 'Guardando...' : 'Continuar'}</Text>
-                </TouchableOpacity>
+                <View style={{ flex: 1 }}>
+                  <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(3)}>
+                    <Text style={styles.secondaryBtnText}>Atrás</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <TouchableOpacity style={[styles.primaryBtn, !canProceed() && styles.btnDisabled]} onPress={handleSaveStep} disabled={!canProceed() || loading}>
+                    <Text style={styles.primaryBtnText}>{loading ? 'Guardando...' : 'Continuar'}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           </View>
@@ -645,12 +657,16 @@ export default function OnboardingWalkerScreen() {
               )}
 
               <View style={styles.navButtons}>
-                <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(4)}>
-                  <Text style={styles.secondaryBtnText}>Atrás</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.primaryBtn} onPress={handleSaveStep} disabled={loading}>
-                  <Text style={styles.primaryBtnText}>{loading ? 'Guardando...' : 'Continuar'}</Text>
-                </TouchableOpacity>
+                <View style={{ flex: 1 }}>
+                  <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(4)}>
+                    <Text style={styles.secondaryBtnText}>Atrás</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <TouchableOpacity style={styles.primaryBtn} onPress={handleSaveStep} disabled={loading}>
+                    <Text style={styles.primaryBtnText}>{loading ? 'Guardando...' : 'Continuar'}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           </View>
@@ -734,12 +750,16 @@ export default function OnboardingWalkerScreen() {
               </View>
 
               <View style={styles.navButtons}>
-                <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(5)}>
-                  <Text style={styles.secondaryBtnText}>Atrás</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.primaryBtn} onPress={() => setStep(7)}>
-                  <Text style={styles.primaryBtnText}>Continuar</Text>
-                </TouchableOpacity>
+                <View style={{ flex: 1 }}>
+                  <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(5)}>
+                    <Text style={styles.secondaryBtnText}>Atrás</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <TouchableOpacity style={styles.primaryBtn} onPress={() => setStep(7)}>
+                    <Text style={styles.primaryBtnText}>Continuar</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           </View>
