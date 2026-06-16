@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Image, Switch, Platform, Keyboard, InteractionManager, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Image, Switch, Platform, Keyboard, InteractionManager, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
@@ -53,7 +53,6 @@ export default function OnboardingWalkerScreen() {
   const [coords, setCoords] = useState({ lat: null as number | null, lng: null as number | null });
   const [availability, setAvailability] = useState<any[]>([]);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
@@ -377,7 +376,7 @@ export default function OnboardingWalkerScreen() {
         <View style={styles.docUploaded}>
           <Image source={{ uri: getDocUrl(value) }} style={styles.docThumb} resizeMode="cover" />
           <View style={styles.docActions}>
-            <TouchableOpacity style={styles.docActionBtn} onPress={() => setPreviewImage(getDocUrl(value))}>
+            <TouchableOpacity style={styles.docActionBtn} onPress={() => Linking.openURL(getDocUrl(value))}>
               <Text style={styles.docActionText}>Ver</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.docActionBtn} onPress={onCamera}>
@@ -789,17 +788,6 @@ export default function OnboardingWalkerScreen() {
         )}
 
       </ScrollView>
-
-      <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.modalClose} onPress={() => setPreviewImage(null)}>
-            <Text style={styles.modalCloseText}>Cerrar</Text>
-          </TouchableOpacity>
-          {previewImage && (
-            <Image source={{ uri: previewImage }} style={styles.modalImage} resizeMode="contain" />
-          )}
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -846,10 +834,6 @@ const styles = StyleSheet.create({
   docActions: { flexDirection: 'row', gap: 8 },
   docActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#374151', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
   docActionText: { fontSize: 11, fontWeight: '700', color: '#FFFFFF' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
-  modalClose: { position: 'absolute', top: 60, right: 20, zIndex: 10, backgroundColor: '#374151', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 },
-  modalCloseText: { fontSize: 13, fontWeight: '900', color: '#FFFFFF', textTransform: 'uppercase' },
-  modalImage: { width: '100%', height: '80%' },
   docButtons: { flexDirection: 'row', gap: 10 },
   docBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#374151', borderRadius: 12, paddingVertical: 12 },
   docBtnText: { fontSize: 11, fontWeight: '700', color: '#FFFFFF' },
