@@ -6,7 +6,7 @@ import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { File } from 'expo-file-system';
 import { supabase } from '../lib/supabase';
-import { Crosshair, Camera, ShieldCheck, Check } from '../components/Icons';
+import { Crosshair, Camera, ShieldCheck, Check, MapPin } from '../components/Icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const TOTAL_STEPS = 7;
@@ -693,7 +693,7 @@ export default function OnboardingWalkerScreen() {
         {step === 5 && (
           <View style={styles.stepContainer}>
             <View style={styles.stepHeader}>
-              <Text style={styles.stepEmoji}>📍</Text>
+              <MapPin size={40} color="#13ec13" />
               <Text style={styles.stepTitle}>Tu Zona</Text>
               <Text style={styles.stepSubtitle}>Define tu radio de cobertura</Text>
             </View>
@@ -709,13 +709,15 @@ export default function OnboardingWalkerScreen() {
               </View>
 
               <TouchableOpacity style={styles.gpsBtn} onPress={handleCurrentLocation} disabled={gettingLocation}>
-                <Text style={styles.gpsBtnText}>{gettingLocation ? 'Obteniendo...' : '📍 Usar mi ubicación actual'}</Text>
+                <Crosshair size={18} color="#13ec13" />
+                <Text style={styles.gpsBtnText}>{gettingLocation ? 'Obteniendo...' : 'Usar mi ubicación actual'}</Text>
               </TouchableOpacity>
 
               {coords.lat && (
                 <Text style={styles.coordsText}>Lat: {coords.lat?.toFixed(4)}, Lng: {coords.lng?.toFixed(4)}</Text>
               )}
 
+              <View style={{ flex: 1 }} />
               <View style={styles.navButtons}>
                 <View style={{ flex: 1 }}>
                   <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(4)}>
@@ -916,10 +918,10 @@ const styles = StyleSheet.create({
   subTypeTextActive: { color: '#13ec13' },
   radiusOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   radiusBtn: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, backgroundColor: '#374151', borderWidth: 2, borderColor: 'transparent' },
-  radiusBtnActive: { backgroundColor: '#1F2937', borderColor: '#13ec13' },
+  radiusBtnActive: { backgroundColor: 'transparent', borderColor: '#13ec13' },
   radiusText: { fontSize: 13, fontWeight: '700', color: '#9CA3AF' },
   radiusTextActive: { color: '#13ec13' },
-  gpsBtn: { backgroundColor: '#1F2937', borderRadius: 16, padding: 16, alignItems: 'center', marginTop: 8, borderWidth: 1, borderColor: '#374151' },
+  gpsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#1F2937', borderRadius: 16, padding: 16, marginTop: 8, borderWidth: 1, borderColor: '#374151' },
   gpsBtnText: { fontSize: 13, fontWeight: '700', color: '#13ec13' },
   coordsText: { fontSize: 11, color: '#9CA3AF', textAlign: 'center', marginTop: 8 },
   dayRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
