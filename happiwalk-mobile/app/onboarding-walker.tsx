@@ -716,6 +716,9 @@ export default function OnboardingWalkerScreen() {
               {coords.lat && (
                 <Text style={styles.coordsText}>Lat: {coords.lat?.toFixed(4)}, Lng: {coords.lng?.toFixed(4)}</Text>
               )}
+              {formData.address && (
+                <Text style={styles.addressText}>{formData.address}</Text>
+              )}
 
               <View style={{ flex: 1 }} />
               <View style={styles.navButtons}>
@@ -924,6 +927,7 @@ const styles = StyleSheet.create({
   gpsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#1F2937', borderRadius: 16, padding: 16, marginTop: 8, borderWidth: 1, borderColor: '#374151' },
   gpsBtnText: { fontSize: 13, fontWeight: '700', color: '#13ec13' },
   coordsText: { fontSize: 11, color: '#9CA3AF', textAlign: 'center', marginTop: 8 },
+  addressText: { fontSize: 12, color: '#13ec13', textAlign: 'center', marginTop: 4, fontWeight: '700' },
   dayRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   dayBtn: { paddingHorizontal: 10, paddingVertical: 10, borderRadius: 10, backgroundColor: '#374151' },
   dayBtnActive: { backgroundColor: 'transparent', borderColor: '#13ec13' },
