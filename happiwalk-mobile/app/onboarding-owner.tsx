@@ -226,7 +226,7 @@ export default function OnboardingOwnerScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <View style={styles.header}>
             <View style={styles.logoCircle}>
               <Dog size={32} color="#059669" />
@@ -300,6 +300,7 @@ export default function OnboardingOwnerScreen() {
                 onChangeText={(text) => setPetData({ ...petData, name: text })}
                 placeholder="Ej. Bruno"
                 placeholderTextColor="#9CA3AF"
+                returnKeyType="next"
               />
             </View>
 
@@ -326,8 +327,10 @@ export default function OnboardingOwnerScreen() {
                   value={petData.age_years}
                   onChangeText={(text) => setPetData({ ...petData, age_years: text })}
                   placeholder="0"
-                  keyboardType="numeric"
+                  keyboardType="number-pad"
                   placeholderTextColor="#9CA3AF"
+                  returnKeyType="done"
+                  onSubmitEditing={() => Keyboard.dismiss()}
                 />
               </View>
             </View>
