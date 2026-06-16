@@ -6,7 +6,7 @@ import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { File } from 'expo-file-system';
 import { supabase } from '../lib/supabase';
-import { Crosshair, Camera, ShieldCheck, Check } from '../components/Icons';
+import { Crosshair, Camera, ShieldCheck, Check, Trash2 } from '../components/Icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const TOTAL_STEPS = 7;
@@ -812,7 +812,7 @@ export default function OnboardingWalkerScreen() {
                     <View key={slot.id} style={styles.slotItem}>
                       <Text style={styles.slotText}>{day}: {slot.start_time?.slice(0, 5)} - {slot.end_time?.slice(0, 5)}</Text>
                       <TouchableOpacity onPress={() => handleDeleteSlot(slot.id)}>
-                        <Text style={styles.slotDelete}>🗑️</Text>
+                        <Trash2 size={18} color="#EF4444" />
                       </TouchableOpacity>
                     </View>
                   );
