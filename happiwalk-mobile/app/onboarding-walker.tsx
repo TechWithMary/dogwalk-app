@@ -6,7 +6,7 @@ import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { File } from 'expo-file-system';
 import { supabase, STORAGE_URL } from '../lib/supabase';
-import { Crosshair } from '../components/Icons';
+import { Crosshair, Camera, ShieldCheck, Check } from '../components/Icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const TOTAL_STEPS = 7;
@@ -363,25 +363,27 @@ export default function OnboardingWalkerScreen() {
   );
 
   const DocumentCard = ({ label, value, onCamera, onGallery }: { label: string; value: string | null; onCamera: () => void; onGallery: () => void }) => (
-    <View style={styles.docCard}>
+    <View style={[styles.docCard, value && styles.docCardDone]}>
       <View style={styles.docHeader}>
         <Text style={styles.docLabel}>{label}</Text>
-        {value && <Text style={styles.docCheck}>✓</Text>}
+        {value && <Check size={16} color="#13ec13" />}
       </View>
       {value ? (
         <View style={styles.docPreview}>
           <Image source={{ uri: `${STORAGE_URL}walker_documents/${value}` }} style={styles.docImage} resizeMode="cover" />
           <TouchableOpacity style={styles.docRetake} onPress={onCamera}>
-            <Text style={styles.docRetakeText}>📷 Re-tomar</Text>
+            <Camera size={14} color="#13ec13" />
+            <Text style={styles.docRetakeText}>Re-tomar</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.docButtons}>
           <TouchableOpacity style={styles.docBtn} onPress={onCamera}>
-            <Text style={styles.docBtnText}>📷 Cámara</Text>
+            <Camera size={14} color="#FFFFFF" />
+            <Text style={styles.docBtnText}>Cámara</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.docBtn} onPress={onGallery}>
-            <Text style={styles.docBtnText}>🖼️ Galería</Text>
+            <Text style={styles.docBtnText}>Galería</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -411,7 +413,7 @@ export default function OnboardingWalkerScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-        contentContainerStyle={{ padding: 16, paddingBottom: keyboardHeight + 40 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: keyboardHeight + 120 }}
       >
 
         {step === 1 && (
@@ -498,7 +500,7 @@ export default function OnboardingWalkerScreen() {
         {step === 2 && (
           <View style={styles.stepContainer}>
             <View style={styles.stepHeader}>
-              <Text style={styles.stepEmoji}>🛡️</Text>
+              <ShieldCheck size={40} color="#13ec13" />
               <Text style={styles.stepTitle}>Verificación</Text>
               <Text style={styles.stepSubtitle}>Sube tus documentos</Text>
             </View>
@@ -796,17 +798,17 @@ const styles = StyleSheet.create({
   secondaryBtnText: { fontSize: 12, fontWeight: '900', color: '#FFFFFF', textTransform: 'uppercase', letterSpacing: 1 },
   btnDisabled: { opacity: 0.5 },
   navButtons: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  docCard: { backgroundColor: '#1F2937', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 2, borderColor: 'transparent' },
-  docHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
-  docLabel: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
-  docCheck: { fontSize: 16, color: '#13ec13' },
+  docCard: { backgroundColor: '#1F2937', borderRadius: 16, padding: 12, marginBottom: 8, borderWidth: 2, borderColor: '#374151' },
+  docCardDone: { borderColor: '#065f46' },
+  docHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  docLabel: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
   docPreview: { alignItems: 'center' },
-  docImage: { width: '100%', height: 160, borderRadius: 12, marginBottom: 8 },
-  docRetake: { padding: 8 },
-  docRetakeText: { fontSize: 12, fontWeight: '700', color: '#13ec13' },
-  docButtons: { flexDirection: 'row', gap: 12 },
-  docBtn: { flex: 1, backgroundColor: '#374151', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  docBtnText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
+  docImage: { width: '100%', height: 120, borderRadius: 12, marginBottom: 4 },
+  docRetake: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6 },
+  docRetakeText: { fontSize: 11, fontWeight: '700', color: '#13ec13' },
+  docButtons: { flexDirection: 'row', gap: 8 },
+  docBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#374151', borderRadius: 12, paddingVertical: 10 },
+  docBtnText: { fontSize: 11, fontWeight: '700', color: '#FFFFFF' },
   priceOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   priceBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: '#374151', borderWidth: 2, borderColor: 'transparent' },
   priceBtnActive: { backgroundColor: '#1F2937', borderColor: '#13ec13' },
