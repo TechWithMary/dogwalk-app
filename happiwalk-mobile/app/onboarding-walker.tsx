@@ -242,8 +242,8 @@ export default function OnboardingWalkerScreen() {
       if (!user) throw new Error('Usuario no encontrado');
 
       const nameParts = formData.name.trim().split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ') || '';
+      const firstName = nameParts[0] || '.';
+      const lastName = nameParts.slice(1).join(' ') || '.';
 
       const profileData: any = {
         user_id: user.id,
