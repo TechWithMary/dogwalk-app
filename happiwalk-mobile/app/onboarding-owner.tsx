@@ -360,10 +360,14 @@ export default function OnboardingOwnerScreen() {
               onPress={handleCompleteProfile}
               disabled={loading}
             >
-              <Text style={styles.submitBtnText}>
-                {loading ? '⏳' : 'Finalizar Registro'}
-              </Text>
-              {!loading && <Text style={styles.arrow}>→</Text>}
+              {loading ? (
+                <ActivityIndicator size="small" color="#000000" />
+              ) : (
+                <>
+                  <Text style={styles.submitBtnText}>Finalizar Registro</Text>
+                  <Text style={styles.arrow}>→</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
 
