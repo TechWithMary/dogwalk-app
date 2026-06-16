@@ -858,6 +858,7 @@ export default function OnboardingWalkerScreen() {
               <TouchableOpacity style={[styles.primaryBtn, { alignSelf: 'stretch' }]} onPress={handleComplete} disabled={loading}>
                 <Text style={styles.primaryBtnText}>{loading ? '...' : 'Ir a mi Panel'}</Text>
               </TouchableOpacity>
+              <Text style={styles.thanksText}>Gracias por unirte a Happiwalk 💚</Text>
             </View>
           </View>
         )}
@@ -1007,6 +1008,7 @@ const styles = StyleSheet.create({
   timelineDotActive: { backgroundColor: '#13ec13' },
   timelineText: { fontSize: 14, color: '#9CA3AF', fontWeight: '600' },
   timelineTextActive: { color: '#13ec13' },
+  thanksText: { fontSize: 12, color: '#6B7280', textAlign: 'center', marginTop: 20 },
   shortcutsRow: { flexDirection: 'row', gap: 6, marginTop: 8, marginBottom: 4, flexWrap: 'wrap' },
   shortcutBtn: { backgroundColor: '#374151', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#4B5563' },
   shortcutText: { color: '#9CA3AF', fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
