@@ -841,7 +841,7 @@ export default function OnboardingWalkerScreen() {
               <Text style={styles.successEmoji}>✅</Text>
               <Text style={styles.successTitle}>¡Todo Listo!</Text>
               <Text style={styles.successText}>Tu perfil entrará en revisión. Te notificaremos cuando puedas empezar a recibir paseos.</Text>
-              <TouchableOpacity style={styles.primaryBtn} onPress={handleComplete} disabled={loading}>
+              <TouchableOpacity style={[styles.primaryBtn, { alignSelf: 'stretch' }]} onPress={handleComplete} disabled={loading}>
                 <Text style={styles.primaryBtnText}>{loading ? '...' : 'Ir a mi Panel'}</Text>
               </TouchableOpacity>
             </View>
