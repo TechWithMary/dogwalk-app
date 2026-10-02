@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { getCachedSignedUrlSync } from '../lib/avatarCache';
+import { getCachedSignedUrl, getCachedSignedUrlSync } from '../lib/avatarCache';
 
 async function fetchSignedUrl(bucket, cleanPath) {
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -36,7 +36,6 @@ export function resolveSignedAvatarUrl(path) {
   }
   const match = path.match(/\/storage\/v1\/object\/(?:public|sign)\/avatars\/(.+?)(?:\?|$)/);
   const cleanPath = match ? match[1] : path.replace(/^avatars\//, '');
-  const { getCachedSignedUrl } = require('../lib/avatarCache');
   return getCachedSignedUrl('avatars', cleanPath, () => fetchSignedUrl('avatars', cleanPath));
 }
 
@@ -47,7 +46,6 @@ export function resolveSignedPetPhotoUrl(path) {
   }
   const match = path.match(/\/storage\/v1\/object\/(?:public|sign)\/pet-photos\/(.+?)(?:\?|$)/);
   const cleanPath = match ? match[1] : path.replace(/^pet-photos\//, '');
-  const { getCachedSignedUrl } = require('../lib/avatarCache');
   return getCachedSignedUrl('pet-photos', cleanPath, () => fetchSignedUrl('pet-photos', cleanPath));
 }
 
