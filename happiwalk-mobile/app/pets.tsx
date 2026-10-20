@@ -303,7 +303,7 @@ function PetForm({ pet, onSave, onCancel }: { pet: Pet | null; onSave: (data: an
       }
 
       const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
-      const fileName = `${user.id}_pet_${Date.now()}.${fileExt}`;
+      const fileName = `${user.id}/pet_${Date.now()}.${fileExt}`;
 
       const { error: uploadError, data } = await supabase.storage
         .from('pet-photos')

@@ -24,7 +24,7 @@ const Booking = ({ setView, navigate }) => {
   const preferredWalker = location.state?.preferredWalker || null;
   const onNavigate = navigate || setView;
 
-  const prices = { '1h': 30000, '2h': 55000, '3h': 75000 };
+  const hoursByDuration = { '1h': 1, '2h': 2, '3h': 3 };
   const additionalPetPrice = 10000;
 
   const [myPets, setMyPets] = useState([]);
@@ -37,16 +37,15 @@ const Booking = ({ setView, navigate }) => {
   const [loading, setLoading] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
   const [isReadyForPayment, setIsReadyForPayment] = useState(false);
-  
-  const basePrice = prices[duration];
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [paymentMethod, setPaymentMethod] = useState('wallet');
+  const [selectedWalker, setSelectedWalker] = useState(preferredWalker);
+  const [nearbyWalkers, setNearbyWalkers] = useState([]);
+
+  const hourlyRate = Math.round(Number(selectedWalker?.price || nearbyWalkers[0]?.price || 30000)) || 30000;
+  const basePrice = hourlyRate * (hoursByDuration[duration] || 1);
   const petCount = selectedPets.length;
   const totalPrice = basePrice + (petCount > 1 ? (petCount - 1) * additionalPetPrice : 0);
-  
-  
-  const [walletBalance, setWalletBalance] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState('wallet'); 
-  const [selectedWalker, setSelectedWalker] = useState(null);
-  const [nearbyWalkers, setNearbyWalkers] = useState([]);
   
   const [map, setMap] = useState(null);
   const [markerPos, setMarkerPos] = useState(centerMedellin);
@@ -109,14 +108,17 @@ const Booking = ({ setView, navigate }) => {
       
       if (walkerIds.length > 0) {
         const { data: verifiedWalkers } = await supabase
-          .from('walkers')
-          .select('id, user_id, name, img, rating, service_latitude, service_longitude, service_radius_km, user_profiles(first_name, last_name)')
-          .eq('overall_verification_status', 'approved')
+          .from('walker_directory')
+          .select('id, user_id, name, img, rating, price, service_latitude, service_longitude, service_radius_km, first_name, last_name, is_online')
           .eq('is_online', true)
           .in('id', walkerIds);
         
-        if (verifiedWalkers && markerPos) {
-          const nearbyWalkers = verifiedWalkers.filter(walker => {
+        const withProfiles = (verifiedWalkers || []).map((walker) => ({
+          ...walker,
+          user_profiles: { first_name: walker.first_name, last_name: walker.last_name },
+        }));
+        if (withProfiles.length && markerPos) {
+          const nearby = withProfiles.filter(walker => {
             if (!walker.service_latitude || !walker.service_longitude || !walker.service_radius_km) return false;
             return isWithinRadius(
               markerPos.lat, markerPos.lng,
@@ -124,11 +126,11 @@ const Booking = ({ setView, navigate }) => {
               walker.service_radius_km
             );
           });
-          setNearbyWalkers(nearbyWalkers);
-          setAvailableWalkers(nearbyWalkers.length);
+          setNearbyWalkers(nearby);
+          setAvailableWalkers(nearby.length);
         } else {
-          setNearbyWalkers(verifiedWalkers || []);
-          setAvailableWalkers(verifiedWalkers?.length || 0);
+          setNearbyWalkers(withProfiles);
+          setAvailableWalkers(withProfiles.length);
         }
       } else {
         setNearbyWalkers([]);
@@ -163,30 +165,6 @@ const Booking = ({ setView, navigate }) => {
     setIsReadyForPayment(validate());
   }, [address, bookingType, date, time, selectedPets]);
 
-  const createBooking = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('No hay usuario conectado');
-
-    const isScheduled = bookingType === 'schedule';
-    const finalDate = isScheduled ? date : getLocalDate();
-    const finalTime = isScheduled ? time : `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
-
-    const bookingData = {
-        user_id: user.id,
-        address: address,
-        duration: duration,
-        total_price: prices[duration],
-        status: preferredWalker ? 'accepted' : 'pending',
-        walker_id: preferredWalker ? preferredWalker.id : null,
-        scheduled_date: finalDate,
-        scheduled_time: finalTime,
-        lat: markerPos.lat,
-        lng: markerPos.lng
-    };
-
-    return bookingData;
-  };
-
   const handlePaymentWithWallet = async () => {
     setLoading(true);
     try {
@@ -203,107 +181,44 @@ const Booking = ({ setView, navigate }) => {
       const finalDate = isScheduled ? date : getLocalDate();
       const finalTime = isScheduled ? time : `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
 
-      const bookingData = {
-        user_id: user.id,
-        address: address,
-        duration: duration,
-        total_price: price,
-        status: selectedWalker ? 'accepted' : 'confirmed',
-        walker_id: selectedWalker ? selectedWalker.id : null,
-        scheduled_date: finalDate,
-        scheduled_time: finalTime,
-        lat: markerPos.lat,
-        lng: markerPos.lng,
-        pet_count: petCount,
-        pet_ids: selectedPets
-      };
-
-      const { error: bookingError } = await supabase.from('bookings').insert([bookingData]);
-      if (bookingError) throw bookingError;
-
-      const { data: newBooking } = await supabase
-        .from('bookings')
-        .select('id')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+      const { data: paid, error: payError } = await supabase.rpc('pay_booking_with_wallet', {
+        p_duration: duration,
+        p_pet_ids: selectedPets,
+        p_address: address,
+        p_lat: markerPos.lat,
+        p_lng: markerPos.lng,
+        p_scheduled_date: finalDate,
+        p_scheduled_time: finalTime,
+        p_walker_id: selectedWalker ? selectedWalker.id : null,
+      });
+      if (payError) throw payError;
 
       if (selectedWalker && selectedWalker.user_id) {
-        try {
-          await supabase.from('notifications').insert({
-            user_id: selectedWalker.user_id,
-            title: '🐕 Nueva Reserva',
-            body: `Tienes una nueva reserva programada para ${finalDate} a las ${finalTime}`,
-            link_to: '/walker-home'
-          });
-        } catch (e) {
-          console.error('Error notificacion:', e);
-        }
+        await supabase.from('notifications').insert({
+          user_id: selectedWalker.user_id,
+          title: 'Nueva reserva',
+          body: `Tienes una nueva reserva programada para ${finalDate} a las ${finalTime}`,
+          link_to: '/walker-home'
+        });
       } else if (nearbyWalkers.length > 0) {
         for (const walker of nearbyWalkers) {
           if (walker.user_id) {
-            try {
-              await supabase.from('notifications').insert({
-                user_id: walker.user_id,
-                title: '🐕 Nueva Reserva Disponible',
-                body: `Nueva reserva en tu zona para ${finalDate} a las ${finalTime}. ¡Accepta antes de que otro lo haga!`,
-                link_to: '/walker-home'
-              });
-            } catch (e) {
-              console.error('Error notificacion walker:', walker.user_id, e);
-            }
+            await supabase.from('notifications').insert({
+              user_id: walker.user_id,
+              title: 'Nueva reserva disponible',
+              body: `Nueva reserva en tu zona para ${finalDate} a las ${finalTime}.`,
+              link_to: '/walker-home'
+            });
           }
         }
       }
 
-      const newBalance = walletBalance - price;
-      const { error: updateError } = await supabase
-        .from('user_profiles')
-        .update({ balance: newBalance })
-        .eq('user_id', user.id);
-      
-      if (updateError) throw updateError;
-
-      await supabase.from('transactions').insert({
-        user_id: user.id,
-        booking_id: newBooking.id,
-        transaction_type: 'payment',
-        amount: price,
-        net_amount: price,
-        payment_method: 'wallet',
-        status: 'completed',
-        description: `Paseo ${duration} - Pago con saldo de billetera`
-      });
-
-      toast.success('¡Reserva confirmada! Saldo descontado: $' + price.toLocaleString());
+      toast.success('Reserva confirmada. Se descontaron $' + Number(paid.amount).toLocaleString('es-CO'));
       if (onNavigate) onNavigate('/home');
 
     } catch (error) {
       console.error(error);
       toast.error(error.message || 'Error al procesar el pago');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePaymentSuccess = async () => {
-    setLoading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No hay usuario conectado');
-
-      const bookingData = await createBooking();
-
-      const { error } = await supabase.from('bookings').insert([bookingData]);
-      if (error) throw error;
-
-      toast.success('¡Reserva y pago confirmados!');
-      if (onNavigate) onNavigate('/home');
-
-    } catch (error) {
-      console.error(error);
-      toast.error('Error al registrar la reserva');
     } finally {
       setLoading(false);
     }
@@ -489,12 +404,15 @@ const Booking = ({ setView, navigate }) => {
 
           <h3 className="font-black text-gray-900 text-sm mb-4 ml-1">Duración del Paseo</h3>
           <div className="grid grid-cols-3 gap-3">
-            {Object.entries(prices).map(([key, price]) => (
+            {Object.entries(hoursByDuration).map(([key, hours]) => {
+              const price = hourlyRate * hours;
+              return (
               <button key={key} onClick={() => setDuration(key)} className={`flex flex-col items-center p-4 rounded-2xl border-2 transition-all ${duration === key ? 'bg-emerald-50 border-emerald-500 text-emerald-800' : 'bg-white border-gray-100 text-gray-400'}`}>
                 <span className="font-black text-base">{key}</span>
                 <span className="text-[10px] font-bold opacity-80">${(price/1000)}k</span>
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -534,7 +452,7 @@ const Booking = ({ setView, navigate }) => {
           </button>
         )}
         
-        {paymentMethod === 'wallet' && walletBalance < prices[duration] && (
+        {paymentMethod === 'wallet' && walletBalance < totalPrice && (
           <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 mb-4 text-center">
             <p className="text-xs text-orange-600 font-bold">
               Saldo insuficiente (${walletBalance.toLocaleString()}). 
@@ -544,7 +462,7 @@ const Booking = ({ setView, navigate }) => {
         )}
         
         {isReadyForPayment ? (
-          paymentMethod === 'wallet' && walletBalance >= prices[duration] ? (
+          paymentMethod === 'wallet' && walletBalance >= totalPrice ? (
             <button 
               onClick={handlePaymentWithWallet}
               disabled={loading}
@@ -558,9 +476,16 @@ const Booking = ({ setView, navigate }) => {
             </button>
           ) : (
             <MercadoPagoButton
-              amount={prices[duration]}
-              title={`Paseo HappiWalk - ${selectedPets.length} Mascota(s)`}
-              onSuccess={handlePaymentSuccess}
+              booking={{
+                pet_ids: selectedPets,
+                duration,
+                address,
+                lat: markerPos.lat,
+                lng: markerPos.lng,
+                scheduled_date: bookingType === 'schedule' ? date : getLocalDate(),
+                scheduled_time: bookingType === 'schedule' ? time : `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`,
+                walker_id: selectedWalker?.id || null,
+              }}
             />
           )
         ) : (

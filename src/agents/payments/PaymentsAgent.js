@@ -58,90 +58,15 @@ class PaymentsAgent extends BaseAgent {
   // ============================================
   // REGISTRAR TRANSACCIÓN COMPLETA
   // ============================================
-  async recordTransaction(bookingId, userId, walkerId, totalPrice, paymentMethod = 'credit_card') {
-    if (!this.supabase) throw new Error("Supabase client not set");
-
-    try {
-      const earnings = this.calculateEarnings(totalPrice);
-
-      // 1. Registrar transacción
-      const { data: transaction, error: txError } = await this.supabase
-        .from('transactions')
-        .insert({
-          user_id: userId,
-          booking_id: bookingId,
-          transaction_type: 'payment',
-          amount: earnings.total,
-          gateway_fee: earnings.gatewayFee,
-          platform_fee: earnings.platformFee,
-          net_earning: earnings.netEarning,
-          payment_method: paymentMethod,
-          status: 'completed',
-          description: `Pago de paseo #${bookingId}`,
-          metadata: {
-            earnings_breakdown: earnings.breakdown
-          }
-        })
-        .select()
-        .single();
-
-      if (txError) throw txError;
-
-      // 2. Actualizar balance del walker
-      const { error: balanceError } = await this.supabase.rpc('increment_walker_balance', {
-        walker_user_id: walkerId,
-        amount: earnings.netEarning
-      });
-
-      if (balanceError) {
-        console.warn('No se pudo actualizar balance automáticamente:', balanceError);
-        // Fallback: actualizar manualmente
-        await this.updateWalkerBalance(walkerId, earnings.netEarning);
-      }
-
-      this.log(`✅ Transacción registrada: Walker recibe $${earnings.netEarning}`);
-      return { transaction, earnings };
-
-    } catch (error) {
-      this.handleError(error, 'recordTransaction');
-      throw error;
-    }
+  async recordTransaction() {
+    throw new Error('La liquidación se hace en el servidor (apply_booking_commission).');
   }
 
   // ============================================
   // ACTUALIZAR BALANCE DEL WALKER (Fallback)
   // ============================================
-  async updateWalkerBalance(walkerUserId, amount) {
-    if (!this.supabase) throw new Error("Supabase client not set");
-
-    try {
-      // Obtener balance actual
-      const { data: profile, error: getError } = await this.supabase
-        .from('user_profiles')
-        .select('balance')
-        .eq('user_id', walkerUserId)
-        .single();
-
-      if (getError) throw getError;
-
-      const currentBalance = parseFloat(profile.balance || 0);
-      const newBalance = currentBalance + parseFloat(amount);
-
-      // Actualizar
-      const { error: updateError } = await this.supabase
-        .from('user_profiles')
-        .update({ balance: newBalance })
-        .eq('user_id', walkerUserId);
-
-      if (updateError) throw updateError;
-
-      this.log(`Balance actualizado: $${currentBalance} → $${newBalance}`);
-      return newBalance;
-
-    } catch (error) {
-      this.handleError(error, 'updateWalkerBalance');
-      throw error;
-    }
+  async updateWalkerBalance() {
+    throw new Error('El saldo solo se actualiza en funciones del servidor.');
   }
 
   // ============================================
@@ -180,7 +105,7 @@ class PaymentsAgent extends BaseAgent {
       if (userError || !user) throw new Error("No se pudo obtener el usuario. Inicia sesión de nuevo.");
 
       const { data, error } = await this.supabase.functions.invoke('create-payment-intent', {
-        body: { amount, title, email: user.email },
+        body: { kind: 'topup', amount: Math.round(Number(amount)) },
       });
 
       if (error) throw error;

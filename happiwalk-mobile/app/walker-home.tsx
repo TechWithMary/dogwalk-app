@@ -286,8 +286,6 @@ export default function WalkerHomeScreen() {
 
       const location = await Location.getCurrentPositionAsync({});
       const { latitude, longitude, accuracy } = location.coords;
-      console.log('[GPS] Enviando:', latitude.toFixed(6), longitude.toFixed(6), '±' + (accuracy?.toFixed(0) || '?') + 'm');
-
       const { error: insertError } = await supabase.from('locations').insert({
         booking_id: bookingId,
         walker_id: walkerIdRef.current,
@@ -320,7 +318,6 @@ export default function WalkerHomeScreen() {
     if (locationIntervalRef.current) return;
 
     locationErrorShownRef.current = false;
-    console.log('[GPS] Tracking iniciado para booking', bookingId, 'en', Platform.OS);
     if (Platform.OS === 'web') {
       console.warn('[GPS] ⚠️ Estás en navegador web. El GPS se detendrá si la pestaña pierde foco. Para mejor precisión, usa la app móvil.');
     }
@@ -382,10 +379,10 @@ export default function WalkerHomeScreen() {
           .eq('booking_id', bookingId)
           .maybeSingle();
 
-        if (!existingConv) {
+        if (!existingConv && userId) {
           await supabase.from('conversations').insert({
             participant_one_id: booking.user_id,
-            participant_two_id: walkerIdRef.current,
+            participant_two_id: userId,
             booking_id: bookingId,
           });
         }
@@ -491,64 +488,14 @@ export default function WalkerHomeScreen() {
           onPress: async () => {
             setProcessingId(bookingId);
             try {
-              const { data: booking } = await supabase
-                .from('bookings')
-                .select('user_id, total_price, walkers(user_id)')
-                .eq('id', bookingId)
-                .single();
-
-              const { error } = await supabase
-                .from('bookings')
-                .update({ status: 'completed', walk_end_time: new Date().toISOString() })
-                .eq('id', bookingId)
-                .eq('status', 'in_progress');
-
+              const { data: result, error } = await supabase.rpc('complete_booking', {
+                p_booking_id: bookingId,
+              });
               if (error) throw error;
 
-              const walkerUserId = (booking as any)?.walkers?.user_id;
-              const price = booking?.total_price || 0;
-              const platformFee = price * 0.2;
-              const gatewayFee = price * 0.04;
-              const netEarning = price - platformFee - gatewayFee; // 76% of total
-
-              if (walkerUserId) {
-                const { data: profile } = await supabase
-                  .from('user_profiles')
-                  .select('balance')
-                  .eq('user_id', walkerUserId)
-                  .maybeSingle();
-
-                const newBalance = (profile?.balance || 0) + netEarning;
-                await supabase
-                  .from('user_profiles')
-                  .update({ balance: newBalance })
-                  .eq('user_id', walkerUserId);
-
-                await supabase.from('transactions').insert({
-                  user_id: walkerUserId,
-                  booking_id: bookingId,
-                  transaction_type: 'payment',
-                  amount: price,
-                  net_earning: netEarning,
-                  platform_fee: platformFee,
-                  gateway_fee: gatewayFee,
-                  payment_method: 'wallet',
-                  status: 'completed',
-                  description: `Paseo completado`,
-                });
-              }
-
-              if (booking?.user_id) {
-                await supabase.from('notifications').insert({
-                  user_id: booking.user_id,
-                  title: '✅ Paseo Completado',
-                  body: 'El paseo terminó. Tu mascota está de vuelta.',
-                  link_to: '/home',
-                });
-              }
-
               stopGPSTracking();
-              Alert.alert('¡Gracias!', 'Paseo completado +' + formatMoney(netEarning));
+              const earned = Number(result?.walker_amount || 0);
+              Alert.alert('¡Gracias!', earned ? 'Paseo completado +' + formatMoney(earned) : 'Paseo completado');
               fetchWalkerData();
             } catch (error: any) {
               Alert.alert('Error', error.message);
@@ -573,72 +520,8 @@ export default function WalkerHomeScreen() {
           onPress: async () => {
             setCancellingId(bookingId);
             try {
-              const { data: booking } = await supabase
-                .from('bookings')
-                .select('user_id, total_price')
-                .eq('id', bookingId)
-                .single();
-
-              if (!booking) {
-                Alert.alert('Error', 'No se encontró la reserva');
-                return;
-              }
-
-              const { data: transaction } = await supabase
-                .from('transactions')
-                .select('*')
-                .eq('booking_id', bookingId)
-                .maybeSingle();
-
-              if (transaction) {
-                if (transaction.payment_method === 'wallet' && transaction.status === 'completed') {
-                  const { data: profile } = await supabase
-                    .from('user_profiles')
-                    .select('balance')
-                    .eq('user_id', booking.user_id)
-                    .single();
-
-                  await supabase
-                    .from('user_profiles')
-                    .update({ balance: (profile?.balance || 0) + transaction.amount })
-                    .eq('user_id', booking.user_id);
-
-                  await supabase.from('transactions').insert({
-                    user_id: booking.user_id,
-                    booking_id: bookingId,
-                    transaction_type: 'refund',
-                    amount: transaction.amount,
-                    payment_method: 'wallet',
-                    status: 'completed',
-                    description: 'Reembolso automático por cancelación del paseador',
-                  });
-                } else if (transaction.payment_method === 'mercadopago') {
-                  await supabase.from('transactions').insert({
-                    user_id: booking.user_id,
-                    booking_id: bookingId,
-                    transaction_type: 'refund',
-                    amount: transaction.amount,
-                    payment_method: 'mercadopago',
-                    status: 'pending',
-                    description: 'Reembolso pendiente - requiere procesamiento manual en MercadoPago',
-                  });
-                }
-              }
-
-              if (booking.user_id) {
-                await supabase.from('notifications').insert({
-                  user_id: booking.user_id,
-                  title: '❌ Paseo Cancelado',
-                  body: 'El paseador ha cancelado el paseo. Se ha procesado el reembolso correspondiente.',
-                  link_to: '/home',
-                });
-              }
-
-              await supabase
-                .from('bookings')
-                .update({ status: 'cancelled' })
-                .eq('id', bookingId);
-
+              const { error } = await supabase.rpc('cancel_booking', { p_booking_id: bookingId });
+              if (error) throw error;
               Alert.alert('Cancelado', 'El paseo ha sido cancelado y se notificó al dueño.');
               fetchWalkerData();
             } catch (error: any) {

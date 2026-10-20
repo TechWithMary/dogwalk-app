@@ -200,12 +200,15 @@ const checkAvailability = async () => {
       const walkerIds = availability?.map(a => a.walker_id) || [];
 
       if (walkerIds.length > 0) {
-        const { data: verifiedWalkers } = await supabase
-          .from('walkers')
-          .select('id, user_id, name, img, rating, price, service_latitude, service_longitude, service_radius_km, user_profiles(first_name, last_name)')
-          .eq('overall_verification_status', 'approved')
+        const { data: directoryWalkers } = await supabase
+          .from('walker_directory')
+          .select('id, user_id, name, img, rating, price, service_latitude, service_longitude, service_radius_km, first_name, last_name, is_online')
           .eq('is_online', true)
           .in('id', walkerIds);
+        const verifiedWalkers = (directoryWalkers || []).map((walker) => ({
+          ...walker,
+          user_profiles: { first_name: walker.first_name, last_name: walker.last_name },
+        }));
 
         
         
@@ -334,60 +337,49 @@ const checkAvailability = async () => {
 
     setLoading(true);
     try {
-      const bookingData = createBooking('confirmed');
+      const isScheduled = bookingType === 'schedule';
+      const finalDate = isScheduled ? date.toISOString().split('T')[0] : getLocalDate();
+      const finalTime = isScheduled ? time.toTimeString().slice(0, 5) : `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
 
-      const { data: newBooking, error } = await supabase
-        .from('bookings')
-        .insert(bookingData)
-        .select()
-        .single();
-
+      const { data: paid, error } = await supabase.rpc('pay_booking_with_wallet', {
+        p_duration: duration,
+        p_pet_ids: selectedPets,
+        p_address: address,
+        p_lat: markerPosition.latitude,
+        p_lng: markerPosition.longitude,
+        p_scheduled_date: finalDate,
+        p_scheduled_time: finalTime,
+        p_walker_id: selectedWalker?.id || null,
+      });
       if (error) throw error;
 
       if (selectedWalker?.user_id) {
         await supabase.from('notifications').insert({
           user_id: selectedWalker.user_id,
-          title: '🐕 Nueva Reserva',
-          body: `Nueva reserva programada para ${bookingData.scheduled_date} a las ${bookingData.scheduled_time}`,
+          title: 'Nueva reserva',
+          body: `Nueva reserva programada para ${finalDate} a las ${finalTime}`,
           link_to: '/walker-home',
         });
-
         await supabase.from('conversations').insert({
           participant_one_id: user.id,
           participant_two_id: selectedWalker.user_id,
-          booking_id: newBooking.id,
+          booking_id: paid.booking_id,
         });
       } else if (nearbyWalkers.length > 0) {
         for (const walker of nearbyWalkers) {
           if (walker.user_id) {
             await supabase.from('notifications').insert({
               user_id: walker.user_id,
-              title: '🐕 Nueva Reserva Disponible',
-              body: `Nueva reserva en tu zona para ${bookingData.scheduled_date} a las ${bookingData.scheduled_time}. ¡Acepta antes de que otro lo haga!`,
+              title: 'Nueva reserva disponible',
+              body: `Nueva reserva en tu zona para ${finalDate} a las ${finalTime}.`,
               link_to: '/walker-home',
             });
           }
         }
       }
 
-      await supabase
-        .from('user_profiles')
-        .update({ balance: walletBalance - totalPrice })
-        .eq('user_id', user.id);
-
-      await supabase.from('transactions').insert({
-        user_id: user.id,
-        booking_id: newBooking.id,
-        transaction_type: 'payment',
-        amount: Number(totalPrice),
-        net_amount: Number(totalPrice),
-        payment_method: 'wallet',
-        status: 'completed',
-        description: `Paseo ${duration} - Pago con saldo de billetera`,
-      });
-
       try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
-      Alert.alert('Éxito', `¡Reserva confirmada! Saldo descontado: $${totalPrice.toLocaleString()}`, [
+      Alert.alert('Éxito', `Reserva confirmada. Se descontaron $${Number(paid.amount).toLocaleString('es-CO')}.`, [
         { text: 'OK', onPress: () => router.replace('/(tabs)') },
       ]);
     } catch (error: any) {
@@ -423,15 +415,11 @@ const checkAvailability = async () => {
         lng: markerPosition.longitude,
         scheduled_date: scheduledDate,
         scheduled_time: scheduledTime,
-        total_price: totalPrice,
+        walker_id: selectedWalker?.id || null,
         booking_type: bookingType
       };
 
-      await createPaymentWithBooking(
-        totalPrice,
-        `Paseo HappiWalk - ${selectedPets.length} Mascota(s)`,
-        bookingData
-      );
+      await createPaymentWithBooking(bookingData);
 
       Alert.alert(
         'Pago en proceso',

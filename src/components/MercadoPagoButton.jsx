@@ -1,36 +1,36 @@
 import React, { useState } from 'react';
-import { agentRegistry } from '../agents/AgentRegistry';
 import { Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { supabase } from '../supabaseClient';
 
-const MercadoPagoButton = ({ amount, title, onSuccess }) => {
+const MercadoPagoButton = ({ amount, booking }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   const handlePayment = async () => {
     if (isLoading) return;
     setIsLoading(true);
-    
-    try {
-      const paymentsAgent = agentRegistry.get('PaymentsAgent');
-      if (!paymentsAgent) throw new Error("PaymentsAgent no disponible");
-      
-    
-      const preferenceId = await paymentsAgent.createPaymentPreference(amount, title);
-      
-    
-      window.location.href = `https://www.mercadopago.com.co/checkout/v1/redirect?pref_id=${preferenceId}`;
 
+    try {
+      const body = booking
+        ? { kind: 'booking', booking }
+        : { kind: 'topup', amount: Math.round(Number(amount)) };
+
+      const { data, error } = await supabase.functions.invoke('create-payment-intent', { body });
+      if (error) throw error;
+      if (!data?.preferenceId) throw new Error('No se pudo iniciar el pago');
+
+      window.location.href = `https://www.mercadopago.com.co/checkout/v1/redirect?pref_id=${data.preferenceId}`;
     } catch (error) {
-      console.error("Error en el flujo de pago:", error);
-      toast.error("Error al iniciar el pago. Revisa tus credenciales.");
+      console.error('No se pudo iniciar el pago');
+      toast.error(error.message || 'Error al iniciar el pago.');
       setIsLoading(false);
     }
   };
 
   return (
-    <button 
-      onClick={handlePayment} 
-      disabled={isLoading} 
+    <button
+      onClick={handlePayment}
+      disabled={isLoading}
       className="w-full h-16 bg-[#13ec13] text-black rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all"
     >
       {isLoading ? (

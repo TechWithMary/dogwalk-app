@@ -122,7 +122,7 @@ export default function DocumentUploader({
       }
 
       const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
-      const fileName = `${folder}/${user.id}_${Date.now()}.${fileExt}`;
+      const fileName = `${user.id}/${folder}_${Date.now()}.${fileExt}`;
 
       const { error: uploadError, data } = await supabase.storage
         .from(bucket)

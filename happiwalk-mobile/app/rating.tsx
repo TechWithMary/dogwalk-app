@@ -107,9 +107,6 @@ export default function RatingScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No hay usuario');
 
-      console.log('[Rating] Booking:', JSON.stringify(booking, null, 2));
-      console.log('[Rating] bookingId param:', bookingId, typeof bookingId);
-
       if (!bookingId) {
         throw new Error('bookingId no proporcionado');
       }
@@ -117,13 +114,12 @@ export default function RatingScreen() {
       let revieweeId = '';
 
       if (booking?.walker_id) {
-        const { data: walkerData, error: walkerError } = await supabase
+        const { data: walkerData } = await supabase
           .from('walkers')
           .select('user_id')
           .eq('id', booking.walker_id)
           .maybeSingle();
 
-        console.log('[Rating] Walker data:', walkerData, 'error:', walkerError);
         revieweeId = walkerData?.user_id || '';
       }
 
@@ -133,9 +129,7 @@ export default function RatingScreen() {
 
       const isUuid = String(bookingId).includes('-');
       const queryBookingId = isUuid ? bookingId : Number(bookingId);
-      console.log('[Rating] Using bookingId as:', isUuid ? 'UUID string' : 'bigint', queryBookingId);
-
-      const { data: reviewData, error: reviewError } = await supabase
+      const { error: reviewError } = await supabase
         .from('booking_reviews')
         .insert([{
           booking_id: queryBookingId,
@@ -147,20 +141,15 @@ export default function RatingScreen() {
         }])
         .select();
 
-      console.log('[Rating] Review insert result:', reviewData, 'error:', reviewError);
-
       if (reviewError) {
         throw new Error('Error insertando reseña: ' + reviewError.message);
       }
 
-      console.log('[Rating] Updating booking rating...');
-      const { data: updateData, error: updateError } = await supabase
+      const { error: updateError } = await supabase
         .from('bookings')
         .update({ rating: rating, review_text: comment.trim() || null })
         .eq('id', queryBookingId)
         .select();
-
-      console.log('[Rating] Booking update result:', updateData, 'error:', updateError);
 
       if (updateError) {
         throw new Error('No se pudo guardar la calificación: ' + updateError.message);
@@ -169,14 +158,10 @@ export default function RatingScreen() {
       // 5. Process tip if user selected one
       if (tipAmount > 0) {
         setTipping(true);
-        console.log('[Rating] Processing tip of', tipAmount, 'for booking', queryBookingId);
-
-        const { data: tipResult, error: tipError } = await supabase.rpc('process_tip', {
+        const { error: tipError } = await supabase.rpc('process_tip', {
           p_booking_id: queryBookingId,
           p_tip_amount: tipAmount,
         });
-
-        console.log('[Rating] Tip result:', tipResult, 'error:', tipError);
 
         if (tipError) {
           // Tip failed - rating was already saved. Warn but don't block.

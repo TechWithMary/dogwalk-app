@@ -63,7 +63,7 @@ export const getSignedAvatarUrl = (path: string | null): Promise<string | null> 
 };
 
 export const getAvatarUploadPath = (userId: string, fileExt: string): string => {
-  return `${userId}-${Date.now()}.${fileExt}`;
+  return `${userId}/${Date.now()}.${fileExt}`;
 };
 
 export const getSignedPetPhotoUrl = (path: string | null): Promise<string | null> => {

@@ -48,31 +48,41 @@ const App = () => {
   const [userRole, setUserRole] = useState('owner');
   const [userName, setUserName] = useState('Usuario');
   const [agentsReady, setAgentsReady] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: walkerData } = await supabase
-          .from('walkers')
-          .select('name')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        
-        if (walkerData) {
-          setUserRole('walker');
-          setUserName(walkerData.name || 'Paseador');
-        } else {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
           const { data: profile } = await supabase
             .from('user_profiles')
-            .select('role, first_name, last_name')
+            .select('role, first_name')
             .eq('user_id', user.id)
-            .single();
-          
-          setUserRole(profile?.role || 'owner');
-          setUserName(profile?.first_name || 'Usuario');
+            .maybeSingle();
+
+          if (profile?.role === 'admin') {
+            setUserRole('admin');
+            setUserName(profile.first_name || 'Admin');
+          } else {
+            const { data: walkerData } = await supabase
+              .from('walkers')
+              .select('name')
+              .eq('user_id', user.id)
+              .maybeSingle();
+
+            if (walkerData) {
+              setUserRole('walker');
+              setUserName(walkerData.name || 'Paseador');
+            } else {
+              setUserRole(profile?.role || 'owner');
+              setUserName(profile?.first_name || 'Usuario');
+            }
+          }
         }
+      } finally {
+        setAuthReady(true);
       }
     };
     checkUser();
@@ -233,9 +243,9 @@ const App = () => {
           <Route path="/booking-details" element={<BookingDetails />} />
           <Route path="/help-center" element={<HelpCenter />} />
           
-          {/* Rutas Admin */}
-          <Route path="/admin/verifications" element={<AdminVerifications />} />
-          <Route path="/admin/payouts" element={<AdminPayouts />} />
+          {/* Rutas Admin: sesión + role en user_profiles */}
+          <Route path="/admin/verifications" element={authReady && isAdmin ? <AdminVerifications /> : authReady ? <Navigate to="/login" replace /> : <LoadingFallback />} />
+          <Route path="/admin/payouts" element={authReady && isAdmin ? <AdminPayouts /> : authReady ? <Navigate to="/login" replace /> : <LoadingFallback />} />
           
           <Route path="*" element={<Navigate to={isAdmin ? "/admin/verifications" : "/home"} replace />} />
         </Routes>

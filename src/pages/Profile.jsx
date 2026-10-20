@@ -89,8 +89,8 @@ const Profile = ({ onLogout, navigate: propNavigate }) => {
 
       const { data: { user } } = await supabase.auth.getUser();
       const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}-${Math.random()}.${fileExt}`;
-      const filePath = `avatars/${fileName}`;
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')

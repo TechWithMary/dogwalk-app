@@ -195,18 +195,6 @@ export default function AdminPayoutsScreen() {
                 throw new Error(friendlyMsg);
               }
 
-              // Notify the walker
-              if (result?.walker_user_id) {
-                await supabase.from('notifications').insert({
-                  user_id: result.walker_user_id,
-                  title: newStatus === 'completed' ? '✅ Retiro Aprobado' : '❌ Retiro Rechazado',
-                  body: newStatus === 'completed'
-                    ? `Tu retiro de ${formatMoney(result.amount)} fue procesado y transferido.`
-                    : 'Tu solicitud de retiro fue rechazada. Contacta soporte.',
-                  link_to: '/walker-balance',
-                });
-              }
-
               Alert.alert(
                 'Éxito',
                 newStatus === 'completed'
