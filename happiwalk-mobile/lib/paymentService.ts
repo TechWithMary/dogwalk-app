@@ -14,14 +14,14 @@ export interface BookingData {
   lng: number;
   scheduled_date?: string;
   scheduled_time?: string;
-  total_price: number;
+  walker_id?: string | null;
+  total_price?: number;
   booking_type: 'schedule' | 'now';
 }
 
 export async function savePendingBooking(bookingData: BookingData): Promise<void> {
   try {
     await AsyncStorage.setItem(PENDING_BOOKING_KEY, JSON.stringify(bookingData));
-    console.log('Booking pendiente guardado:', bookingData);
   } catch (error) {
     console.error('Error guardando booking pendiente:', error);
   }
@@ -40,7 +40,6 @@ export async function getPendingBooking(): Promise<BookingData | null> {
 export async function clearPendingBooking(): Promise<void> {
   try {
     await AsyncStorage.removeItem(PENDING_BOOKING_KEY);
-    console.log('Booking pendiente limpiado');
   } catch (error) {
     console.error('Error limpiando booking pendiente:', error);
   }
@@ -48,40 +47,21 @@ export async function clearPendingBooking(): Promise<void> {
 
 export async function createPaymentPreference(
   amount: number,
-  title: string,
-  bookingData?: BookingData
+  _title?: string
 ): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
-  
   if (!user) {
     throw new Error('No hay usuario conectado');
   }
 
   const { data, error } = await supabase.functions.invoke('create-payment-intent', {
-    body: { 
-      amount, 
-      title, 
-      email: user.email,
-      bookingData: bookingData ? {
-        user_id: user.id,
-        pet_ids: bookingData.pet_ids,
-        duration: bookingData.duration,
-        address: bookingData.address,
-        lat: bookingData.lat,
-        lng: bookingData.lng,
-        scheduled_date: bookingData.scheduled_date,
-        scheduled_time: bookingData.scheduled_time,
-        total_price: bookingData.total_price,
-        booking_type: bookingData.booking_type
-      } : undefined
-    }
+    body: { kind: 'topup', amount: Math.round(Number(amount)) },
   });
-  
-  if (error) {
-    console.error('Error creating payment preference:', error);
+
+  if (error || !data?.preferenceId) {
     throw new Error('No se pudo iniciar el pago');
   }
-  
+
   return data.preferenceId;
 }
 
@@ -92,10 +72,8 @@ export async function openMercadoPagoCheckout(preferenceId: string): Promise<voi
     // Usar expo-web-browser para una experiencia más fluida dentro de la app
     const result = await WebBrowser.openAuthSessionAsync(url, 'happiwalk://payment');
     
-    if (result.type === 'success') {
-      console.log('Pago completado exitosamente');
-    } else if (result.type === 'cancel') {
-      console.log('Usuario canceló el pago');
+    if (result.type !== 'success' && result.type !== 'cancel') {
+      throw new Error('No se pudo abrir el pago');
     }
   } catch (error) {
     console.error('Error opening Mercado Pago:', error);
@@ -109,21 +87,33 @@ export async function openMercadoPagoCheckout(preferenceId: string): Promise<voi
 }
 
 export async function createPaymentWithBooking(
-  amount: number,
-  title: string,
   bookingData: BookingData
 ): Promise<void> {
-  // Limpiar cualquier booking pendiente anterior antes de guardar uno nuevo
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay usuario conectado');
+
   await clearPendingBooking();
-  console.log('Booking pendiente anterior limpiado');
-  
-  // Guardar datos del booking antes de abrir Mercado Pago
   await savePendingBooking(bookingData);
-  console.log('Datos del nuevo booking guardados, iniciando pago...');
-  
-  // 1. Obtener preferenceId con los datos del booking
-  const preferenceId = await createPaymentPreference(amount, title, bookingData);
-  
-  // 2. Abrir Mercado Pago checkout
-  await openMercadoPagoCheckout(preferenceId);
+
+  const { data, error } = await supabase.functions.invoke('create-payment-intent', {
+    body: {
+      kind: 'booking',
+      booking: {
+        pet_ids: bookingData.pet_ids,
+        duration: bookingData.duration,
+        address: bookingData.address,
+        lat: bookingData.lat,
+        lng: bookingData.lng,
+        scheduled_date: bookingData.scheduled_date,
+        scheduled_time: bookingData.scheduled_time,
+        walker_id: bookingData.walker_id || null,
+      },
+    },
+  });
+
+  if (error || !data?.preferenceId) {
+    throw new Error('No se pudo iniciar el pago');
+  }
+
+  await openMercadoPagoCheckout(data.preferenceId);
 }

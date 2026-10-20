@@ -168,68 +168,8 @@ const getStatusInfo = (status: string): { label: string; Icon: any; color: strin
           style: 'destructive',
           onPress: async () => {
             try {
-              const { data: transaction } = await supabase
-                .from('transactions')
-                .select('*')
-                .eq('booking_id', bookingId)
-                .maybeSingle();
-
-              if (transaction) {
-                if (transaction.payment_method === 'wallet' && transaction.status === 'completed') {
-                  const { data: profile } = await supabase
-                    .from('user_profiles')
-                    .select('balance')
-                    .eq('user_id', user.id)
-                    .single();
-
-                  await supabase
-                    .from('user_profiles')
-                    .update({ balance: (profile?.balance || 0) + transaction.amount })
-                    .eq('user_id', user.id);
-
-                  await supabase.from('transactions').insert({
-                    user_id: user.id,
-                    booking_id: bookingId,
-                    transaction_type: 'refund',
-                    amount: transaction.amount,
-                    payment_method: 'wallet',
-                    status: 'completed',
-                    description: 'Reembolso automático por cancelación de reserva',
-                  });
-                } else if (transaction.payment_method === 'mercadopago') {
-                  await supabase.from('transactions').insert({
-                    user_id: user.id,
-                    booking_id: bookingId,
-                    transaction_type: 'refund',
-                    amount: transaction.amount,
-                    payment_method: 'mercadopago',
-                    status: 'pending',
-                    description: 'Reembolso pendiente - requiere procesamiento manual en MercadoPago',
-                  });
-                }
-              }
-
-              const { data: bookingData } = await supabase
-                .from('bookings')
-                .select('walker_id, walkers(user_id, name)')
-                .eq('id', bookingId)
-                .single();
-
-              const walkerUserId = (bookingData as any)?.walkers?.user_id;
-              if (walkerUserId) {
-                await supabase.from('notifications').insert({
-                  user_id: walkerUserId,
-                  title: '❌ Reserva Cancelada',
-                  body: `El dueño ha cancelado la reserva.`,
-                  link_to: '/walker-home',
-                });
-              }
-
-              await supabase
-                .from('bookings')
-                .update({ status: 'cancelled' })
-                .eq('id', bookingId);
-
+              const { error } = await supabase.rpc('cancel_booking', { p_booking_id: bookingId });
+              if (error) throw error;
               router.back();
             } catch (error) {
               console.error('Cancel error:', error);

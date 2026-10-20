@@ -93,9 +93,8 @@ const { isLoaded } = useJsApiLoader({
         
         if (userLat && userLng) {
           const { data: allWalkers } = await supabase
-            .from('walkers')
-            .select(`*, user_profiles (*)`)
-            .eq('overall_verification_status', 'approved')
+            .from('walker_directory')
+            .select('*')
             .eq('is_online', true);
 
           if (allWalkers) {
@@ -110,15 +109,21 @@ const { isLoaded } = useJsApiLoader({
           }
         } else {
           const { data: defaultWalkers } = await supabase
-            .from('walkers')
-            .select(`*, user_profiles (*)`)
-            .eq('overall_verification_status', 'approved')
+            .from('walker_directory')
+            .select('*')
             .eq('is_online', true)
             .limit(3);
           walkersRes = defaultWalkers || [];
         }
         
-        setWalkers(walkersRes);
+        setWalkers(walkersRes.map((walker) => ({
+          ...walker,
+          user_profiles: {
+            first_name: walker.first_name,
+            last_name: walker.last_name,
+            profile_photo_url: walker.profile_photo_url,
+          },
+        })));
 
         const { count: notificationsCount } = await supabase
           .from('notifications')
@@ -153,7 +158,6 @@ const { isLoaded } = useJsApiLoader({
           .maybeSingle();
 
         if (pendingReview && !ratedBookingIds.has(pendingReview.id)) {
-          console.log('Pending review booking:', pendingReview);
           setBookingToRate(pendingReview);
           setShowRatingModal(true);
         } else {

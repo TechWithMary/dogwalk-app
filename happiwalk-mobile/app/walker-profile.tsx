@@ -50,13 +50,24 @@ export default function WalkerProfileScreen() {
 
   const fetchWalker = async () => {
     try {
-      const { data: walkerData, error: walkerError } = await supabase
-        .from('walkers')
-        .select('*, user_profiles(*)')
+      const { data: row, error: walkerError } = await supabase
+        .from('walker_directory')
+        .select('*')
         .eq('id', walkerId)
-        .single();
+        .maybeSingle();
+      const walkerData = row
+        ? {
+            ...row,
+            user_profiles: {
+              first_name: row.first_name,
+              last_name: row.last_name,
+              profile_photo_url: row.profile_photo_url,
+              bio: row.bio,
+            },
+          }
+        : null;
 
-      if (walkerError) throw walkerError;
+      if (walkerError || !walkerData) throw walkerError || new Error('Paseador no encontrado');
       setWalker(walkerData);
 
       const { data: reviewsData } = await supabase

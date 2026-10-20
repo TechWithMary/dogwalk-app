@@ -85,10 +85,7 @@ export default function LiveWalkScreen() {
 
   useEffect(() => {
     if (!bookingId) return;
-    console.log('[LiveWalk] Starting with bookingId:', bookingId);
-
-    const processLocation = (lat: number, lng: number, source: string) => {
-      console.log('[LiveWalk] Location from', source, ':', lat, lng);
+    const processLocation = (lat: number, lng: number, _source: string) => {
       setWalkerLocation({ latitude: lat, longitude: lng });
       setLastUpdate(new Date());
       setRoute(prev => {
@@ -142,7 +139,6 @@ export default function LiveWalkScreen() {
         if (acc !== null && acc > ACCURACY_THRESHOLD) return;
         processLocation(lat, lng, 'poll');
       } else {
-        console.log('[LiveWalk] Poll: no data found');
       }
     }, 5000);
 
@@ -191,7 +187,6 @@ export default function LiveWalkScreen() {
 
   const fetchBooking = async () => {
     try {
-      console.log('[LiveWalk] Fetching booking:', bookingId);
       const { data, error } = await supabase
         .from('bookings')
         .select('*, walkers(*)')
@@ -228,12 +223,9 @@ export default function LiveWalkScreen() {
         .order('timestamp', { ascending: true });
 
       if (locationData && locationData.length > 0) {
-        console.log('[LiveWalk] Found', locationData.length, 'existing locations');
         const filtered = locationData.filter(
           loc => loc.accuracy == null || Number(loc.accuracy) <= ACCURACY_THRESHOLD,
         );
-        console.log('[LiveWalk] After accuracy filter:', filtered.length, 'locations');
-
         if (filtered.length > 0) {
           const points = filtered.map(loc => ({
             latitude: Number(loc.latitude),
@@ -257,7 +249,6 @@ export default function LiveWalkScreen() {
           }
         }
       } else {
-        console.log('[LiveWalk] No existing locations found');
       }
     } catch (error) {
       console.error('Error:', error);

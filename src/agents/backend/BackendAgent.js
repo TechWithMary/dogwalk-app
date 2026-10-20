@@ -75,7 +75,7 @@ class BackendAgent extends BaseAgent {
   async createPaymentPreference(amount, title) {
     try {
       const { data, error } = await this.supabase.functions.invoke('create-payment-intent', {
-        body: { amount, title },
+        body: { kind: 'topup', amount: Math.round(Number(amount)) },
       });
 
       if (error) throw error;

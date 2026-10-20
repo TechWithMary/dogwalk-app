@@ -43,10 +43,11 @@ const AdminVerifications = () => {
 
     setProcessingId(walkerId);
     try {
-      const { error } = await supabase
-        .from('walkers')
-        .update({ overall_verification_status: status })
-        .eq('id', walkerId);
+      const { error } = await supabase.rpc('admin_verify_walker', {
+        p_walker_id: walkerId,
+        p_status: status,
+        p_admin_note: null,
+      });
 
       if (error) throw error;
 

@@ -249,7 +249,7 @@ export default function OnboardingWalkerScreen() {
       const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
       const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', heic: 'image/jpeg', webp: 'image/webp' };
       const contentType = mimeMap[fileExt] || 'image/jpeg';
-      const fileName = `${user.id}_${field}_${Date.now()}.${fileExt}`;
+      const fileName = `${user.id}/${field}_${Date.now()}.${fileExt}`;
 
       const { error: uploadError, data } = await supabase.storage
         .from('walker_documents')

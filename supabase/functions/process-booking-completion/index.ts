@@ -1,8 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'npm:@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
-
-const COMMISSION_RATE = 0.20; // 20% commission
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -10,51 +8,46 @@ serve(async (req) => {
   }
 
   try {
-    const { bookingId } = await req.json();
-    if (!bookingId) throw new Error("Booking ID is required.");
-
-    
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    
-    const { data: transaction, error: transError } = await supabaseAdmin
-      .from('transactions')
-      .select('*')
-      .eq('booking_id', bookingId)
-      .single();
-
-    if (transError) throw new Error(`Error fetching transaction: ${transError.message}`);
-    if (!transaction) throw new Error(`No transaction found for booking ID: ${bookingId}`);
-
-   
-    const totalAmount = transaction.amount;
-    const platformFee = totalAmount * COMMISSION_RATE;
-    const netEarning = totalAmount - platformFee;
-
-   
-    const { error: updateError } = await supabaseAdmin
-      .from('transactions')
-      .update({
-        platform_fee: platformFee,
-        net_earning: netEarning,
-        status: 'completed' 
+    const authHeader = req.headers.get('Authorization') ?? ''
+    if (!authHeader.toLowerCase().startsWith('bearer ')) {
+      return new Response(JSON.stringify({ error: 'No autorizado' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401,
       })
-      .eq('id', transaction.id);
+    }
 
-    if (updateError) throw new Error(`Error updating transaction: ${updateError.message}`);
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    })
 
-    return new Response(JSON.stringify({ message: "Booking processed successfully", netEarning }), {
+    const { data: userData, error: userError } = await userClient.auth.getUser()
+    if (userError || !userData?.user) {
+      return new Response(JSON.stringify({ error: 'No autorizado' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401,
+      })
+    }
+
+    const { bookingId } = await req.json()
+    if (!bookingId) throw new Error('Booking ID is required.')
+
+    const { data, error } = await userClient.rpc('complete_booking', {
+      p_booking_id: bookingId,
+    })
+    if (error) throw new Error(error.message)
+
+    return new Response(JSON.stringify({ message: 'Booking processed successfully', result: data }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     })
-
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    const message = error instanceof Error ? error.message : 'Error'
+    const status = message === 'No autorizado' ? 401 : 400
+    return new Response(JSON.stringify({ error: message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400,
+      status,
     })
   }
 })

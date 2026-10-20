@@ -71,20 +71,15 @@ const RatingModal = ({ booking, onClose, onSuccess }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No hay usuario');
 
-      console.log('[RatingModal] Booking:', booking);
-      console.log('[RatingModal] booking.id type:', typeof booking.id, booking.id);
-
       if (!booking?.id) {
         throw new Error('booking.id no proporcionado');
       }
 
-      const { data: walkerData, error: walkerError } = await supabase
+      const { data: walkerData } = await supabase
         .from('walkers')
         .select('user_id')
         .eq('id', booking.walker_id)
         .maybeSingle();
-
-      console.log('[RatingModal] Walker data:', walkerData, 'error:', walkerError);
 
       const revieweeId = walkerData?.user_id;
       if (!revieweeId) {
@@ -93,8 +88,6 @@ const RatingModal = ({ booking, onClose, onSuccess }) => {
 
       const isUuid = String(booking.id).includes('-');
       const queryBookingId = isUuid ? booking.id : Number(booking.id);
-      console.log('[RatingModal] Using bookingId as:', isUuid ? 'UUID string' : 'bigint', queryBookingId);
-
       const { error: reviewError } = await supabase
         .from('booking_reviews')
         .insert([{
@@ -111,13 +104,11 @@ const RatingModal = ({ booking, onClose, onSuccess }) => {
         throw new Error('Error insertando reseña: ' + reviewError.message);
       }
 
-      const { data: updateData, error: updateError } = await supabase
+      const { error: updateError } = await supabase
         .from('bookings')
         .update({ rating: rating, review_text: comment || null })
         .eq('id', queryBookingId)
         .select();
-
-      console.log('[RatingModal] Booking update result:', updateData, 'error:', updateError);
 
       if (updateError) {
         console.error('[RatingModal] Update error:', updateError);
@@ -127,14 +118,10 @@ const RatingModal = ({ booking, onClose, onSuccess }) => {
       // Process tip if user selected one
       if (tipAmount > 0) {
         setTipping(true);
-        console.log('[RatingModal] Processing tip of', tipAmount, 'for booking', queryBookingId);
-
-        const { data: tipResult, error: tipError } = await supabase.rpc('process_tip', {
+        const { error: tipError } = await supabase.rpc('process_tip', {
           p_booking_id: queryBookingId,
           p_tip_amount: tipAmount,
         });
-
-        console.log('[RatingModal] Tip result:', tipResult, 'error:', tipError);
 
         if (tipError) {
           // Rating was saved but tip failed - warn but don't block

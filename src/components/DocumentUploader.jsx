@@ -46,8 +46,10 @@ const DocumentUploader = ({ type, label, description, value, onChange, cameraMod
 
     setUploading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No hay usuario');
       const fileExt = file.name.split('.').pop();
-      const fileName = `${type}_${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+      const fileName = `${user.id}/${type}_${Date.now()}.${fileExt}`;
       
      
       const { error: uploadError, data } = await supabase.storage

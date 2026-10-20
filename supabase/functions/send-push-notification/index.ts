@@ -63,7 +63,7 @@ serve(async (req) => {
     }
 
     if (!profile?.push_token) {
-      console.log('No push token for user:', payload.user_id);
+      console.log('No push token for user');
       return new Response(
         JSON.stringify({ ok: true, delivered: false, reason: 'no_push_token' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
@@ -113,7 +113,7 @@ serve(async (req) => {
           .from('user_profiles')
           .update({ push_token: null })
           .eq('user_id', payload.user_id);
-        console.log('Removed invalid push token for user:', payload.user_id);
+        console.log('Removed invalid push token');
       }
     }
 

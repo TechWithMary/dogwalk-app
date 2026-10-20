@@ -107,29 +107,12 @@ const WalkerBalance = ({ onBack }) => {
         return;
       }
 
-      const payoutData = {
-        walker_id: walkerData.id,
-        amount: amount,
-        status: 'pending',
-        payout_date: new Date().toISOString().split('T')[0],
-        notes: `Tipo: ${profile?.bank_account_type || 'Nequi'}, Cuenta: ${profile?.bank_account_number || 'No registrada'}`
-      };
-
-      const { error: payoutError } = await supabase
-        .from('payouts')
-        .insert(payoutData);
-
-      if (payoutError) {
-        console.error('Error creando payout:', payoutError);
-        throw payoutError;
-      }
-
-      const { error: notifError } = await supabase.from('notifications').insert({
-        user_id: user.id,
-        title: '💰 Solicitud de Retiro Enviada',
-        body: `Tu solicitud de retiro por $${amount.toLocaleString()} ha sido recibida.`,
-        link_to: '/walker-balance'
+      const { error: payoutError } = await supabase.rpc('request_payout', {
+        p_walker_id: walkerData.id,
+        p_amount: amount,
       });
+
+      if (payoutError) throw payoutError;
 
       toast.success("Solicitud enviada. Te notificaremos cuando procesemos el pago.");
       setShowWithdrawModal(false);
@@ -227,7 +210,6 @@ const WalkerBalance = ({ onBack }) => {
 
         <button 
           onClick={() => {
-            console.log('Abriendo modal de retiro. Balance:', balance);
             setShowWithdrawModal(true);
           }}
           className={`w-full mt-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 active:scale-95`}

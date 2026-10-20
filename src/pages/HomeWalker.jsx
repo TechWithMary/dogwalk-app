@@ -59,8 +59,6 @@ const HomeWalker = ({ currentUser }) => {
         return;
       }
 
-      console.log('Aceptando booking:', bookingId, 'con walker_id:', walkerData.id);
-
       // Update directo
       const { data: updateData, error: updateError } = await supabase
         .from('bookings')
@@ -72,8 +70,6 @@ const HomeWalker = ({ currentUser }) => {
         .eq('id', bookingId)
         .neq('status', 'cancelled')
         .select();
-
-      console.log('Update result:', updateData, 'Error:', updateError);
 
       if (updateError) {
         console.error('Error actualizando:', updateError);
@@ -92,8 +88,6 @@ const HomeWalker = ({ currentUser }) => {
           .eq('id', bookingId)
           .select();
         
-        console.log('Force update:', forceUpdate, 'Error:', forceError);
-        
         if (forceError || !forceUpdate || forceUpdate.length === 0) {
           toast.error('No se pudo aceptar la reserva. Verifica que no esté cancelada.');
           return;
@@ -106,8 +100,6 @@ const HomeWalker = ({ currentUser }) => {
         .eq('id', bookingId)
         .single();
 
-      console.log('Booking después de actualizar:', booking);
-
       if (booking?.user_id) {
         const { error: notifError } = await supabase.from('notifications').insert({
           user_id: booking.user_id,
@@ -115,7 +107,7 @@ const HomeWalker = ({ currentUser }) => {
           body: `${walkerData.name || 'El paseador'} ha aceptado tu reserva. Pronto irá a buscar tu mascota.`,
           link_to: '/home'
         });
-        console.log('Notificación error:', notifError);
+        if (notifError) console.error('No se pudo notificar al dueño');
       }
       
       toast.success('¡Paseo aceptado!');
@@ -172,7 +164,6 @@ const HomeWalker = ({ currentUser }) => {
       return;
     }
 
-    console.log(`[GPS] sendLocation attempt highAccuracy=${useHighAccuracy} for booking ${bookingId}`);
     setGpsError(null);
 
     const geoOptions = useHighAccuracy
@@ -181,7 +172,6 @@ const HomeWalker = ({ currentUser }) => {
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
-        console.log(`[GPS] Got position: ${position.coords.latitude}, ${position.coords.longitude} (accuracy: ${position.coords.accuracy}m)`);
         try {
           const { error } = await supabase.from('locations').insert({
             booking_id: bookingId,
@@ -197,7 +187,6 @@ const HomeWalker = ({ currentUser }) => {
             console.error('[GPS] Insert error:', error);
             setGpsError('Error al guardar ubicación: ' + error.message);
           } else {
-            console.log('[GPS] Location inserted successfully');
             setGpsError(null);
           }
         } catch (err) {
@@ -208,7 +197,6 @@ const HomeWalker = ({ currentUser }) => {
       (err) => {
         console.error('[GPS] getCurrentPosition error:', err.code, err.message);
         if (useHighAccuracy && err.code === 3) {
-          console.log('[GPS] Timeout with high accuracy, retrying without...');
           sendLocation(bookingId, false);
         } else {
           const msg = err.code === 1
@@ -227,7 +215,6 @@ const HomeWalker = ({ currentUser }) => {
   const startGPSTracking = async (walkId) => {
     if (locationIntervalRef.current) return;
     
-    console.log('[GPS] Starting GPS tracking for walk:', walkId);
     setGpsError(null);
     
     if (!walkerIdRef.current) {
@@ -240,7 +227,6 @@ const HomeWalker = ({ currentUser }) => {
           .single();
         if (walkerData) {
           walkerIdRef.current = walkerData.id;
-          console.log('[GPS] Walker ID:', walkerData.id);
         }
       }
     }
@@ -265,7 +251,6 @@ const HomeWalker = ({ currentUser }) => {
   };
 
   const stopGPSTracking = () => {
-    console.log('[GPS] Stopping GPS tracking');
     if (locationIntervalRef.current) {
       clearInterval(locationIntervalRef.current);
       locationIntervalRef.current = null;
@@ -301,60 +286,12 @@ const HomeWalker = ({ currentUser }) => {
     
     setProcessingWalkId(walkId);
     try {
-      const { data: booking } = await supabase
-        .from('bookings')
-        .select('user_id, total_price, walkers(id, user_id)')
-        .eq('id', walkId)
-        .single();
+      const { error: completeError } = await supabase.rpc('complete_booking', {
+        p_booking_id: walkId,
+      });
+      if (completeError) throw completeError;
 
-      const { error } = await supabase
-        .from('bookings')
-        .update({ status: 'completed', walk_end_time: new Date().toISOString() })
-        .eq('id', walkId)
-        .eq('status', 'in_progress');
-
-      if (error) throw error;
-
-      if (booking?.walkers?.user_id) {
-        const price = parseFloat(booking.total_price || 0);
-        const commission = price * 0.20;
-        const netEarning = price - commission;
-
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('balance')
-          .eq('user_id', booking.walkers.user_id)
-          .single();
-
-        const newBalance = (profile?.balance || 0) + netEarning;
-        await supabase
-          .from('user_profiles')
-          .update({ balance: newBalance })
-          .eq('user_id', booking.walkers.user_id);
-
-        await supabase.from('transactions').insert({
-          user_id: booking.walkers.user_id,
-          booking_id: walkId,
-          transaction_type: 'payment',
-          amount: price,
-          net_earning: netEarning,
-          platform_fee: commission,
-          payment_method: 'wallet',
-          status: 'completed',
-          description: `Paseo completado - ${booking.duration}`
-        });
-      }
-
-      if (booking?.user_id) {
-        await supabase.from('notifications').insert({
-          user_id: booking.user_id,
-          title: '✅ Paseo Completado',
-          body: 'El paseo ha terminado. Tu mascota está de vuelta contigo.',
-          link_to: '/home'
-        });
-      }
-      
-      toast.success('¡Paseo completado! Gracias por tu trabajo.');
+      toast.success('Paseo completado. La comisión se aplicó una sola vez.');
       stopGPSTracking();
       fetchWalkerData();
     } catch (error) {
@@ -469,11 +406,6 @@ const HomeWalker = ({ currentUser }) => {
         .in('status', ['pending', 'confirmed']);
 
       const bookings = [...(myBookings || []), ...(availableBookings || [])];
-
-      console.log('Walker ID:', walkerId);
-      console.log('My bookings:', myBookings);
-      console.log('Available bookings:', availableBookings);
-      console.log('Combined:', bookings);
 
       const { data: statsData } = await supabase
         .from('bookings')

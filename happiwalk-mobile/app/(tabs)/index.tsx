@@ -172,13 +172,20 @@ export default function HomeScreen() {
 
       if (userLat && userLng) {
         const { data: allWalkers } = await supabase
-          .from('walkers')
-          .select('*, user_profiles(*)')
-          .eq('overall_verification_status', 'approved')
+          .from('walker_directory')
+          .select('*')
           .eq('is_online', true);
 
         if (allWalkers) {
-          walkersRes = allWalkers.filter((walker: Walker) => {
+          const withProfiles = allWalkers.map((walker) => ({
+            ...walker,
+            user_profiles: {
+              first_name: walker.first_name,
+              last_name: walker.last_name,
+              profile_photo_url: walker.profile_photo_url,
+            },
+          }));
+          walkersRes = withProfiles.filter((walker: Walker) => {
             if (!walker.service_latitude || !walker.service_longitude || !walker.service_radius_km) return false;
             return isWithinRadius(
               userLat, userLng,
@@ -189,12 +196,18 @@ export default function HomeScreen() {
         }
       } else {
         const { data: defaultWalkers } = await supabase
-          .from('walkers')
-          .select('*, user_profiles(*)')
-          .eq('overall_verification_status', 'approved')
+          .from('walker_directory')
+          .select('*')
           .eq('is_online', true)
           .limit(3);
-        walkersRes = defaultWalkers || [];
+        walkersRes = (defaultWalkers || []).map((walker) => ({
+          ...walker,
+          user_profiles: {
+            first_name: walker.first_name,
+            last_name: walker.last_name,
+            profile_photo_url: walker.profile_photo_url,
+          },
+        }));
       }
       setWalkers(walkersRes);
 

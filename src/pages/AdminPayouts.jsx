@@ -45,82 +45,21 @@ const AdminPayouts = () => {
 
     setProcessingId(payoutId);
     try {
-      console.log('Procesando payout:', payoutId, 'nuevo status:', newStatus);
-      
-      // Primero obtener los datos del payout
-      const { data: payoutData, error: fetchError } = await supabase
-        .from('payouts')
-        .select('*, walkers(*)')
-        .eq('id', payoutId)
-        .single();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No hay sesión de administrador');
 
-      if (fetchError) throw fetchError;
-
-      console.log('Payout data:', payoutData);
-
-      const { data, error } = await supabase
-        .from('payouts')
-        .update({ status: newStatus, payout_date: new Date().toISOString().split('T')[0] })
-        .eq('id', payoutId)
-        .select();
-
-      console.log('Update result:', data, 'Error:', error);
-
+      const { error } = await supabase.rpc('process_payout', {
+        p_payout_id: payoutId,
+        p_admin_user_id: user.id,
+        p_action: newStatus === 'completed' ? 'approve' : 'reject',
+        p_admin_note: newStatus === 'completed' ? 'Transferencia realizada' : 'Rechazado desde el panel',
+      });
       if (error) throw error;
 
-      // Si se aprueba, restar del balance del paseador
-      if (newStatus === 'completed' && payoutData?.walkers?.user_id) {
-        const walkerUserId = payoutData.walkers.user_id;
-        console.log('Restando balance del walker:', walkerUserId, 'monto:', payoutData.amount);
-        
-        // Obtener balance actual (convertir a número)
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('balance')
-          .eq('user_id', walkerUserId)
-          .single();
-        
-        const currentBalance = Number(profile?.balance) || 0;
-        const newBalance = Math.max(0, currentBalance - payoutData.amount);
-
-        console.log('Balance actual:', currentBalance, 'Nuevo balance:', newBalance);
-
-        // Actualizar balance (como número)
-        const { error: balanceError } = await supabase
-          .from('user_profiles')
-          .update({ balance: newBalance })
-          .eq('user_id', walkerUserId);
-
-        console.log('Balance update error:', balanceError);
-
-        // Registrar transacción de retiro
-        await supabase.from('transactions').insert({
-          user_id: walkerUserId,
-          transaction_type: 'withdrawal',
-          amount: payoutData.amount,
-          net_amount: payoutData.amount,
-          status: 'completed',
-          description: `Retiro aprobado - ${payoutData.notes || ''}`
-        });
-      }
-
-      // Notificar al paseador
-      if (payoutData?.walkers?.user_id) {
-        await supabase.from('notifications').insert({
-          user_id: payoutData.walkers.user_id,
-          title: newStatus === 'completed' ? '✅ Retiro Aprobado' : '❌ Retiro Rechazado',
-          body: newStatus === 'completed' 
-            ? `Tu retiro de $${payoutData.amount?.toLocaleString()} ha sido procesado.`
-            : 'Tu solicitud de retiro ha sido rechazada. Contacta soporte.',
-          link_to: '/walker-balance'
-        });
-      }
-
-      toast.success(newStatus === 'completed' ? 'Retiro aprobado y balance actualizado' : 'Retiro rechazado');
-      // Forzar recarga de datos
+      toast.success(newStatus === 'completed' ? 'Retiro aprobado' : 'Retiro rechazado y saldo devuelto');
       setTimeout(() => fetchPayouts(), 500);
     } catch (error) {
-      console.error('Error procesando payout:', error);
+      console.error('Error procesando payout');
       toast.error("Error al procesar: " + error.message);
     } finally {
       setProcessingId(null);
